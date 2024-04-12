@@ -1,13 +1,15 @@
-# output how many hours you have studied today
-
 import datetime
+import pytz
 from googleapiclient.errors import HttpError
 from authenticate import authenticate_google_calendar 
 
 def get_all_studying_hours(service, calendar_id):
+    # Get the current local timezone
+    local_timezone = datetime.datetime.now(datetime.timezone.utc).astimezone().tzinfo
+
     # Get today's date in the correct format
-    today_start = datetime.datetime.now().replace(hour=0, minute=0, second=0, microsecond=0).isoformat() + 'Z'
-    today_end = datetime.datetime.now().replace(hour=23, minute=59, second=59, microsecond=999999).isoformat() + 'Z'
+    today_start = datetime.datetime.now().replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=local_timezone).isoformat()
+    today_end = datetime.datetime.now().replace(hour=23, minute=59, second=59, microsecond=999999, tzinfo=local_timezone).isoformat()
     
     # Fetch events happening today
     try:
@@ -27,18 +29,20 @@ def get_all_studying_hours(service, calendar_id):
     for event in events:
         start = event['start'].get('dateTime', event['start'].get('date'))
         end = event['end'].get('dateTime', event['end'].get('date'))
-        start_time = datetime.datetime.fromisoformat(start[:-1])
-        end_time = datetime.datetime.fromisoformat(end[:-1])
+        start_time = datetime.datetime.fromisoformat(start)
+        end_time = datetime.datetime.fromisoformat(end)
         duration = end_time - start_time
         total_hours += duration.total_seconds() / 3600
     
-    print(f"Total studying hours for today: {total_hours:.2f} hours")
+    print(f"Total studying hours scheduled for today: {total_hours:.2f} hours")
     
 def get_studying_hours_completed_today(service, calendar_id):
-    # Get today's date for the start of the day
-    today_start = datetime.datetime.now().replace(hour=0, minute=0, second=0, microsecond=0).isoformat() + 'Z'
-    # Use the current time as the end time instead of the end of the day
-    now = datetime.datetime.now().isoformat() + 'Z'
+    # Get the current local timezone
+    local_timezone = datetime.datetime.now(datetime.timezone.utc).astimezone().tzinfo
+
+    # Get today's date for the start of the day and current time
+    today_start = datetime.datetime.now().replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=local_timezone).isoformat()
+    now = datetime.datetime.now(tz=local_timezone).isoformat()
 
     # Fetch events happening today up until now
     try:
@@ -58,10 +62,10 @@ def get_studying_hours_completed_today(service, calendar_id):
     for event in events:
         start = event['start'].get('dateTime', event['start'].get('date'))
         end = event['end'].get('dateTime', event['end'].get('date'))
-        start_time = datetime.datetime.fromisoformat(start[:-1])
-        end_time = datetime.datetime.fromisoformat(end[:-1])
+        start_time = datetime.datetime.fromisoformat(start)
+        end_time = datetime.datetime.fromisoformat(end)
         # Ensure the event has ended before adding to total hours
-        if end_time <= datetime.datetime.now():
+        if end_time <= datetime.datetime.now(tz=local_timezone):
             duration = end_time - start_time
             total_hours += duration.total_seconds() / 3600
 
