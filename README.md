@@ -1,15 +1,22 @@
 # Study Tracker and Planner
 
+
 ## Description
 
 ### `study_plan.ipynb`
 This Jupyter notebook generates a study plan for the current day and the next day. It calculates the available study time between 9 AM and 5 PM, considering a 5-minute break between 40-minute study blocks. The study blocks are allocated to each subject based on their weighting. The notebook also ensures that no study blocks are added during the lunch hour (12:30 PM - 1:30 PM). The generated study plan is then inserted into the specified Google Calendar.
 
+![study image](fig2.png)
+
 ### `todays_studying.ipynb`
 This Jupyter notebook provides statistics on your studying time for today so you can run this while you are studying to see your progress. It fetches the studying hours for the current day from your Google Calendar and calculates the percentage of planned studying hours completed. It also calculates the average studying hours over the last week and month. The notebook presents this data in a clear and concise manner, allowing you to track your studying progress effectively.
 
+![study image](fig3.png)
+
 ### `study_stats.py`
 This Jupyter notebook provides statistics on your studying time overall with different charts which visualise what you have studied over the past time frames.
+
+![study image](fig1.png)
 
 ### Functionality
 - Gives stats on studying time
