@@ -1,2 +1,3 @@
 credentials*
 token*
+__pycache__/*
