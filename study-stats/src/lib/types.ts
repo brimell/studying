@@ -72,10 +72,37 @@ export interface HabitDay {
   level: 0 | 1 | 2 | 3 | 4; // intensity: 0=none, 1=light, 2=medium, 3=good, 4=great
 }
 
+export interface HabitCompletionDay {
+  date: string;
+  completed: boolean;
+}
+
+export interface HabitDefinition {
+  name: string;
+  slug: string;
+  days: HabitCompletionDay[];
+  currentStreak: number;
+  longestStreak: number;
+  totalCompleted: number;
+}
+
+export interface TrackerCalendarOption {
+  id: string;
+  summary: string;
+  accessRole: string;
+  primary: boolean;
+}
+
 export interface HabitTrackerData {
   days: HabitDay[];
   currentStreak: number;
   longestStreak: number;
   totalDaysStudied: number;
   totalHours: number;
+  trackerCalendarId: string | null;
+  trackerRange: {
+    startDate: string;
+    endDate: string;
+  };
+  habits: HabitDefinition[];
 }

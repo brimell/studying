@@ -31,12 +31,22 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="space-y-6">
-      <TodayProgress />
-      <HabitTracker />
-      <StudyProjection />
-      <DailyStudyChart />
-      <SubjectDistribution />
+    <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+      <div className="xl:col-span-5">
+        <TodayProgress />
+      </div>
+      <div className="xl:col-span-7">
+        <StudyProjection />
+      </div>
+      <div className="xl:col-span-12">
+        <HabitTracker />
+      </div>
+      <div className="xl:col-span-7">
+        <DailyStudyChart />
+      </div>
+      <div className="xl:col-span-5">
+        <SubjectDistribution />
+      </div>
     </div>
   );
 }
