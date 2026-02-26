@@ -3,7 +3,6 @@ import { calendar_v3 } from "googleapis";
 import { auth } from "@/lib/auth";
 import {
   fetchEventsFromAllCalendars,
-  fetchHabitSourceCalendars,
   fetchTrackerCalendars,
   getCalendarClient,
   getLogicalDayBoundaries,
@@ -20,6 +19,7 @@ const DEFAULT_STUDY_HABIT_NAME = "Studying";
 interface HabitConfigEntry {
   name: string;
   mode: HabitMode;
+  trackingCalendarId: string | null;
   sourceCalendarIds: string[];
   matchTerms: string[];
 }
@@ -136,6 +136,8 @@ function sanitizeHabitConfigs(habits: HabitConfigEntry[]): HabitConfigEntry[] {
     unique.push({
       name,
       mode,
+      trackingCalendarId:
+        mode === "binary" ? rawHabit.trackingCalendarId?.trim() || null : null,
       sourceCalendarIds:
         mode === "duration" ? sanitizeCalendarIds(rawHabit.sourceCalendarIds || []) : [],
       matchTerms: mode === "duration" ? sanitizeTerms(rawHabit.matchTerms || []) : [],
@@ -201,6 +203,7 @@ function getDefaultHabitConfigs(): HabitConfigEntry[] {
     {
       name: DEFAULT_STUDY_HABIT_NAME,
       mode: "duration",
+      trackingCalendarId: null,
       sourceCalendarIds: getDefaultSourceCalendarIds(),
       matchTerms: getDefaultStudyTerms(),
     },
@@ -278,6 +281,10 @@ async function getHabitConfig(
           .map((value) => ({
             name: String(value.name || ""),
             mode: normalizeHabitMode(String(value.mode || "binary")),
+            trackingCalendarId:
+              typeof value.trackingCalendarId === "string"
+                ? value.trackingCalendarId
+                : null,
             sourceCalendarIds: Array.isArray(value.sourceCalendarIds)
               ? value.sourceCalendarIds.filter((id): id is string => typeof id === "string")
               : [],
@@ -293,6 +300,7 @@ async function getHabitConfig(
           .map((name) => ({
             name,
             mode: "binary" as HabitMode,
+            trackingCalendarId: null,
             sourceCalendarIds: [],
             matchTerms: [],
           }))
@@ -513,6 +521,28 @@ async function buildDurationHoursByDate(
   return hoursByDate;
 }
 
+async function listBinaryCompletionEventsByHabit(
+  calendar: calendar_v3.Calendar,
+  habits: HabitConfigEntry[],
+  fallbackCalendarId: string,
+  startDate: string,
+  endDate: string
+): Promise<calendar_v3.Schema$Event[]> {
+  const calendarIds = sanitizeCalendarIds(
+    habits
+      .filter((habit) => habit.mode === "binary")
+      .map((habit) => habit.trackingCalendarId || fallbackCalendarId)
+  );
+
+  const results = await Promise.all(
+    calendarIds.map((calendarId) =>
+      listHabitCompletionEvents(calendar, calendarId, startDate, endDate)
+    )
+  );
+
+  return results.flat();
+}
+
 function buildHabitDefinitions(
   habits: HabitConfigEntry[],
   completionEvents: calendar_v3.Schema$Event[],
@@ -574,6 +604,7 @@ function buildHabitDefinitions(
       name: habit.name,
       slug,
       mode: habit.mode,
+      trackingCalendarId: habit.trackingCalendarId,
       sourceCalendarIds: habit.sourceCalendarIds,
       matchTerms: habit.matchTerms,
       days,
@@ -661,8 +692,9 @@ export async function GET(req: NextRequest) {
     }
 
     const config = await getHabitConfig(calendar, trackerCalendarId);
-    const completionEvents = await listHabitCompletionEvents(
+    const completionEvents = await listBinaryCompletionEventsByHabit(
       calendar,
+      config.habits,
       trackerCalendarId,
       startDate,
       endDate
@@ -733,6 +765,7 @@ export async function POST(req: NextRequest) {
       trackerCalendarId?: string;
       habitName?: string;
       habitMode?: HabitMode;
+      trackingCalendarId?: string;
       sourceCalendarIds?: string[];
       matchTerms?: string | string[];
     };
@@ -756,6 +789,10 @@ export async function POST(req: NextRequest) {
     }
 
     const sourceCalendarIds = sanitizeCalendarIds(body.sourceCalendarIds || []);
+    const trackingCalendarId =
+      habitMode === "binary"
+        ? ((body.trackingCalendarId || "").trim() || trackerCalendarId)
+        : null;
     const matchTerms = Array.isArray(body.matchTerms)
       ? sanitizeTerms(body.matchTerms)
       : typeof body.matchTerms === "string"
@@ -775,6 +812,7 @@ export async function POST(req: NextRequest) {
       {
         name: habitName,
         mode: habitMode,
+        trackingCalendarId,
         sourceCalendarIds,
         matchTerms,
       },
@@ -803,6 +841,7 @@ export async function PUT(req: NextRequest) {
       trackerCalendarId?: string;
       habitName?: string;
       habitMode?: HabitMode;
+      trackingCalendarId?: string;
       sourceCalendarIds?: string[];
       matchTerms?: string | string[];
     };
@@ -825,6 +864,7 @@ export async function PUT(req: NextRequest) {
     }
 
     const sourceCalendarIds = sanitizeCalendarIds(body.sourceCalendarIds || []);
+    const requestedTrackingCalendarId = (body.trackingCalendarId || "").trim();
     const matchTerms = Array.isArray(body.matchTerms)
       ? sanitizeTerms(body.matchTerms)
       : typeof body.matchTerms === "string"
@@ -840,6 +880,10 @@ export async function PUT(req: NextRequest) {
       return {
         ...habit,
         mode,
+        trackingCalendarId:
+          mode === "binary"
+            ? requestedTrackingCalendarId || habit.trackingCalendarId || trackerCalendarId
+            : null,
         sourceCalendarIds: mode === "duration" ? sourceCalendarIds : [],
         matchTerms: mode === "duration" ? matchTerms : [],
       };
@@ -917,6 +961,7 @@ export async function PATCH(req: NextRequest) {
         {
           name: habitName,
           mode: requestedMode,
+          trackingCalendarId: trackerCalendarId,
           sourceCalendarIds: [],
           matchTerms: [],
         },
@@ -937,7 +982,8 @@ export async function PATCH(req: NextRequest) {
     }
 
     const completed = Boolean(body.completed);
-    await upsertHabitCompletionEvent(calendar, trackerCalendarId, habit, date, completed ? 1 : 0);
+    const binaryCalendarId = habit.trackingCalendarId || trackerCalendarId;
+    await upsertHabitCompletionEvent(calendar, binaryCalendarId, habit, date, completed ? 1 : 0);
     return NextResponse.json({ ok: true });
   } catch (error: unknown) {
     console.error("Error toggling habit completion:", error);
@@ -975,17 +1021,30 @@ export async function DELETE(req: NextRequest) {
     }
 
     const config = await getHabitConfig(calendar, trackerCalendarId);
+    const targetHabit = config.habits.find(
+      (entry) => entry.name.toLowerCase() === habitName.toLowerCase()
+    );
     const nextHabits = config.habits.filter(
       (entry) => entry.name.toLowerCase() !== habitName.toLowerCase()
     );
 
     await saveHabitConfig(calendar, trackerCalendarId, nextHabits, config.eventId);
-    await deleteHabitCompletionEvents(
-      calendar,
-      trackerCalendarId,
-      slugifyHabitName(habitName),
-      "2000-01-01",
-      "2100-01-01"
+    const deleteCalendarIds = sanitizeCalendarIds(
+      targetHabit?.mode === "binary"
+        ? [trackerCalendarId, targetHabit.trackingCalendarId || ""]
+        : [trackerCalendarId]
+    );
+
+    await Promise.all(
+      deleteCalendarIds.map((calendarId) =>
+        deleteHabitCompletionEvents(
+          calendar,
+          calendarId,
+          slugifyHabitName(habitName),
+          "2000-01-01",
+          "2100-01-01"
+        )
+      )
     );
 
     return NextResponse.json({ ok: true });

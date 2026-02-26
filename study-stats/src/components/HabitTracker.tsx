@@ -134,6 +134,7 @@ function buildEmptyHabit(
     name,
     slug: slugifyHabitName(name),
     mode,
+    trackingCalendarId: null,
     sourceCalendarIds: [],
     matchTerms: [],
     days,
@@ -217,8 +218,14 @@ export default function HabitTracker() {
 
   const [newHabitName, setNewHabitName] = useState("");
   const [newHabitMode, setNewHabitMode] = useState<HabitMode>("binary");
+  const [newHabitTrackingCalendarId, setNewHabitTrackingCalendarId] = useState<string | null>(null);
   const [newHabitSourceCalendarIds, setNewHabitSourceCalendarIds] = useState<string[]>([]);
   const [newHabitMatchTerms, setNewHabitMatchTerms] = useState("");
+  const [habitTrackingCalendarDrafts, setHabitTrackingCalendarDrafts] = useState<
+    Record<string, string | null>
+  >({});
+  const [habitSourceDrafts, setHabitSourceDrafts] = useState<Record<string, string[]>>({});
+  const [habitTermsDrafts, setHabitTermsDrafts] = useState<Record<string, string>>({});
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [milestones, setMilestones] = useState<MilestoneDate[]>([]);
@@ -312,9 +319,13 @@ export default function HabitTracker() {
 
         const cached = readCache<TrackerCalendarResponse>(TRACKER_CALENDARS_CACHE_KEY);
         if (cached) {
-          const trackerCalendarData = cached.data.trackerCalendars;
+          const trackerCalendarData =
+            cached.data.trackerCalendars ||
+            (cached.data as unknown as { calendars?: TrackerCalendarOption[] }).calendars ||
+            [];
+          const sourceCalendarData = cached.data.sourceCalendars || [];
           setCalendars(trackerCalendarData);
-          setSourceCalendars(cached.data.sourceCalendars);
+          setSourceCalendars(sourceCalendarData);
 
           const storedCalendarId = window.localStorage.getItem(TRACKER_CALENDAR_STORAGE_KEY);
           const storedIsValid =
@@ -322,12 +333,16 @@ export default function HabitTracker() {
             trackerCalendarData.some((entry) => entry.id === storedCalendarId);
 
           const nextSelectedId =
-            (storedIsValid ? storedCalendarId : cached.data.defaultTrackerCalendarId) || null;
+            (storedIsValid
+              ? storedCalendarId
+              : cached.data.defaultTrackerCalendarId ||
+                (cached.data as unknown as { defaultCalendarId?: string | null })
+                  .defaultCalendarId) || null;
 
           setSelectedTrackerCalendarId(nextSelectedId);
 
           if (newHabitSourceCalendarIds.length === 0) {
-            const defaults = cached.data.defaultSourceCalendarIds;
+            const defaults = cached.data.defaultSourceCalendarIds || [];
             if (defaults.length > 0) setNewHabitSourceCalendarIds(defaults);
           }
 
@@ -387,6 +402,26 @@ export default function HabitTracker() {
     if (!selectedTrackerCalendarId) return;
     window.localStorage.setItem(TRACKER_CALENDAR_STORAGE_KEY, selectedTrackerCalendarId);
   }, [selectedTrackerCalendarId]);
+
+  useEffect(() => {
+    if (!newHabitTrackingCalendarId && selectedTrackerCalendarId) {
+      setNewHabitTrackingCalendarId(selectedTrackerCalendarId);
+    }
+  }, [newHabitTrackingCalendarId, selectedTrackerCalendarId]);
+
+  useEffect(() => {
+    if (sourceCalendars.length === 0) return;
+    const validIds = new Set(sourceCalendars.map((entry) => entry.id));
+    setNewHabitSourceCalendarIds((previous) => previous.filter((id) => validIds.has(id)));
+  }, [sourceCalendars]);
+
+  useEffect(() => {
+    if (calendars.length === 0) return;
+    if (newHabitTrackingCalendarId && calendars.some((entry) => entry.id === newHabitTrackingCalendarId)) {
+      return;
+    }
+    setNewHabitTrackingCalendarId(selectedTrackerCalendarId || calendars[0].id);
+  }, [calendars, newHabitTrackingCalendarId, selectedTrackerCalendarId]);
 
   useEffect(() => {
     if (calendarsLoading) return;
@@ -656,8 +691,31 @@ export default function HabitTracker() {
     await updateHabitDay(habitName, "binary", date, { completed });
   };
 
-  const setHabitDuration = async (habitName: string, date: string, hours: number) => {
-    await updateHabitDay(habitName, "duration", date, { hours });
+  const updateDurationHabitConfig = async (habitName: string, sourceIds: string[], terms: string) => {
+    if (!selectedTrackerCalendarId || sourceIds.length === 0) {
+      setActionError("Select at least one calendar for time tracking habits.");
+      return;
+    }
+
+    try {
+      setActionLoading(true);
+      setActionError(null);
+      await runAction({
+        method: "PUT",
+        body: JSON.stringify({
+          trackerCalendarId: selectedTrackerCalendarId,
+          habitName,
+          sourceCalendarIds: sourceIds,
+          matchTerms: terms,
+        }),
+      });
+      await refreshData();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to update habit settings";
+      setActionError(message);
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   const removeHabit = async (habitName: string) => {
@@ -730,11 +788,24 @@ export default function HabitTracker() {
     return () => window.removeEventListener("study-stats:refresh-all", onRefreshAll);
   }, [refreshData]);
 
+  useEffect(() => {
+    if (!data) return;
+    const nextSources: Record<string, string[]> = {};
+    const nextTerms: Record<string, string> = {};
+    for (const habit of data.habits) {
+      if (habit.mode !== "duration") continue;
+      nextSources[habit.slug] = habit.sourceCalendarIds;
+      nextTerms[habit.slug] = habit.matchTerms.join(", ");
+    }
+    setHabitSourceDrafts(nextSources);
+    setHabitTermsDrafts(nextTerms);
+  }, [data]);
+
   return (
     <div className="rounded-2xl bg-white dark:bg-zinc-900 p-6 shadow-sm border border-zinc-200 dark:border-zinc-800">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
         <div>
-          <h2 className="text-lg font-semibold">Habit Tracker</h2>
+          <h2 className="text-lg font-semibold">📊 Habit Tracker</h2>
           <p className="text-xs text-zinc-500 mt-1">
             Study consistency plus custom habits stored in Google Calendar.
           </p>
@@ -867,7 +938,7 @@ export default function HabitTracker() {
                     <div className="mt-1.5 pt-1.5 border-t border-zinc-600">
                       {(milestonesByDate.get(tooltip.day.date) || []).map((milestone) => (
                         <div key={milestone.id} className="text-[11px] text-red-200">
-                          {milestone.type === "exam" ? "Exam" : "Coursework"}: {milestone.title}
+                          {milestone.type === "exam" ? "🧪 Exam" : "📚 Coursework"}: {milestone.title}
                         </div>
                       ))}
                     </div>
@@ -884,13 +955,13 @@ export default function HabitTracker() {
               <span>More</span>
               <span className="ml-3 text-zinc-400">0h, &lt;1h, 1-3h, 3-5h, 5h+</span>
               <div className="w-[13px] h-[13px] rounded-[2px] ring-1 ring-red-500 ring-inset ml-3" />
-              <span className="text-zinc-400">Exam/coursework date</span>
+              <span className="text-zinc-400">🟥 Exam/coursework date</span>
             </div>
           </div>
 
           <div className="border-t border-zinc-200 dark:border-zinc-800 pt-6">
             <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-              <h3 className="text-base font-semibold">Exam and Coursework Dates</h3>
+              <h3 className="text-base font-semibold">🗓️ Exam and Coursework Dates</h3>
               <span className="text-xs text-zinc-500">Outlined in red on the study calendar</span>
             </div>
 
@@ -902,8 +973,8 @@ export default function HabitTracker() {
                 }
                 className="text-sm border rounded-lg px-3 py-2 bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
               >
-                <option value="exam">Exam</option>
-                <option value="coursework">Coursework</option>
+                <option value="exam">🧪 Exam</option>
+                <option value="coursework">📚 Coursework</option>
               </select>
               <input
                 type="text"
@@ -942,7 +1013,7 @@ export default function HabitTracker() {
                     <div className="min-w-0">
                       <p className="text-sm font-medium truncate">{milestone.title}</p>
                       <p className="text-xs text-zinc-500">
-                        {milestone.type === "exam" ? "Exam" : "Coursework"} on{" "}
+                        {milestone.type === "exam" ? "🧪 Exam" : "📚 Coursework"} on{" "}
                         {new Date(`${milestone.date}T12:00:00`).toLocaleDateString("en-GB", {
                           weekday: "short",
                           day: "numeric",
@@ -966,7 +1037,7 @@ export default function HabitTracker() {
 
           <div className="border-t border-zinc-200 dark:border-zinc-800 pt-6">
             <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-              <h3 className="text-base font-semibold">Custom Habit Checklist</h3>
+              <h3 className="text-base font-semibold">✅ Custom Habit Checklist</h3>
               <span className="text-xs text-zinc-500">{trackerRangeLabel}</span>
             </div>
 
@@ -978,25 +1049,70 @@ export default function HabitTracker() {
                 disabled={!selectedTrackerCalendarId || actionLoading}
                 aria-label="Select habit tracking mode"
               >
-                <option value="binary">Yes/No</option>
-                <option value="duration">Hours</option>
+                <option value="binary">✅ Yes/No</option>
+                <option value="duration">⏱️ Hours</option>
               </select>
               <input
                 type="text"
                 value={newHabitName}
                 onChange={(event) => setNewHabitName(event.target.value)}
-                placeholder="Add a habit (e.g. Gym)"
+                placeholder="Add a habit (e.g. 🏋️ Gym)"
                 className="flex-1 min-w-56 border rounded-lg px-3 py-2 text-sm bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
                 disabled={!selectedTrackerCalendarId || actionLoading}
               />
               <button
                 type="submit"
-                disabled={!selectedTrackerCalendarId || actionLoading || !newHabitName.trim()}
+                disabled={
+                  !selectedTrackerCalendarId ||
+                  actionLoading ||
+                  !newHabitName.trim() ||
+                  (newHabitMode === "duration" && newHabitSourceCalendarIds.length === 0)
+                }
                 className="px-4 py-2 rounded-lg bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white text-sm font-medium transition-colors"
               >
-                Add habit
+                ➕ Add habit
               </button>
             </form>
+
+            {newHabitMode === "duration" && (
+              <div className="mb-4 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 p-3 space-y-3">
+                <p className="text-xs text-zinc-500">Select calendars to scan for this time-tracking habit.</p>
+                <div className="grid sm:grid-cols-2 gap-2">
+                  {sourceCalendars.map((calendarOption) => (
+                    <label key={calendarOption.id} className="flex items-center gap-2 text-xs">
+                      <input
+                        type="checkbox"
+                        checked={newHabitSourceCalendarIds.includes(calendarOption.id)}
+                        onChange={(event) => {
+                          setNewHabitSourceCalendarIds((previous) =>
+                            event.target.checked
+                              ? [...previous, calendarOption.id]
+                              : previous.filter((id) => id !== calendarOption.id)
+                          );
+                        }}
+                      />
+                      <span>
+                        {calendarOption.summary}
+                        {calendarOption.primary ? " (Primary)" : ""}
+                      </span>
+                    </label>
+                  ))}
+                  {!hasSourceCalendars && (
+                    <p className="text-xs text-zinc-500">No readable calendars available.</p>
+                  )}
+                </div>
+                <label className="block">
+                  <span className="text-xs text-zinc-500">Match terms (optional, comma separated)</span>
+                  <input
+                    type="text"
+                    value={newHabitMatchTerms}
+                    onChange={(event) => setNewHabitMatchTerms(event.target.value)}
+                    placeholder="e.g. maths, revision"
+                    className="mt-1 w-full border rounded-lg px-3 py-2 text-sm bg-white dark:bg-zinc-900 dark:border-zinc-700"
+                  />
+                </label>
+              </div>
+            )}
 
             {actionError && <p className="text-sm text-red-500 mb-3">{actionError}</p>}
 
@@ -1023,8 +1139,8 @@ export default function HabitTracker() {
                         <p className="font-medium text-sm">{habit.name}</p>
                         <p className="text-xs text-zinc-500">
                           {habit.mode === "duration"
-                            ? `Hours mode, current streak ${habit.currentStreak}d, longest ${habit.longestStreak}d, active ${habit.totalCompleted} days, total ${habit.totalHours.toFixed(1)}h`
-                            : `Yes/No mode, current streak ${habit.currentStreak}d, longest ${habit.longestStreak}d, completed ${habit.totalCompleted} days`}
+                            ? `⏱️ Hours mode, current streak ${habit.currentStreak}d, longest ${habit.longestStreak}d, active ${habit.totalCompleted} days, total ${habit.totalHours.toFixed(1)}h`
+                            : `✅ Yes/No mode, current streak ${habit.currentStreak}d, longest ${habit.longestStreak}d, completed ${habit.totalCompleted} days`}
                         </p>
                       </div>
                       <button
@@ -1038,6 +1154,66 @@ export default function HabitTracker() {
                     </div>
 
                     <div className="overflow-x-auto pb-2">
+                      {habit.mode === "duration" && (
+                        <div className="mb-3 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-3 space-y-3">
+                          <p className="text-xs text-zinc-500">Time-tracking sources for this habit</p>
+                          <div className="grid sm:grid-cols-2 gap-2">
+                            {sourceCalendars.map((calendarOption) => (
+                              <label key={`${habit.slug}-${calendarOption.id}`} className="flex items-center gap-2 text-xs">
+                                <input
+                                  type="checkbox"
+                                  checked={(habitSourceDrafts[habit.slug] || []).includes(calendarOption.id)}
+                                  onChange={(event) => {
+                                    setHabitSourceDrafts((previous) => {
+                                      const existing = previous[habit.slug] || [];
+                                      return {
+                                        ...previous,
+                                        [habit.slug]: event.target.checked
+                                          ? [...existing, calendarOption.id]
+                                          : existing.filter((id) => id !== calendarOption.id),
+                                      };
+                                    });
+                                  }}
+                                />
+                                <span>
+                                  {calendarOption.summary}
+                                  {calendarOption.primary ? " (Primary)" : ""}
+                                </span>
+                              </label>
+                            ))}
+                          </div>
+                          <label className="block">
+                            <span className="text-xs text-zinc-500">Match terms (optional, comma separated)</span>
+                            <input
+                              type="text"
+                              value={habitTermsDrafts[habit.slug] || ""}
+                              onChange={(event) =>
+                                setHabitTermsDrafts((previous) => ({
+                                  ...previous,
+                                  [habit.slug]: event.target.value,
+                                }))
+                              }
+                              placeholder="e.g. maths, revision"
+                              className="mt-1 w-full border rounded-lg px-3 py-2 text-sm bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
+                            />
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateDurationHabitConfig(
+                                habit.name,
+                                habitSourceDrafts[habit.slug] || [],
+                                habitTermsDrafts[habit.slug] || ""
+                              )
+                            }
+                            disabled={actionLoading}
+                            className="px-3 py-1.5 rounded-md text-xs bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors"
+                          >
+                            Save sources
+                          </button>
+                        </div>
+                      )}
+
                       <div className="flex ml-8 mb-1 relative" style={{ gap: 0 }}>
                         {habitMonthLabels.map((monthLabel) => (
                           <span
@@ -1068,7 +1244,7 @@ export default function HabitTracker() {
                               <button
                                 key={`${habit.slug}-${weekIndex}-${dayIndex}`}
                                 type="button"
-                                disabled={actionLoading || !day}
+                                disabled={actionLoading || !day || habit.mode === "duration"}
                                 aria-label={
                                   day
                                     ? habit.mode === "duration"
@@ -1079,26 +1255,12 @@ export default function HabitTracker() {
                                 title={
                                   day
                                     ? habit.mode === "duration"
-                                      ? `${formatShortDate(day.date)} - ${day.hours.toFixed(1)}h (click to edit)`
+                                      ? `${formatShortDate(day.date)} - ${day.hours.toFixed(1)}h`
                                       : `${formatShortDate(day.date)} - ${day.completed ? "Complete" : "Not done"}`
                                     : ""
                                 }
                                 onClick={() => {
                                   if (!day) return;
-                                  if (habit.mode === "duration") {
-                                    const input = window.prompt(
-                                      `Hours for ${habit.name} on ${day.date} (0 to clear)`,
-                                      day.hours > 0 ? String(day.hours) : ""
-                                    );
-                                    if (input === null) return;
-                                    const parsed = Number(input.trim());
-                                    if (!Number.isFinite(parsed) || parsed < 0) {
-                                      setActionError("Enter a valid number of hours (0 or more).");
-                                      return;
-                                    }
-                                    void setHabitDuration(habit.name, day.date, parsed);
-                                    return;
-                                  }
                                   void toggleHabit(habit.name, day.date, !day.completed);
                                 }}
                                 className={`w-[13px] h-[13px] rounded-[2px] transition-colors ${

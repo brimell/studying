@@ -20,6 +20,29 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Optional: Supabase Account Sync
+
+You can use the app without Supabase (Google + localStorage still works).
+
+If you want cross-device sync for local settings:
+
+1. Add these env vars to `.env.local`:
+
+```bash
+NEXT_PUBLIC_SUPABASE_URL=...
+NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+SUPABASE_SERVICE_ROLE_KEY=...
+# Optional override (defaults to study_stats_user_sync):
+SUPABASE_SYNC_TABLE=study_stats_user_sync
+```
+
+2. Run the SQL in [`supabase/schema.sql`](./supabase/schema.sql) in your Supabase project.
+
+3. Start the app and use the `☁️ Account Sync` menu in the top bar to:
+- Sign up / sign in (email + password)
+- Back up local `study-stats*` settings to cloud
+- Restore those settings on another device
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

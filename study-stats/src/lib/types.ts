@@ -85,6 +85,7 @@ export interface HabitDefinition {
   name: string;
   slug: string;
   mode: HabitMode;
+  trackingCalendarId: string | null;
   sourceCalendarIds: string[];
   matchTerms: string[];
   days: HabitCompletionDay[];
