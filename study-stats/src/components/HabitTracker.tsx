@@ -10,6 +10,7 @@ import type {
 } from "@/lib/types";
 import { DEFAULT_SUBJECTS } from "@/lib/types";
 import { isStale, readCache, writeCache, writeGlobalLastFetched } from "@/lib/client-cache";
+import { lockBodyScroll, unlockBodyScroll } from "@/lib/scroll-lock";
 
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const TRACKER_CALENDAR_STORAGE_KEY = "study-stats.tracker-calendar-id";
@@ -190,6 +191,33 @@ function addMonths(dateKey: string, amount: number): string {
 
 function isValidDateInput(value: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
+function readMilestonesFromStorage(): MilestoneDate[] {
+  const raw = window.localStorage.getItem(MILESTONES_STORAGE_KEY);
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    const valid = parsed.filter((item): item is MilestoneDate => {
+      return (
+        typeof item === "object" &&
+        item !== null &&
+        "id" in item &&
+        "type" in item &&
+        "title" in item &&
+        "date" in item &&
+        typeof item.id === "string" &&
+        (item.type === "exam" || item.type === "coursework") &&
+        typeof item.title === "string" &&
+        typeof item.date === "string" &&
+        isValidDateInput(item.date)
+      );
+    });
+    return valid.sort((a, b) => a.date.localeCompare(b.date));
+  } catch {
+    return [];
+  }
 }
 
 function toHabitLevel(hours: number): 0 | 1 | 2 | 3 | 4 {
@@ -425,6 +453,17 @@ export default function HabitTracker() {
   const [editingDurationHabitSlug, setEditingDurationHabitSlug] = useState<string | null>(null);
   const habitDayQueueRef = useRef<QueuedHabitDayUpdate[]>([]);
   const habitDayQueueRunningRef = useRef(false);
+  const hasOpenModal =
+    showAddMilestoneModal ||
+    showAddHabitModal ||
+    editingBinaryHabitSlug !== null ||
+    editingDurationHabitSlug !== null;
+
+  useEffect(() => {
+    if (!hasOpenModal) return;
+    lockBodyScroll();
+    return () => unlockBodyScroll();
+  }, [hasOpenModal]);
 
   useEffect(() => {
     const raw = window.localStorage.getItem(HABIT_WEEKS_STORAGE_KEY);
@@ -550,30 +589,7 @@ export default function HabitTracker() {
   }, [habitShowFutureDays]);
 
   useEffect(() => {
-    const raw = window.localStorage.getItem(MILESTONES_STORAGE_KEY);
-    if (!raw) return;
-    try {
-      const parsed = JSON.parse(raw) as unknown;
-      if (!Array.isArray(parsed)) return;
-      const valid = parsed.filter((item): item is MilestoneDate => {
-        return (
-          typeof item === "object" &&
-          item !== null &&
-          "id" in item &&
-          "type" in item &&
-          "title" in item &&
-          "date" in item &&
-          typeof item.id === "string" &&
-          (item.type === "exam" || item.type === "coursework") &&
-          typeof item.title === "string" &&
-          typeof item.date === "string" &&
-          isValidDateInput(item.date)
-        );
-      });
-      setMilestones(valid.sort((a, b) => a.date.localeCompare(b.date)));
-    } catch {
-      // Ignore malformed localStorage payload.
-    }
+    setMilestones(readMilestonesFromStorage());
   }, []);
 
   useEffect(() => {
@@ -1347,6 +1363,12 @@ export default function HabitTracker() {
   }, [refreshData]);
 
   useEffect(() => {
+    const onMilestonesUpdated = () => setMilestones(readMilestonesFromStorage());
+    window.addEventListener("study-stats:milestones-updated", onMilestonesUpdated);
+    return () => window.removeEventListener("study-stats:milestones-updated", onMilestonesUpdated);
+  }, []);
+
+  useEffect(() => {
     if (!data) return;
     const nextTrackingCalendars: Record<string, string | null> = {};
     const nextSources: Record<string, string[]> = {};
@@ -1386,22 +1408,6 @@ export default function HabitTracker() {
                 {value} weeks
               </option>
             ))}
-          </select>
-          <select
-            value={selectedTrackerCalendarId || ""}
-            onChange={(event) => setSelectedTrackerCalendarId(event.target.value || null)}
-            disabled={calendarsLoading || !hasWritableCalendars}
-            className="text-sm border rounded-lg px-2 py-1 bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700 min-w-56"
-            aria-label="Select tracker calendar"
-          >
-            {!hasWritableCalendars && <option value="">No writable calendars found</option>}
-            {hasWritableCalendars &&
-              calendars.map((entry) => (
-                <option key={entry.id} value={entry.id}>
-                  {entry.summary}
-                  {entry.primary ? " (Primary)" : ""}
-                </option>
-              ))}
           </select>
         </div>
       </div>
@@ -1484,7 +1490,10 @@ export default function HabitTracker() {
             {actionError && <p className="text-sm text-red-500 mb-3">{actionError}</p>}
 
             {!selectedTrackerCalendarId && (
-              <p className="text-sm text-zinc-500">Select a writable calendar to manage habit tracking.</p>
+              <p className="text-sm text-zinc-500">
+                No writable tracking calendar is available. Connect Google Calendar and ensure at least one
+                writable calendar exists.
+              </p>
             )}
 
             {selectedTrackerCalendarId && data.habits.length === 0 && (
@@ -1799,8 +1808,16 @@ export default function HabitTracker() {
           </div>
 
           {editingDurationHabit && (
-            <div className="fixed inset-0 z-[120] flex items-center justify-center bg-zinc-900/55 p-4 overflow-y-auto">
-              <div className="w-full max-w-2xl rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-4 my-auto shadow-2xl">
+            <div
+              className="fixed inset-0 z-[120] flex items-center justify-center bg-zinc-900/55 p-4 overflow-y-auto"
+              onMouseDown={(event) => {
+                if (event.target === event.currentTarget) setEditingDurationHabitSlug(null);
+              }}
+            >
+              <div
+                className="w-full max-w-2xl rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-4 my-auto shadow-2xl"
+                onMouseDown={(event) => event.stopPropagation()}
+              >
                 <div className="flex items-center justify-between mb-3">
                   <h4 className="text-sm font-semibold">
                     Edit Time Tracking Sources: {editingDurationHabit.name}
@@ -1995,8 +2012,16 @@ export default function HabitTracker() {
           )}
 
           {editingBinaryHabit && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/45 p-4">
-              <div className="w-full max-w-xl rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-4">
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/45 p-4"
+              onMouseDown={(event) => {
+                if (event.target === event.currentTarget) setEditingBinaryHabitSlug(null);
+              }}
+            >
+              <div
+                className="w-full max-w-xl rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-4"
+                onMouseDown={(event) => event.stopPropagation()}
+              >
                 <div className="flex items-center justify-between mb-3">
                   <h4 className="text-sm font-semibold">
                     Edit Tracking Source: {editingBinaryHabit.name}
@@ -2090,8 +2115,16 @@ export default function HabitTracker() {
           )}
 
           {showAddMilestoneModal && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/45 p-4">
-              <div className="w-full max-w-xl rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-4">
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/45 p-4"
+              onMouseDown={(event) => {
+                if (event.target === event.currentTarget) setShowAddMilestoneModal(false);
+              }}
+            >
+              <div
+                className="w-full max-w-xl rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-4"
+                onMouseDown={(event) => event.stopPropagation()}
+              >
                 <div className="flex items-center justify-between mb-3">
                   <h4 className="text-sm font-semibold">Add Exam/Coursework Date</h4>
                   <button
@@ -2140,8 +2173,16 @@ export default function HabitTracker() {
           )}
 
           {showAddHabitModal && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/45 p-4">
-              <div className="w-full max-w-2xl rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-4">
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/45 p-4"
+              onMouseDown={(event) => {
+                if (event.target === event.currentTarget) setShowAddHabitModal(false);
+              }}
+            >
+              <div
+                className="w-full max-w-2xl rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-4"
+                onMouseDown={(event) => event.stopPropagation()}
+              >
                 <div className="flex items-center justify-between mb-3">
                   <h4 className="text-sm font-semibold">Add Habit</h4>
                   <button

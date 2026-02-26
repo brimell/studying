@@ -69,14 +69,7 @@ function normalizeWeightedMuscles(muscles: ExerciseMuscleWeight[]): ExerciseMusc
 
   for (const muscle of muscles) {
     if (!ALLOWED_MUSCLES.has(muscle.id) || muscle.percent <= 0) continue;
-    const mapped = LEGACY_MUSCLE_REMAP[muscle.id];
-    const expanded = mapped && mapped.length > 0 ? mapped : [muscle.id];
-    const share = muscle.percent / expanded.length;
-
-    for (const candidate of expanded) {
-      if (!ALLOWED_MUSCLES.has(candidate) || share <= 0) continue;
-      byMuscle.set(candidate, (byMuscle.get(candidate) || 0) + share);
-    }
+    byMuscle.set(muscle.id, (byMuscle.get(muscle.id) || 0) + muscle.percent);
   }
 
   return [...byMuscle.entries()]
@@ -628,8 +621,22 @@ function getMuscleStimulusByLog(workout: WorkoutTemplate): Record<MuscleGroup, n
 
   for (const exercise of workout.exercises) {
     const perExerciseStimulus = Math.max(0.6, exercise.sets * repFactor(exercise.reps));
-    for (const muscle of exercise.muscles) {
-      byMuscle[muscle] += perExerciseStimulus;
+    const mapped = EXERCISE_MUSCLE_MAP.get(exercise.id);
+
+    if (mapped && mapped.muscles.length > 0) {
+      for (const weightedMuscle of mapped.muscles) {
+        if (!ALLOWED_MUSCLES.has(weightedMuscle.id) || weightedMuscle.percent <= 0) continue;
+        byMuscle[weightedMuscle.id] += perExerciseStimulus * (weightedMuscle.percent / 100);
+      }
+      continue;
+    }
+
+    const fallbackMuscles = normalizeMuscles(exercise.muscles);
+    if (fallbackMuscles.length === 0) continue;
+    const perMuscleShare = perExerciseStimulus / fallbackMuscles.length;
+
+    for (const muscle of fallbackMuscles) {
+      byMuscle[muscle] += perMuscleShare;
     }
   }
 

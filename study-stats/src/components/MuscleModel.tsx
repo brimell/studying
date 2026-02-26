@@ -123,8 +123,88 @@ const DIAGRAM_ALIAS: Partial<Record<MuscleGroup, keyof typeof CORE_DIAGRAM_FILES
   abductors: "glutes",
 };
 
-function resolveDiagramFiles(muscle: MuscleGroup): MuscleDiagramFiles {
-  const alias = DIAGRAM_ALIAS[muscle] || (muscle as keyof typeof CORE_DIAGRAM_FILES);
+const COMMON_LABELS: Record<keyof typeof CORE_DIAGRAM_FILES, string> = {
+  chest: "Chest",
+  back: "Back",
+  shoulders: "Shoulders",
+  biceps: "Biceps",
+  triceps: "Triceps",
+  forearms: "Forearms",
+  core: "Core",
+  glutes: "Glutes",
+  quads: "Quads",
+  hamstrings: "Hamstrings",
+  calves: "Calves",
+};
+
+const SPECIFIC_FILE_BASE_BY_MUSCLE: Partial<Record<MuscleGroup, string>> = {
+  abductors: "Muscle Group=- Abductors",
+  "biceps-brachii": "Muscle Group=- Biceps Brachii",
+  brachialis: "Muscle Group=- Brachialis",
+  brachioradialis: "Muscle Group=- Brachioradialis",
+  "triceps-brachii": "Muscle Group=- Triceps Brachii",
+  "wrist-extensors": "Muscle Group=- Wrist Extensors",
+  "wrist-flexors": "Muscle Group=- Wrist Flexors",
+  pronators: "Muscle Group=- Pronators",
+  supinators: "Muscle Group=- Supinators",
+  obliques: "Muscle Group=- Obliques",
+  "rectus-abdominis": "Muscle Group=- Rectus Abdominis",
+  "gluteus-maximus": "Muscle Group=- Gluteus Maximus",
+  "hip-flexors": "Muscle Group=- Hip Flexors",
+  "hip-adductors": "Muscle Group=- Hip Adductors",
+  "deep-external-rotators": "Muscle Group=- Deep External Rotators",
+  quadriceps: "Muscle Group=- Quadriceps",
+  sartorius: "Muscle Group=- Sartorius",
+  hamstrings: "Muscle Group=- Hamstrings",
+  gastrocnemius: "Muscle Group=- Gastrocnemius",
+  soleus: "Muscle Group=- Soleus",
+  "tibialis-anterior": "Muscle Group=- Tibialis Anterior",
+  "deltoid-anterior": "Muscle Group=- Deltoid Anterior",
+  "deltoid-posterior": "Muscle Group=- Deltoid Posterior",
+  "erector-spinae": "Muscle Group=- Erector Spinae",
+  "infraspinatus-teres-minor": "Muscle Group=- Infraspinatus & Teres Minor",
+  "latissimus-dorsi-teres-major": "Muscle Group=- Latissimus Dorsi & Teres Major",
+  "levator-scapulae": "Muscle Group=- Levator Scapulae",
+  "pectoralis-major": "Muscle Group=- Pectoralis Major",
+  "pectoralis-minor": "Muscle Group=- Pectoralis Minor",
+  "quadratus-lumborum": "Muscle Group=- Quadratus Lumborum",
+  rhomboids: "Muscle Group=-Rhomboids",
+  "serratus-anterior": "Muscle Group=- Serratus Anterior",
+  splenius: "Muscle Group=- Splenius",
+  sternocleidomastoid: "Muscle Group=- Sternocleidomastoid",
+  subscapularis: "Muscle Group=- Subscapularis",
+  supraspinatus: "Muscle Group=- Supraspinatus",
+  "trapezius-lower": "Muscle Group=- Trapezius Lower",
+  "trapezius-middle": "Muscle Group=- Trapezius Middle",
+  "trapezius-upper": "Muscle Group=- Trapezius Upper",
+};
+
+const SPECIFIC_DIAGRAM_FILES: Partial<Record<MuscleGroup, MuscleDiagramFiles>> = Object.fromEntries(
+  Object.entries(SPECIFIC_FILE_BASE_BY_MUSCLE).map(([muscle, base]) => [
+    muscle,
+    {
+      anterior: `${base}, View=Anterior, Dissection=Outer Muscles.svg`,
+      posterior: `${base}, View=Posterior, Dissection=Outer Muscles.svg`,
+    },
+  ])
+) as Partial<Record<MuscleGroup, MuscleDiagramFiles>>;
+
+function getCommonGroupKey(muscle: MuscleGroup): keyof typeof CORE_DIAGRAM_FILES {
+  return DIAGRAM_ALIAS[muscle] || (muscle as keyof typeof CORE_DIAGRAM_FILES) || "back";
+}
+
+function getMuscleLabel(muscle: MuscleGroup, simplified: boolean): string {
+  if (!simplified) return MUSCLE_LABELS[muscle];
+  const alias = getCommonGroupKey(muscle);
+  return COMMON_LABELS[alias] || MUSCLE_LABELS[muscle];
+}
+
+function resolveDiagramFiles(muscle: MuscleGroup, simplified: boolean): MuscleDiagramFiles {
+  if (!simplified) {
+    const specific = SPECIFIC_DIAGRAM_FILES[muscle];
+    if (specific) return specific;
+  }
+  const alias = getCommonGroupKey(muscle);
   return CORE_DIAGRAM_FILES[alias] || CORE_DIAGRAM_FILES.back;
 }
 
@@ -193,18 +273,30 @@ function toRedOnlyDataUrl(src: string): Promise<string> {
 function RedOnlyOverlay({
   src,
   opacity,
+  delayMs = 0,
+  highlighted = false,
+  dimmed = false,
 }: {
   src: string;
   opacity: number;
+  delayMs?: number;
+  highlighted?: boolean;
+  dimmed?: boolean;
 }) {
   const [processedSrc, setProcessedSrc] = useState<string>(src);
+  const [visible, setVisible] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
+    setVisible(false);
     setProcessedSrc(src);
 
     toRedOnlyDataUrl(src).then((nextSrc) => {
-      if (!cancelled) setProcessedSrc(nextSrc);
+      if (cancelled) return;
+      setProcessedSrc(nextSrc);
+      requestAnimationFrame(() => {
+        if (!cancelled) setVisible(true);
+      });
     });
 
     return () => {
@@ -219,7 +311,19 @@ function RedOnlyOverlay({
       aria-hidden="true"
       className="absolute inset-0 w-full h-full object-contain"
       loading="lazy"
-      style={{ opacity }}
+      style={{
+        opacity: visible ? opacity : 0,
+        transform: visible ? (highlighted ? "scale(1.01)" : "scale(1)") : "scale(0.98)",
+        filter: highlighted
+          ? "saturate(1.3) brightness(1.15) drop-shadow(0 0 8px rgba(239, 68, 68, 0.45))"
+          : dimmed
+            ? "brightness(0.7) saturate(0.85)"
+            : "none",
+        transitionProperty: "opacity, transform, filter",
+        transitionDuration: "380ms, 380ms",
+        transitionTimingFunction: "ease-out, ease-out",
+        transitionDelay: `${delayMs}ms, ${delayMs}ms`,
+      }}
     />
   );
 }
@@ -230,7 +334,16 @@ interface MuscleModelProps {
   compact?: boolean;
 }
 
+interface DisplayMuscleEntry {
+  key: string;
+  label: string;
+  score: number;
+  muscles: MuscleGroup[];
+}
+
 export default function MuscleModel({ scores, title = "Muscle Load Map", compact = false }: MuscleModelProps) {
+  const [simplifyLabels, setSimplifyLabels] = useState(false);
+  const [hoveredEntryKey, setHoveredEntryKey] = useState<string | null>(null);
   const sorted = useMemo(
     () =>
       [...UI_MUSCLE_GROUPS]
@@ -239,10 +352,49 @@ export default function MuscleModel({ scores, title = "Muscle Load Map", compact
     [scores]
   );
   const nonZero = useMemo(() => sorted.filter((entry) => entry.score > 0), [sorted]);
+  const displayEntries = useMemo<DisplayMuscleEntry[]>(() => {
+    if (!simplifyLabels) {
+      return nonZero.map(({ muscle, score }) => ({
+        key: muscle,
+        label: MUSCLE_LABELS[muscle],
+        score,
+        muscles: [muscle],
+      }));
+    }
+
+    const grouped = new Map<keyof typeof CORE_DIAGRAM_FILES, DisplayMuscleEntry>();
+    for (const { muscle, score } of nonZero) {
+      const groupKey = getCommonGroupKey(muscle);
+      const existing = grouped.get(groupKey);
+      if (existing) {
+        existing.score = Math.max(existing.score, score);
+        existing.muscles.push(muscle);
+      } else {
+        grouped.set(groupKey, {
+          key: groupKey,
+          label: COMMON_LABELS[groupKey] || MUSCLE_LABELS[muscle],
+          score,
+          muscles: [muscle],
+        });
+      }
+    }
+
+    return [...grouped.values()].sort((a, b) => b.score - a.score);
+  }, [nonZero, simplifyLabels]);
+  const hasHover = hoveredEntryKey !== null;
 
   return (
     <div className="rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 p-3">
-      <p className="text-sm font-medium mb-2">{title}</p>
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <p className="text-sm font-medium">{title}</p>
+        <button
+          type="button"
+          onClick={() => setSimplifyLabels((current) => !current)}
+          className="rounded-md border border-zinc-300 dark:border-zinc-600 px-2 py-1 text-[11px] hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
+        >
+          {simplifyLabels ? "Show Scientific Names" : "Simplify Names"}
+        </button>
+      </div>
       <div className={`grid ${compact ? "grid-cols-1" : "md:grid-cols-[240px,1fr]"} gap-3`}>
         <div className="mx-auto w-full max-w-[360px]">
           <div className="rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-2">
@@ -256,13 +408,20 @@ export default function MuscleModel({ scores, title = "Muscle Load Map", compact
                   loading="lazy"
                   style={{ opacity: 1 }}
                 />
-                {sorted.map(({ muscle, score }) => {
+                {sorted.map(({ muscle, score }, index) => {
                   if (score <= 0) return null;
+                  const highlighted = simplifyLabels
+                    ? hoveredEntryKey === getCommonGroupKey(muscle)
+                    : hoveredEntryKey === muscle;
+                  const dimmed = hasHover && !highlighted;
                   return (
                     <RedOnlyOverlay
                       key={`anterior-${muscle}`}
-                      src={toDiagramPath(resolveDiagramFiles(muscle).anterior)}
-                      opacity={fatigueToOpacity(score)}
+                      src={toDiagramPath(resolveDiagramFiles(muscle, simplifyLabels).anterior)}
+                      opacity={hasHover ? (highlighted ? 0.98 : fatigueToOpacity(score) * 0.2) : fatigueToOpacity(score)}
+                      delayMs={index * 28}
+                      highlighted={highlighted}
+                      dimmed={dimmed}
                     />
                   );
                 })}
@@ -275,13 +434,20 @@ export default function MuscleModel({ scores, title = "Muscle Load Map", compact
                   loading="lazy"
                   style={{ opacity: 1 }}
                 />
-                {sorted.map(({ muscle, score }) => {
+                {sorted.map(({ muscle, score }, index) => {
                   if (score <= 0) return null;
+                  const highlighted = simplifyLabels
+                    ? hoveredEntryKey === getCommonGroupKey(muscle)
+                    : hoveredEntryKey === muscle;
+                  const dimmed = hasHover && !highlighted;
                   return (
                     <RedOnlyOverlay
                       key={`posterior-${muscle}`}
-                      src={toDiagramPath(resolveDiagramFiles(muscle).posterior)}
-                      opacity={fatigueToOpacity(score)}
+                      src={toDiagramPath(resolveDiagramFiles(muscle, simplifyLabels).posterior)}
+                      opacity={hasHover ? (highlighted ? 0.98 : fatigueToOpacity(score) * 0.2) : fatigueToOpacity(score)}
+                      delayMs={index * 28}
+                      highlighted={highlighted}
+                      dimmed={dimmed}
                     />
                   );
                 })}
@@ -290,24 +456,33 @@ export default function MuscleModel({ scores, title = "Muscle Load Map", compact
           </div>
         </div>
         <div className="grid sm:grid-cols-2 gap-2 content-start">
-          {nonZero.length === 0 && (
+          {displayEntries.length === 0 && (
             <p className="text-xs text-zinc-500">No current muscle fatigue recorded.</p>
           )}
-          {nonZero.map(({ muscle, score }) => (
+          {displayEntries.map((entry) => (
             <div
-              key={muscle}
-              className="rounded-md border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-2 py-1.5"
+              key={entry.key}
+              className={`rounded-md border bg-white dark:bg-zinc-900 px-2 py-1.5 transition-colors ${
+                hoveredEntryKey === entry.key
+                  ? "border-red-400/70 dark:border-red-400/60 bg-red-50/60 dark:bg-red-900/20"
+                  : "border-zinc-200 dark:border-zinc-700"
+              }`}
+              onMouseEnter={() => setHoveredEntryKey(entry.key)}
+              onMouseLeave={() => setHoveredEntryKey((current) => (current === entry.key ? null : current))}
+              onFocus={() => setHoveredEntryKey(entry.key)}
+              onBlur={() => setHoveredEntryKey((current) => (current === entry.key ? null : current))}
+              tabIndex={0}
             >
               <div className="flex items-center justify-between text-xs">
-                <span>{MUSCLE_LABELS[muscle]}</span>
-                <span className="font-medium">{score}%</span>
+                <span>{entry.label}</span>
+                <span className="font-medium">{entry.score}%</span>
               </div>
               <div className="h-1.5 rounded-full bg-zinc-200 dark:bg-zinc-700 mt-1">
                 <div
                   className="h-full rounded-full transition-all"
                   style={{
-                    width: `${Math.max(0, Math.min(100, score))}%`,
-                    background: score > 70 ? "#ef4444" : score > 40 ? "#f59e0b" : "#0ea5e9",
+                    width: `${Math.max(0, Math.min(100, entry.score))}%`,
+                    background: entry.score > 70 ? "#ef4444" : entry.score > 40 ? "#f59e0b" : "#0ea5e9",
                   }}
                 />
               </div>

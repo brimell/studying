@@ -1,9 +1,10 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useDeferredValue, useEffect, useMemo, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import MuscleModel from "@/components/MuscleModel";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
+import { lockBodyScroll, unlockBodyScroll } from "@/lib/scroll-lock";
 import type {
   MuscleGroup,
   WorkoutWeekDay,
@@ -16,6 +17,7 @@ import type {
 import { MUSCLE_GROUPS, WORKOUT_WEEK_DAYS } from "@/lib/types";
 import {
   computeMuscleFatigue,
+  EXERCISE_MUSCLE_MAP,
   emptyWorkoutPayload,
   MUSCLE_LABELS,
   UI_MUSCLE_GROUPS,
@@ -64,6 +66,40 @@ function createMuscleNumberMap(initialValue = 0): Record<MuscleGroup, number> {
   >;
 }
 
+interface KnownExerciseOption {
+  id: string;
+  name: string;
+  muscles: MuscleGroup[];
+  searchableName: string;
+}
+
+function fuzzyScore(query: string, target: string): number {
+  if (!query) return 0;
+  if (target.includes(query)) {
+    let score = 500 - (target.length - query.length);
+    if (target.startsWith(query)) score += 200;
+    return score;
+  }
+
+  let queryIndex = 0;
+  let score = 0;
+  let lastMatchIndex = -2;
+
+  for (let targetIndex = 0; targetIndex < target.length && queryIndex < query.length; targetIndex += 1) {
+    if (query[queryIndex] !== target[targetIndex]) continue;
+
+    score += lastMatchIndex + 1 === targetIndex ? 10 : 4;
+    if (targetIndex === 0 || target[targetIndex - 1] === " ") {
+      score += 6;
+    }
+    lastMatchIndex = targetIndex;
+    queryIndex += 1;
+  }
+
+  if (queryIndex !== query.length) return -1;
+  return score - (target.length - query.length);
+}
+
 export default function WorkoutPlanner() {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const [session, setSession] = useState<Session | null>(null);
@@ -75,10 +111,12 @@ export default function WorkoutPlanner() {
 
   const [newWorkoutName, setNewWorkoutName] = useState("");
   const [draftExercises, setDraftExercises] = useState<WorkoutExercise[]>([]);
+  const [exerciseSearch, setExerciseSearch] = useState("");
   const [exerciseName, setExerciseName] = useState("");
   const [exerciseSets, setExerciseSets] = useState(3);
   const [exerciseReps, setExerciseReps] = useState(10);
   const [exerciseMuscles, setExerciseMuscles] = useState<MuscleGroup[]>(DEFAULT_EXERCISE_MUSCLES);
+  const [showCustomExerciseForm, setShowCustomExerciseForm] = useState(false);
   const [showCreateWorkoutModal, setShowCreateWorkoutModal] = useState(false);
   const [weeklyPlanName, setWeeklyPlanName] = useState("");
   const [weeklyPlanDays, setWeeklyPlanDays] = useState<Record<WorkoutWeekDay, string[]>>(
@@ -87,6 +125,12 @@ export default function WorkoutPlanner() {
   const [editingWeeklyPlanId, setEditingWeeklyPlanId] = useState<string | null>(null);
 
   const [logDateByWorkout, setLogDateByWorkout] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (!showCreateWorkoutModal) return;
+    lockBodyScroll();
+    return () => unlockBodyScroll();
+  }, [showCreateWorkoutModal]);
 
   useEffect(() => {
     if (!supabase) {
@@ -273,6 +317,48 @@ export default function WorkoutPlanner() {
     }
   };
 
+  const knownExercises = useMemo<KnownExerciseOption[]>(
+    () =>
+      Array.from(EXERCISE_MUSCLE_MAP.values())
+        .map((entry) => ({
+          id: entry.exerciseId,
+          name: entry.exerciseName,
+          muscles: entry.muscles.map((muscle) => muscle.id as MuscleGroup),
+          searchableName: entry.exerciseName.trim().toLowerCase(),
+        }))
+        .sort((left, right) => left.name.localeCompare(right.name)),
+    []
+  );
+
+  const deferredExerciseSearch = useDeferredValue(exerciseSearch);
+
+  const filteredKnownExercises = useMemo(() => {
+    const query = deferredExerciseSearch.trim().toLowerCase();
+    if (!query) return knownExercises.slice(0, 12);
+    return knownExercises
+      .map((exercise) => ({
+        exercise,
+        score: fuzzyScore(query, exercise.searchableName),
+      }))
+      .filter((entry) => entry.score >= 0)
+      .sort((left, right) => right.score - left.score)
+      .slice(0, 12)
+      .map((entry) => entry.exercise);
+  }, [deferredExerciseSearch, knownExercises]);
+
+  const addKnownExerciseToDraft = (exercise: { id: string; name: string; muscles: MuscleGroup[] }) => {
+    if (exercise.muscles.length === 0) return;
+    const next: WorkoutExercise = {
+      id: generateId(),
+      name: exercise.name,
+      muscles: exercise.muscles,
+      sets: Math.max(1, Math.min(30, exerciseSets)),
+      reps: Math.max(1, Math.min(100, exerciseReps)),
+    };
+    setDraftExercises((previous) => [...previous, next]);
+    setExerciseSearch("");
+  };
+
   const addExerciseToDraft = () => {
     const name = exerciseName.trim();
     if (!name || exerciseMuscles.length === 0) return;
@@ -316,6 +402,8 @@ export default function WorkoutPlanner() {
     await persist(nextPayload, `Saved workout "${name}".`);
     setNewWorkoutName("");
     setDraftExercises([]);
+    setExerciseSearch("");
+    setShowCustomExerciseForm(false);
     setShowCreateWorkoutModal(false);
   };
 
@@ -836,8 +924,16 @@ export default function WorkoutPlanner() {
       </div>
 
       {showCreateWorkoutModal && (
-        <div className="fixed inset-0 z-[90] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white dark:bg-zinc-900 p-5 shadow-xl border border-zinc-200 dark:border-zinc-800">
+        <div
+          className="fixed inset-0 z-[90] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setShowCreateWorkoutModal(false);
+          }}
+        >
+          <div
+            className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white dark:bg-zinc-900 p-5 shadow-xl border border-zinc-200 dark:border-zinc-800"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
             <div className="flex items-center justify-between gap-3 mb-3">
               <h2 className="text-lg font-semibold">Create Workout</h2>
               <button
@@ -866,9 +962,9 @@ export default function WorkoutPlanner() {
                 <p className="text-sm font-medium">Add Exercise</p>
                 <input
                   type="text"
-                  value={exerciseName}
-                  onChange={(event) => setExerciseName(event.target.value)}
-                  placeholder="Exercise name"
+                  value={exerciseSearch}
+                  onChange={(event) => setExerciseSearch(event.target.value)}
+                  placeholder="Search known exercises (from library)"
                   className="w-full border rounded-lg px-3 py-2 text-sm bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
                 />
                 <div className="grid grid-cols-2 gap-2">
@@ -886,36 +982,99 @@ export default function WorkoutPlanner() {
                     value={exerciseReps}
                     min={1}
                     max={100}
-                    onChange={(event) => setExerciseReps(Number(event.target.value))}
-                    placeholder="Reps"
-                    className="border rounded-lg px-3 py-2 text-sm bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
-                  />
+                  onChange={(event) => setExerciseReps(Number(event.target.value))}
+                  placeholder="Reps"
+                  className="border rounded-lg px-3 py-2 text-sm bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
+                />
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-1">
-                  {UI_MUSCLE_GROUPS.map((muscle) => (
-                    <label key={muscle} className="text-xs flex items-center gap-1">
-                      <input
-                        type="checkbox"
-                        checked={exerciseMuscles.includes(muscle)}
-                        onChange={(event) => {
-                          setExerciseMuscles((previous) =>
-                            event.target.checked
-                              ? [...previous, muscle]
-                              : previous.filter((entry) => entry !== muscle)
-                          );
-                        }}
-                      />
-                      <span>{MUSCLE_LABELS[muscle]}</span>
-                    </label>
+                <div className="rounded-md border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 h-44 overflow-y-auto">
+                  {filteredKnownExercises.length === 0 && (
+                    <p className="px-3 py-2 text-xs text-zinc-500">No matching known exercises.</p>
+                  )}
+                  {filteredKnownExercises.map((exercise) => (
+                    <div
+                      key={exercise.id}
+                      className="flex items-center justify-between gap-2 px-3 py-2 border-b border-zinc-200 dark:border-zinc-700 last:border-b-0"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">{exercise.name}</p>
+                        <p className="text-[11px] text-zinc-500 truncate">
+                          {exercise.muscles.map((muscle) => MUSCLE_LABELS[muscle]).join(", ")}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => addKnownExerciseToDraft(exercise)}
+                        className="px-2 py-1 rounded-md text-xs bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors shrink-0"
+                      >
+                        Add
+                      </button>
+                    </div>
                   ))}
                 </div>
                 <button
                   type="button"
-                  onClick={addExerciseToDraft}
+                  onClick={() => setShowCustomExerciseForm((current) => !current)}
                   className="px-3 py-1.5 rounded-md text-xs bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors"
                 >
-                  Add Exercise
+                  {showCustomExerciseForm ? "Hide Custom Exercise" : "Add Custom Exercise"}
                 </button>
+                {showCustomExerciseForm && (
+                  <div className="rounded-lg border border-zinc-200 dark:border-zinc-700 p-3 space-y-2 bg-white dark:bg-zinc-900">
+                    <input
+                      type="text"
+                      value={exerciseName}
+                      onChange={(event) => setExerciseName(event.target.value)}
+                      placeholder="Custom exercise name"
+                      className="w-full border rounded-lg px-3 py-2 text-sm bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
+                    />
+                    <div className="grid grid-cols-2 gap-2">
+                      <input
+                        type="number"
+                        value={exerciseSets}
+                        min={1}
+                        max={30}
+                        onChange={(event) => setExerciseSets(Number(event.target.value))}
+                        placeholder="Sets"
+                        className="border rounded-lg px-3 py-2 text-sm bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
+                      />
+                      <input
+                        type="number"
+                        value={exerciseReps}
+                        min={1}
+                        max={100}
+                        onChange={(event) => setExerciseReps(Number(event.target.value))}
+                        placeholder="Reps"
+                        className="border rounded-lg px-3 py-2 text-sm bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-1">
+                      {UI_MUSCLE_GROUPS.map((muscle) => (
+                        <label key={muscle} className="text-xs flex items-center gap-1">
+                          <input
+                            type="checkbox"
+                            checked={exerciseMuscles.includes(muscle)}
+                            onChange={(event) => {
+                              setExerciseMuscles((previous) =>
+                                event.target.checked
+                                  ? [...previous, muscle]
+                                  : previous.filter((entry) => entry !== muscle)
+                              );
+                            }}
+                          />
+                          <span>{MUSCLE_LABELS[muscle]}</span>
+                        </label>
+                      ))}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={addExerciseToDraft}
+                      className="px-3 py-1.5 rounded-md text-xs bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors"
+                    >
+                      Add Custom Exercise
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-2">

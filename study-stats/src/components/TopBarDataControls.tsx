@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { formatTimeSince, readGlobalLastFetched } from "@/lib/client-cache";
+import { lockBodyScroll, unlockBodyScroll } from "@/lib/scroll-lock";
 import StudyProjection from "@/components/StudyProjection";
 
 export default function TopBarDataControls() {
@@ -31,6 +32,12 @@ export default function TopBarDataControls() {
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    if (!showStudyProjection) return;
+    lockBodyScroll();
+    return () => unlockBodyScroll();
+  }, [showStudyProjection]);
 
   const refreshAll = () => {
     setRefreshing(true);
@@ -61,8 +68,16 @@ export default function TopBarDataControls() {
       {mounted &&
         showStudyProjection &&
         createPortal(
-          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-zinc-900/55 p-4 overflow-y-auto">
-            <div className="w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-4 my-auto shadow-2xl">
+          <div
+            className="fixed inset-0 z-[200] flex items-center justify-center bg-zinc-900/55 p-4 overflow-y-auto"
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) setShowStudyProjection(false);
+            }}
+          >
+            <div
+              className="w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-4 my-auto shadow-2xl"
+              onMouseDown={(event) => event.stopPropagation()}
+            >
               <div className="flex items-center justify-between mb-3">
                 <h4 className="text-sm font-semibold">Project Studying</h4>
                 <button

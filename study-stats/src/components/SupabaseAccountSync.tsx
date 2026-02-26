@@ -45,6 +45,13 @@ function applyCloudSettings(payload: SyncPayload): void {
   }
 }
 
+function notifySettingsApplied(): void {
+  window.dispatchEvent(new CustomEvent("study-stats:refresh-all"));
+  window.dispatchEvent(new CustomEvent("study-stats:study-calendars-updated"));
+  window.dispatchEvent(new CustomEvent("study-stats:exam-date-updated"));
+  window.dispatchEvent(new CustomEvent("study-stats:milestones-updated"));
+}
+
 function formatDate(dateIso: string | null): string {
   if (!dateIso) return "Never";
   const date = new Date(dateIso);
@@ -241,8 +248,8 @@ export default function SupabaseAccountSync() {
         const hasCloudData = Object.keys(cloudPayload).length > 0;
 
         const mergedPayload: SyncPayload = {
-          ...localPayload,
           ...cloudPayload,
+          ...localPayload,
         };
 
         const localSnapshot = JSON.stringify(localPayload);
@@ -251,13 +258,12 @@ export default function SupabaseAccountSync() {
 
         if (hasCloudData && localSnapshot !== mergedSnapshot) {
           applyCloudSettings(mergedPayload);
+          await autoBackupToCloud(mergedPayload);
+          if (cancelled) return;
           lastSyncedSnapshotRef.current = mergedSnapshot;
           setMessage("Auto-sync applied cloud settings to this device.");
-          setCloudUpdatedAt(cloud.updatedAt || null);
           autoSyncInitializedRef.current = true;
-          window.dispatchEvent(new CustomEvent("study-stats:refresh-all"));
-          window.dispatchEvent(new CustomEvent("study-stats:study-calendars-updated"));
-          window.dispatchEvent(new CustomEvent("study-stats:exam-date-updated"));
+          notifySettingsApplied();
           return;
         }
 
@@ -267,9 +273,7 @@ export default function SupabaseAccountSync() {
           setMessage("Auto-sync restored cloud data to this device.");
           setCloudUpdatedAt(cloud.updatedAt || null);
           autoSyncInitializedRef.current = true;
-          window.dispatchEvent(new CustomEvent("study-stats:refresh-all"));
-          window.dispatchEvent(new CustomEvent("study-stats:study-calendars-updated"));
-          window.dispatchEvent(new CustomEvent("study-stats:exam-date-updated"));
+          notifySettingsApplied();
           return;
         }
 
