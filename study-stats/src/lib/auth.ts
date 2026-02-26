@@ -1,5 +1,6 @@
 import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
+import { getGoogleAuthEnv } from "@/lib/env";
 
 type TokenWithGoogle = {
   accessToken?: string;
@@ -15,8 +16,8 @@ async function refreshGoogleAccessToken(token: TokenWithGoogle): Promise<TokenWi
 
   try {
     const params = new URLSearchParams({
-      client_id: process.env.GOOGLE_CLIENT_ID || "",
-      client_secret: process.env.GOOGLE_CLIENT_SECRET || "",
+      client_id: googleEnv.clientId,
+      client_secret: googleEnv.clientSecret,
       grant_type: "refresh_token",
       refresh_token: token.refreshToken,
     });
@@ -52,11 +53,14 @@ async function refreshGoogleAccessToken(token: TokenWithGoogle): Promise<TokenWi
   }
 }
 
+const googleEnv = getGoogleAuthEnv();
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  secret: googleEnv.nextAuthSecret,
   providers: [
     Google({
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      clientId: googleEnv.clientId,
+      clientSecret: googleEnv.clientSecret,
       authorization: {
         params: {
           scope:

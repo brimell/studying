@@ -195,8 +195,7 @@ function isValidDateInput(value: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(value);
 }
 
-function readMilestonesFromStorage(): MilestoneDate[] {
-  const raw = window.localStorage.getItem(MILESTONES_STORAGE_KEY);
+function parseMilestonesSerialized(raw: string | null): MilestoneDate[] {
   if (!raw) return [];
   try {
     const parsed = JSON.parse(raw) as unknown;
@@ -220,6 +219,11 @@ function readMilestonesFromStorage(): MilestoneDate[] {
   } catch {
     return [];
   }
+}
+
+function readMilestonesFromStorage(): MilestoneDate[] {
+  const raw = window.localStorage.getItem(MILESTONES_STORAGE_KEY);
+  return parseMilestonesSerialized(raw);
 }
 
 function toHabitLevel(hours: number): 0 | 1 | 2 | 3 | 4 {
@@ -459,6 +463,8 @@ export default function HabitTracker() {
   const habitDayQueueRef = useRef<QueuedHabitDayUpdate[]>([]);
   const habitDayQueueRunningRef = useRef(false);
   const milestoneSyncTimeoutRef = useRef<number | null>(null);
+  const milestonesReadyToPersistRef = useRef(false);
+  const milestonesCloudHydratedRef = useRef(false);
   const localSettingsPersistTimeoutRef = useRef<number | null>(null);
   const localSettingsPersistReadyRef = useRef(false);
   const lastMilestoneSnapshotRef = useRef("");
@@ -708,6 +714,85 @@ export default function HabitTracker() {
   }, []);
 
   useEffect(() => {
+    if (!supabase) return;
+    if (!milestonesHydratedRef.current) return;
+    if (milestonesCloudHydratedRef.current) return;
+
+    milestonesCloudHydratedRef.current = true;
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const { data } = await supabase.auth.getSession();
+        const token = data.session?.access_token;
+        if (!token) return;
+
+        const readResponse = await fetch("/api/account-sync", {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        if (!readResponse.ok) return;
+
+        const readJson = (await readResponse.json()) as { payload?: Record<string, string> };
+        const cloudSerialized = readJson.payload?.[MILESTONES_STORAGE_KEY];
+        const cloudMilestones = parseMilestonesSerialized(
+          typeof cloudSerialized === "string" ? cloudSerialized : null
+        );
+        const localMilestones = readMilestonesFromStorage();
+        const localSerialized = JSON.stringify(localMilestones);
+        const cloudNormalizedSerialized = JSON.stringify(cloudMilestones);
+
+        // Prefer local if it exists on this device; cloud is used to hydrate new/empty devices.
+        if (localMilestones.length > 0) {
+          if (cloudNormalizedSerialized === localSerialized) {
+            lastMilestoneSnapshotRef.current = localSerialized;
+            return;
+          }
+
+          const writeResponse = await fetch("/api/account-sync", {
+            method: "PUT",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              payload: {
+                ...(readJson.payload || {}),
+                [MILESTONES_STORAGE_KEY]: localSerialized,
+              },
+            }),
+          });
+          if (!writeResponse.ok) return;
+          lastMilestoneSnapshotRef.current = localSerialized;
+          return;
+        }
+
+        if (cloudMilestones.length === 0) return;
+        if (cancelled) return;
+
+        window.localStorage.setItem(MILESTONES_STORAGE_KEY, cloudNormalizedSerialized);
+        setMilestones(cloudMilestones);
+        lastMilestoneSnapshotRef.current = cloudNormalizedSerialized;
+        window.dispatchEvent(new CustomEvent("study-stats:milestones-updated"));
+      } catch {
+        // Keep localStorage as source of truth if cloud hydration fails.
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [supabase]);
+
+  useEffect(() => {
+    if (!milestonesHydratedRef.current) return;
+    if (!milestonesReadyToPersistRef.current) {
+      milestonesReadyToPersistRef.current = true;
+      return;
+    }
+
     const serialized = JSON.stringify(milestones);
     const previousSerialized = window.localStorage.getItem(MILESTONES_STORAGE_KEY);
     const changed = previousSerialized !== serialized;
@@ -718,7 +803,6 @@ export default function HabitTracker() {
     }
 
     if (!supabase) return;
-    if (!milestonesHydratedRef.current) return;
     if (serialized === lastMilestoneSnapshotRef.current) return;
 
     if (milestoneSyncTimeoutRef.current) {
