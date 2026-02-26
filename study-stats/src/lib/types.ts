@@ -85,6 +85,8 @@ export interface HabitDefinition {
   name: string;
   slug: string;
   mode: HabitMode;
+  sourceCalendarIds: string[];
+  matchTerms: string[];
   days: HabitCompletionDay[];
   currentStreak: number;
   longestStreak: number;

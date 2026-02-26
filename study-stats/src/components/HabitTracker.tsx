@@ -24,10 +24,14 @@ const TRACKER_CALENDAR_STORAGE_KEY = "study-stats.tracker-calendar-id";
 const HABIT_WEEKS_STORAGE_KEY = "study-stats.habit-tracker.weeks";
 const TRACKER_CALENDARS_CACHE_KEY = "study-stats:habit-tracker:calendars";
 const MILESTONES_STORAGE_KEY = "study-stats.habit-tracker.milestones";
+const HABIT_SOURCE_CALENDARS_STORAGE_KEY = "study-stats.habit-tracker.new-habit.sources";
+const HABIT_MATCH_TERMS_STORAGE_KEY = "study-stats.habit-tracker.new-habit.match-terms";
 
 interface TrackerCalendarResponse {
-  calendars: TrackerCalendarOption[];
-  defaultCalendarId: string | null;
+  trackerCalendars: TrackerCalendarOption[];
+  sourceCalendars: TrackerCalendarOption[];
+  defaultTrackerCalendarId: string | null;
+  defaultSourceCalendarIds: string[];
 }
 
 interface TooltipState {
@@ -130,6 +134,8 @@ function buildEmptyHabit(
     name,
     slug: slugifyHabitName(name),
     mode,
+    sourceCalendarIds: [],
+    matchTerms: [],
     days,
     currentStreak: stats.currentStreak,
     longestStreak: stats.longestStreak,
@@ -205,11 +211,14 @@ export default function HabitTracker() {
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
 
   const [calendars, setCalendars] = useState<TrackerCalendarOption[]>([]);
+  const [sourceCalendars, setSourceCalendars] = useState<TrackerCalendarOption[]>([]);
   const [calendarsLoading, setCalendarsLoading] = useState(true);
   const [selectedTrackerCalendarId, setSelectedTrackerCalendarId] = useState<string | null>(null);
 
   const [newHabitName, setNewHabitName] = useState("");
   const [newHabitMode, setNewHabitMode] = useState<HabitMode>("binary");
+  const [newHabitSourceCalendarIds, setNewHabitSourceCalendarIds] = useState<string[]>([]);
+  const [newHabitMatchTerms, setNewHabitMatchTerms] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [milestones, setMilestones] = useState<MilestoneDate[]>([]);
@@ -227,6 +236,36 @@ export default function HabitTracker() {
   useEffect(() => {
     window.localStorage.setItem(HABIT_WEEKS_STORAGE_KEY, String(weeks));
   }, [weeks]);
+
+  useEffect(() => {
+    const rawCalendars = window.localStorage.getItem(HABIT_SOURCE_CALENDARS_STORAGE_KEY);
+    if (rawCalendars) {
+      try {
+        const parsed = JSON.parse(rawCalendars) as unknown;
+        if (Array.isArray(parsed)) {
+          setNewHabitSourceCalendarIds(
+            parsed.filter((value): value is string => typeof value === "string")
+          );
+        }
+      } catch {
+        // Ignore malformed localStorage payload.
+      }
+    }
+
+    const rawTerms = window.localStorage.getItem(HABIT_MATCH_TERMS_STORAGE_KEY);
+    if (rawTerms) setNewHabitMatchTerms(rawTerms);
+  }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem(
+      HABIT_SOURCE_CALENDARS_STORAGE_KEY,
+      JSON.stringify(newHabitSourceCalendarIds)
+    );
+  }, [newHabitSourceCalendarIds]);
+
+  useEffect(() => {
+    window.localStorage.setItem(HABIT_MATCH_TERMS_STORAGE_KEY, newHabitMatchTerms);
+  }, [newHabitMatchTerms]);
 
   useEffect(() => {
     const raw = window.localStorage.getItem(MILESTONES_STORAGE_KEY);
@@ -273,17 +312,24 @@ export default function HabitTracker() {
 
         const cached = readCache<TrackerCalendarResponse>(TRACKER_CALENDARS_CACHE_KEY);
         if (cached) {
-          const calendarData = cached.data.calendars;
-          setCalendars(calendarData);
+          const trackerCalendarData = cached.data.trackerCalendars;
+          setCalendars(trackerCalendarData);
+          setSourceCalendars(cached.data.sourceCalendars);
 
           const storedCalendarId = window.localStorage.getItem(TRACKER_CALENDAR_STORAGE_KEY);
           const storedIsValid =
-            storedCalendarId && calendarData.some((entry) => entry.id === storedCalendarId);
+            storedCalendarId &&
+            trackerCalendarData.some((entry) => entry.id === storedCalendarId);
 
           const nextSelectedId =
-            (storedIsValid ? storedCalendarId : cached.data.defaultCalendarId) || null;
+            (storedIsValid ? storedCalendarId : cached.data.defaultTrackerCalendarId) || null;
 
           setSelectedTrackerCalendarId(nextSelectedId);
+
+          if (newHabitSourceCalendarIds.length === 0) {
+            const defaults = cached.data.defaultSourceCalendarIds;
+            if (defaults.length > 0) setNewHabitSourceCalendarIds(defaults);
+          }
 
           if (!isStale(cached.fetchedAt)) {
             setCalendarsLoading(false);
@@ -302,20 +348,25 @@ export default function HabitTracker() {
         if (cancelled) return;
 
         const typedPayload = payload as TrackerCalendarResponse;
-        const calendarData = typedPayload.calendars;
-        setCalendars(calendarData);
+        const trackerCalendarData = typedPayload.trackerCalendars;
+        setCalendars(trackerCalendarData);
+        setSourceCalendars(typedPayload.sourceCalendars);
         writeCache(TRACKER_CALENDARS_CACHE_KEY, typedPayload);
 
         const storedCalendarId = window.localStorage.getItem(TRACKER_CALENDAR_STORAGE_KEY);
         const storedIsValid =
-          storedCalendarId && calendarData.some((entry) => entry.id === storedCalendarId);
+          storedCalendarId &&
+          trackerCalendarData.some((entry) => entry.id === storedCalendarId);
 
         const nextSelectedId =
           (storedIsValid
             ? storedCalendarId
-            : typedPayload.defaultCalendarId) || null;
+            : typedPayload.defaultTrackerCalendarId) || null;
 
         setSelectedTrackerCalendarId(nextSelectedId);
+        if (newHabitSourceCalendarIds.length === 0 && typedPayload.defaultSourceCalendarIds.length > 0) {
+          setNewHabitSourceCalendarIds(typedPayload.defaultSourceCalendarIds);
+        }
       } catch (err: unknown) {
         if (cancelled) return;
         const message = err instanceof Error ? err.message : "Failed to fetch calendars";
@@ -330,7 +381,7 @@ export default function HabitTracker() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [newHabitSourceCalendarIds.length]);
 
   useEffect(() => {
     if (!selectedTrackerCalendarId) return;
@@ -433,6 +484,7 @@ export default function HabitTracker() {
   }, [milestones]);
 
   const hasWritableCalendars = calendars.length > 0;
+  const hasSourceCalendars = sourceCalendars.length > 0;
 
   const addMilestone = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -481,6 +533,10 @@ export default function HabitTracker() {
 
     const habitName = newHabitName.trim();
     if (!habitName) return;
+    if (newHabitMode === "duration" && newHabitSourceCalendarIds.length === 0) {
+      setActionError("Select at least one calendar for time tracking habits.");
+      return;
+    }
 
     if (data.habits.some((habit) => habit.name.toLowerCase() === habitName.toLowerCase())) {
       setActionError("Habit already exists.");
@@ -494,6 +550,14 @@ export default function HabitTracker() {
       data.trackerRange.startDate,
       data.trackerRange.endDate
     );
+    optimisticHabit.sourceCalendarIds = newHabitMode === "duration" ? [...newHabitSourceCalendarIds] : [];
+    optimisticHabit.matchTerms =
+      newHabitMode === "duration"
+        ? newHabitMatchTerms
+            .split(",")
+            .map((term) => term.trim())
+            .filter(Boolean)
+        : [];
     const nextData = {
       ...data,
       habits: [...data.habits, optimisticHabit],
@@ -513,6 +577,8 @@ export default function HabitTracker() {
           trackerCalendarId: selectedTrackerCalendarId,
           habitName,
           habitMode: newHabitMode,
+          sourceCalendarIds: newHabitMode === "duration" ? newHabitSourceCalendarIds : [],
+          matchTerms: newHabitMode === "duration" ? newHabitMatchTerms : "",
         }),
       });
     } catch (err: unknown) {
@@ -905,6 +971,16 @@ export default function HabitTracker() {
             </div>
 
             <form onSubmit={handleAddHabit} className="flex flex-wrap gap-2 mb-4">
+              <select
+                value={newHabitMode}
+                onChange={(event) => setNewHabitMode(event.target.value as HabitMode)}
+                className="text-sm border rounded-lg px-3 py-2 bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
+                disabled={!selectedTrackerCalendarId || actionLoading}
+                aria-label="Select habit tracking mode"
+              >
+                <option value="binary">Yes/No</option>
+                <option value="duration">Hours</option>
+              </select>
               <input
                 type="text"
                 value={newHabitName}
@@ -946,7 +1022,9 @@ export default function HabitTracker() {
                       <div>
                         <p className="font-medium text-sm">{habit.name}</p>
                         <p className="text-xs text-zinc-500">
-                          Current streak {habit.currentStreak}d, longest {habit.longestStreak}d, completed {habit.totalCompleted} days
+                          {habit.mode === "duration"
+                            ? `Hours mode, current streak ${habit.currentStreak}d, longest ${habit.longestStreak}d, active ${habit.totalCompleted} days, total ${habit.totalHours.toFixed(1)}h`
+                            : `Yes/No mode, current streak ${habit.currentStreak}d, longest ${habit.longestStreak}d, completed ${habit.totalCompleted} days`}
                         </p>
                       </div>
                       <button
@@ -993,23 +1071,43 @@ export default function HabitTracker() {
                                 disabled={actionLoading || !day}
                                 aria-label={
                                   day
-                                    ? `${habit.name} ${day.date} ${day.completed ? "complete" : "incomplete"}`
+                                    ? habit.mode === "duration"
+                                      ? `${habit.name} ${day.date} ${day.hours.toFixed(1)} hours`
+                                      : `${habit.name} ${day.date} ${day.completed ? "complete" : "incomplete"}`
                                     : `${habit.name} empty`
                                 }
                                 title={
                                   day
-                                    ? `${formatShortDate(day.date)} - ${day.completed ? "Complete" : "Not done"}`
+                                    ? habit.mode === "duration"
+                                      ? `${formatShortDate(day.date)} - ${day.hours.toFixed(1)}h (click to edit)`
+                                      : `${formatShortDate(day.date)} - ${day.completed ? "Complete" : "Not done"}`
                                     : ""
                                 }
                                 onClick={() => {
                                   if (!day) return;
-                                  toggleHabit(habit.name, day.date, !day.completed);
+                                  if (habit.mode === "duration") {
+                                    const input = window.prompt(
+                                      `Hours for ${habit.name} on ${day.date} (0 to clear)`,
+                                      day.hours > 0 ? String(day.hours) : ""
+                                    );
+                                    if (input === null) return;
+                                    const parsed = Number(input.trim());
+                                    if (!Number.isFinite(parsed) || parsed < 0) {
+                                      setActionError("Enter a valid number of hours (0 or more).");
+                                      return;
+                                    }
+                                    void setHabitDuration(habit.name, day.date, parsed);
+                                    return;
+                                  }
+                                  void toggleHabit(habit.name, day.date, !day.completed);
                                 }}
                                 className={`w-[13px] h-[13px] rounded-[2px] transition-colors ${
                                   day
-                                    ? day.completed
-                                      ? "bg-sky-500 hover:bg-sky-600"
-                                      : "bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600"
+                                    ? habit.mode === "duration"
+                                      ? `${STUDY_LEVEL_COLORS[day.level]} hover:ring-1 hover:ring-zinc-400`
+                                      : day.completed
+                                        ? "bg-sky-500 hover:bg-sky-600"
+                                        : "bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600"
                                     : "bg-transparent"
                                 }`}
                               />
@@ -1019,10 +1117,26 @@ export default function HabitTracker() {
                       </div>
 
                       <div className="flex items-center gap-2 mt-3 text-xs text-zinc-500">
-                        <span>Less</span>
-                        <div className="w-[13px] h-[13px] rounded-[2px] bg-zinc-200 dark:bg-zinc-700" />
-                        <div className="w-[13px] h-[13px] rounded-[2px] bg-sky-500" />
-                        <span>More</span>
+                        {habit.mode === "duration" ? (
+                          <>
+                            <span>Less</span>
+                            {STUDY_LEVEL_COLORS.map((colorClass) => (
+                              <div
+                                key={`${habit.slug}-${colorClass}`}
+                                className={`w-[13px] h-[13px] rounded-[2px] ${colorClass}`}
+                              />
+                            ))}
+                            <span>More</span>
+                            <span className="ml-2 text-zinc-400">Click a day to set hours</span>
+                          </>
+                        ) : (
+                          <>
+                            <span>Less</span>
+                            <div className="w-[13px] h-[13px] rounded-[2px] bg-zinc-200 dark:bg-zinc-700" />
+                            <div className="w-[13px] h-[13px] rounded-[2px] bg-sky-500" />
+                            <span>More</span>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>

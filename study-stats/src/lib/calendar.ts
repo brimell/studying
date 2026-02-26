@@ -344,3 +344,47 @@ export async function fetchTrackerCalendars(
 
   return calendars;
 }
+
+export async function fetchHabitSourceCalendars(
+  calendar: calendar_v3.Calendar
+): Promise<TrackerCalendarOption[]> {
+  const calendars: TrackerCalendarOption[] = [];
+  let pageToken: string | undefined;
+
+  do {
+    const res = await calendar.calendarList.list({
+      maxResults: 250,
+      pageToken,
+    });
+
+    for (const item of res.data.items || []) {
+      if (!item.id || !item.summary) continue;
+
+      const accessRole = item.accessRole || "reader";
+      if (
+        accessRole !== "owner" &&
+        accessRole !== "writer" &&
+        accessRole !== "reader"
+      ) {
+        continue;
+      }
+
+      calendars.push({
+        id: item.id,
+        summary: item.summary,
+        accessRole,
+        primary: Boolean(item.primary),
+      });
+    }
+
+    pageToken = res.data.nextPageToken || undefined;
+  } while (pageToken);
+
+  calendars.sort((a, b) => {
+    if (a.primary && !b.primary) return -1;
+    if (!a.primary && b.primary) return 1;
+    return a.summary.localeCompare(b.summary);
+  });
+
+  return calendars;
+}

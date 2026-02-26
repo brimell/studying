@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { calendar_v3 } from "googleapis";
 import { auth } from "@/lib/auth";
 import {
-  eventMatchesSubjects,
   fetchEventsFromAllCalendars,
+  fetchHabitSourceCalendars,
   fetchTrackerCalendars,
   getCalendarClient,
   getLogicalDayBoundaries,
@@ -15,10 +15,13 @@ const HABIT_CONFIG_SUMMARY = "StudyStats Habit Config";
 const HABIT_CONFIG_DATE = "2099-01-01";
 const MAX_HABITS = 20;
 const MAX_HOURS_PER_DAY = 24;
+const DEFAULT_STUDY_HABIT_NAME = "Studying";
 
 interface HabitConfigEntry {
   name: string;
   mode: HabitMode;
+  sourceCalendarIds: string[];
+  matchTerms: string[];
 }
 
 function getEventDuration(event: {
@@ -89,6 +92,34 @@ function getEventDateKey(event: calendar_v3.Schema$Event): string | null {
   return null;
 }
 
+function sanitizeTerms(terms: string[]): string[] {
+  const seen = new Set<string>();
+  const normalized: string[] = [];
+
+  for (const rawTerm of terms) {
+    const term = rawTerm.trim().toLowerCase();
+    if (!term || seen.has(term)) continue;
+    seen.add(term);
+    normalized.push(term);
+  }
+
+  return normalized;
+}
+
+function sanitizeCalendarIds(ids: string[]): string[] {
+  const seen = new Set<string>();
+  const normalized: string[] = [];
+
+  for (const rawId of ids) {
+    const id = rawId.trim();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    normalized.push(id);
+  }
+
+  return normalized;
+}
+
 function sanitizeHabitConfigs(habits: HabitConfigEntry[]): HabitConfigEntry[] {
   const unique: HabitConfigEntry[] = [];
   const seen = new Set<string>();
@@ -99,12 +130,17 @@ function sanitizeHabitConfigs(habits: HabitConfigEntry[]): HabitConfigEntry[] {
 
     const key = name.toLowerCase();
     if (seen.has(key)) continue;
-
     seen.add(key);
+
+    const mode = normalizeHabitMode(rawHabit.mode);
     unique.push({
       name,
-      mode: normalizeHabitMode(rawHabit.mode),
+      mode,
+      sourceCalendarIds:
+        mode === "duration" ? sanitizeCalendarIds(rawHabit.sourceCalendarIds || []) : [],
+      matchTerms: mode === "duration" ? sanitizeTerms(rawHabit.matchTerms || []) : [],
     });
+
     if (unique.length >= MAX_HABITS) break;
   }
 
@@ -141,6 +177,34 @@ function computeStreaks(days: { completed: boolean }[]): {
 
 function computeTotalHours(days: HabitCompletionDay[]): number {
   return Math.round(days.reduce((acc, day) => acc + day.hours, 0) * 100) / 100;
+}
+
+function parseTermsInput(input: string): string[] {
+  return sanitizeTerms(
+    input
+      .split(",")
+      .map((term) => term.trim())
+      .filter(Boolean)
+  );
+}
+
+function getDefaultStudyTerms(): string[] {
+  return sanitizeTerms(Object.values(DEFAULT_SUBJECTS).flat());
+}
+
+function getDefaultSourceCalendarIds(): string[] {
+  return sanitizeCalendarIds((process.env.CALENDAR_IDS || "").split(",").filter(Boolean));
+}
+
+function getDefaultHabitConfigs(): HabitConfigEntry[] {
+  return [
+    {
+      name: DEFAULT_STUDY_HABIT_NAME,
+      mode: "duration",
+      sourceCalendarIds: getDefaultSourceCalendarIds(),
+      matchTerms: getDefaultStudyTerms(),
+    },
+  ];
 }
 
 function toErrorResponse(error: unknown, fallback: string): NextResponse {
@@ -192,7 +256,7 @@ async function getHabitConfig(
 
   const event = (response.data.items || []).find((item) => item.status !== "cancelled");
   if (!event) {
-    return { eventId: null, habits: [] };
+    return { eventId: null, habits: getDefaultHabitConfigs() };
   }
 
   try {
@@ -202,37 +266,47 @@ async function getHabitConfig(
     };
 
     let habits: HabitConfigEntry[] = [];
-
     if (Array.isArray(parsed.habitConfigs)) {
       habits = sanitizeHabitConfigs(
         parsed.habitConfigs
           .filter(
-            (value): value is { name: string; mode?: string } =>
+            (value): value is Partial<HabitConfigEntry> =>
               typeof value === "object" &&
               value !== null &&
               typeof value.name === "string"
           )
           .map((value) => ({
-            name: value.name,
-            mode: normalizeHabitMode(value.mode || "binary"),
+            name: String(value.name || ""),
+            mode: normalizeHabitMode(String(value.mode || "binary")),
+            sourceCalendarIds: Array.isArray(value.sourceCalendarIds)
+              ? value.sourceCalendarIds.filter((id): id is string => typeof id === "string")
+              : [],
+            matchTerms: Array.isArray(value.matchTerms)
+              ? value.matchTerms.filter((term): term is string => typeof term === "string")
+              : [],
           }))
       );
     } else if (Array.isArray(parsed.habits)) {
       habits = sanitizeHabitConfigs(
         parsed.habits
           .filter((value): value is string => typeof value === "string")
-          .map((name) => ({ name, mode: "binary" as HabitMode }))
+          .map((name) => ({
+            name,
+            mode: "binary" as HabitMode,
+            sourceCalendarIds: [],
+            matchTerms: [],
+          }))
       );
     }
 
     return {
       eventId: event.id || null,
-      habits,
+      habits: habits.length > 0 ? habits : getDefaultHabitConfigs(),
     };
   } catch {
     return {
       eventId: event.id || null,
-      habits: [],
+      habits: getDefaultHabitConfigs(),
     };
   }
 }
@@ -350,7 +424,6 @@ async function upsertHabitCompletionEvent(
   };
 
   const firstExisting = existing.find((event) => Boolean(event.id));
-
   if (firstExisting?.id) {
     await calendar.events.patch({
       calendarId,
@@ -405,9 +478,45 @@ async function deleteHabitCompletionEvents(
   );
 }
 
+async function buildDurationHoursByDate(
+  calendar: calendar_v3.Calendar,
+  habit: HabitConfigEntry,
+  startDate: string,
+  timeMaxIso: string
+): Promise<Record<string, number>> {
+  if (habit.sourceCalendarIds.length === 0) return {};
+
+  const events = await fetchEventsFromAllCalendars(
+    calendar,
+    habit.sourceCalendarIds,
+    getDateTimeMin(startDate),
+    timeMaxIso
+  );
+
+  const terms = sanitizeTerms(habit.matchTerms);
+  const hoursByDate: Record<string, number> = {};
+
+  for (const event of events) {
+    if (event.start.date && !event.start.dateTime) continue;
+    const summary = (event.summary || "").toLowerCase();
+    if (terms.length > 0 && !terms.some((term) => summary.includes(term))) continue;
+
+    const duration = getEventDuration(event);
+    if (duration <= 0) continue;
+
+    const eventStart = new Date(event.start.dateTime || "");
+    const { start: logicalDayStart } = getLogicalDayBoundaries(eventStart);
+    const dateKey = logicalDayStart.toISOString().slice(0, 10);
+    hoursByDate[dateKey] = Math.round(((hoursByDate[dateKey] || 0) + duration) * 100) / 100;
+  }
+
+  return hoursByDate;
+}
+
 function buildHabitDefinitions(
   habits: HabitConfigEntry[],
   completionEvents: calendar_v3.Schema$Event[],
+  durationHoursBySlug: Map<string, Record<string, number>>,
   startDate: string,
   endDate: string
 ): HabitDefinition[] {
@@ -429,19 +538,28 @@ function buildHabitDefinitions(
 
     completionMap.set(key, {
       completed: true,
-      hours: parsedHours > 0 ? Math.round((current.hours + parsedHours) * 100) / 100 : current.hours,
+      hours:
+        parsedHours > 0 ? Math.round((current.hours + parsedHours) * 100) / 100 : current.hours,
     });
   }
 
   return habits.map((habit) => {
     const slug = slugifyHabitName(habit.name);
+    const durationMap = durationHoursBySlug.get(slug) || {};
     const days: HabitCompletionDay[] = dateKeys.map((date) => {
-      const value = completionMap.get(`${slug}|${date}`);
-      const binaryCompleted = Boolean(value?.completed);
-      const durationHours = value?.hours || 0;
-      const hours = habit.mode === "duration" ? durationHours : binaryCompleted ? 1 : 0;
-      const completed = habit.mode === "duration" ? hours > 0 : binaryCompleted;
+      if (habit.mode === "duration") {
+        const hours = Math.round((durationMap[date] || 0) * 100) / 100;
+        return {
+          date,
+          completed: hours > 0,
+          hours,
+          level: hoursToLevel(hours),
+        };
+      }
 
+      const value = completionMap.get(`${slug}|${date}`);
+      const completed = Boolean(value?.completed);
+      const hours = completed ? 1 : 0;
       return {
         date,
         completed,
@@ -456,6 +574,8 @@ function buildHabitDefinitions(
       name: habit.name,
       slug,
       mode: habit.mode,
+      sourceCalendarIds: habit.sourceCalendarIds,
+      matchTerms: habit.matchTerms,
       days,
       currentStreak: stats.currentStreak,
       longestStreak: stats.longestStreak,
@@ -469,12 +589,42 @@ function validateDateKey(dateKey: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(dateKey);
 }
 
+function deriveStudyMetrics(days: HabitDay[]) {
+  let currentStreak = 0;
+  let longestStreak = 0;
+  let running = 0;
+  let totalDaysStudied = 0;
+  let totalHours = 0;
+
+  for (const day of days) {
+    totalHours += day.hours;
+    if (day.hours > 0) {
+      totalDaysStudied += 1;
+      running += 1;
+      if (running > longestStreak) longestStreak = running;
+    } else {
+      running = 0;
+    }
+  }
+
+  for (let i = days.length - 1; i >= 0; i -= 1) {
+    if (days[i].hours <= 0) break;
+    currentStreak += 1;
+  }
+
+  return {
+    currentStreak,
+    longestStreak,
+    totalDaysStudied,
+    totalHours: Math.round(totalHours * 100) / 100,
+  };
+}
+
 export async function GET(req: NextRequest) {
   const authResult = await ensureAuthenticatedCalendar();
   if (authResult.error) return authResult.error;
 
   const { calendar } = authResult;
-  const calendarIds = (process.env.CALENDAR_IDS || "").split(",").filter(Boolean);
 
   const { searchParams } = new URL(req.url);
   const numWeeks = parseInt(searchParams.get("weeks") || "20", 10);
@@ -485,86 +635,80 @@ export async function GET(req: NextRequest) {
   const timeMin = new Date(now);
   timeMin.setDate(timeMin.getDate() - numDays);
 
+  const startDate = timeMin.toISOString().slice(0, 10);
+  const endDate = now.toISOString().slice(0, 10);
+
   try {
-    const allEvents = await fetchEventsFromAllCalendars(
-      calendar,
-      calendarIds,
-      timeMin.toISOString(),
-      now.toISOString()
-    );
-
-    const dateHoursMap: Record<string, number> = {};
-
-    for (const event of allEvents) {
-      if (event.start.date && !event.start.dateTime) continue;
-      const summary = event.summary || "";
-      if (!eventMatchesSubjects(summary, DEFAULT_SUBJECTS)) continue;
-
-      const duration = getEventDuration(event);
-      const eventStart = new Date(event.start.dateTime || "");
-      const { start: dayStart } = getLogicalDayBoundaries(eventStart);
-      const dateKey = dayStart.toISOString().slice(0, 10);
-
-      dateHoursMap[dateKey] = (dateHoursMap[dateKey] || 0) + duration;
-    }
-
-    const days: HabitDay[] = [];
-    for (let i = numDays - 1; i >= 0; i -= 1) {
-      const date = new Date(now);
-      date.setDate(date.getDate() - i);
-      const dateKey = date.toISOString().slice(0, 10);
-      const hours = Math.round((dateHoursMap[dateKey] || 0) * 100) / 100;
-      days.push({ date: dateKey, hours, level: hoursToLevel(hours) });
-    }
-
-    let currentStreak = 0;
-    let longestStreak = 0;
-    let tempStreak = 0;
-    let totalDaysStudied = 0;
-    let totalHours = 0;
-
-    for (const day of days) {
-      totalHours += day.hours;
-      if (day.hours > 0) {
-        totalDaysStudied += 1;
-        tempStreak += 1;
-        longestStreak = Math.max(longestStreak, tempStreak);
-      } else {
-        tempStreak = 0;
-      }
-    }
-
-    for (let i = days.length - 1; i >= 0; i -= 1) {
-      if (days[i].hours <= 0) break;
-      currentStreak += 1;
-    }
-
-    const startDate = days[0]?.date || formatDateKey(new Date());
-    const endDate = days[days.length - 1]?.date || formatDateKey(new Date());
-
     const trackerCalendarId = await resolveWritableTrackerCalendar(
       calendar,
       trackerCalendarParam
     );
 
-    let habits: HabitDefinition[] = [];
-    if (trackerCalendarId) {
-      const config = await getHabitConfig(calendar, trackerCalendarId);
-      const completionEvents = await listHabitCompletionEvents(
-        calendar,
-        trackerCalendarId,
-        startDate,
-        endDate
-      );
-      habits = buildHabitDefinitions(config.habits, completionEvents, startDate, endDate);
+    if (!trackerCalendarId) {
+      return NextResponse.json({
+        days: [],
+        currentStreak: 0,
+        longestStreak: 0,
+        totalDaysStudied: 0,
+        totalHours: 0,
+        trackerCalendarId: null,
+        trackerRange: {
+          startDate,
+          endDate,
+        },
+        habits: [],
+      });
     }
+
+    const config = await getHabitConfig(calendar, trackerCalendarId);
+    const completionEvents = await listHabitCompletionEvents(
+      calendar,
+      trackerCalendarId,
+      startDate,
+      endDate
+    );
+
+    const durationHabits = config.habits.filter((habit) => habit.mode === "duration");
+    const durationMaps = await Promise.all(
+      durationHabits.map(async (habit) => {
+        const hoursByDate = await buildDurationHoursByDate(
+          calendar,
+          habit,
+          startDate,
+          now.toISOString()
+        );
+        return [slugifyHabitName(habit.name), hoursByDate] as const;
+      })
+    );
+
+    const durationHoursBySlug = new Map<string, Record<string, number>>(durationMaps);
+    const habits = buildHabitDefinitions(
+      config.habits,
+      completionEvents,
+      durationHoursBySlug,
+      startDate,
+      endDate
+    );
+
+    const studyHabit =
+      habits.find((habit) => habit.name.toLowerCase() === DEFAULT_STUDY_HABIT_NAME.toLowerCase()) ||
+      habits.find((habit) => habit.mode === "duration") ||
+      null;
+
+    const days: HabitDay[] = (studyHabit?.days || []).map((day) => ({
+      date: day.date,
+      hours: day.hours,
+      level: day.level,
+    }));
+
+    const metrics = deriveStudyMetrics(days);
 
     return NextResponse.json({
       days,
-      currentStreak,
-      longestStreak,
-      totalDaysStudied,
-      totalHours: Math.round(totalHours * 100) / 100,
+      currentStreak: metrics.currentStreak,
+      longestStreak: metrics.longestStreak,
+      totalDaysStudied: metrics.totalDaysStudied,
+      totalHours: metrics.totalHours,
       trackerCalendarId,
       trackerRange: {
         startDate,
@@ -589,6 +733,8 @@ export async function POST(req: NextRequest) {
       trackerCalendarId?: string;
       habitName?: string;
       habitMode?: HabitMode;
+      sourceCalendarIds?: string[];
+      matchTerms?: string | string[];
     };
 
     const trackerCalendarId = await resolveWritableTrackerCalendar(
@@ -609,10 +755,29 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Habit name is required." }, { status: 400 });
     }
 
+    const sourceCalendarIds = sanitizeCalendarIds(body.sourceCalendarIds || []);
+    const matchTerms = Array.isArray(body.matchTerms)
+      ? sanitizeTerms(body.matchTerms)
+      : typeof body.matchTerms === "string"
+        ? parseTermsInput(body.matchTerms)
+        : [];
+
+    if (habitMode === "duration" && sourceCalendarIds.length === 0) {
+      return NextResponse.json(
+        { error: "Select at least one calendar for time tracking habits." },
+        { status: 400 }
+      );
+    }
+
     const config = await getHabitConfig(calendar, trackerCalendarId);
     const nextHabits = sanitizeHabitConfigs([
       ...config.habits,
-      { name: habitName, mode: habitMode },
+      {
+        name: habitName,
+        mode: habitMode,
+        sourceCalendarIds,
+        matchTerms,
+      },
     ]);
 
     if (nextHabits.length === config.habits.length) {
@@ -620,11 +785,85 @@ export async function POST(req: NextRequest) {
     }
 
     await saveHabitConfig(calendar, trackerCalendarId, nextHabits, config.eventId);
-
     return NextResponse.json({ ok: true });
   } catch (error: unknown) {
     console.error("Error creating habit:", error);
     return toErrorResponse(error, "Failed to create habit");
+  }
+}
+
+export async function PUT(req: NextRequest) {
+  const authResult = await ensureAuthenticatedCalendar();
+  if (authResult.error) return authResult.error;
+
+  const { calendar } = authResult;
+
+  try {
+    const body = (await req.json()) as {
+      trackerCalendarId?: string;
+      habitName?: string;
+      habitMode?: HabitMode;
+      sourceCalendarIds?: string[];
+      matchTerms?: string | string[];
+    };
+
+    const trackerCalendarId = await resolveWritableTrackerCalendar(
+      calendar,
+      body.trackerCalendarId
+    );
+
+    if (!trackerCalendarId) {
+      return NextResponse.json(
+        { error: "Please select a writable Google Calendar." },
+        { status: 400 }
+      );
+    }
+
+    const habitName = normalizeHabitName(body.habitName || "");
+    if (!habitName) {
+      return NextResponse.json({ error: "Habit name is required." }, { status: 400 });
+    }
+
+    const sourceCalendarIds = sanitizeCalendarIds(body.sourceCalendarIds || []);
+    const matchTerms = Array.isArray(body.matchTerms)
+      ? sanitizeTerms(body.matchTerms)
+      : typeof body.matchTerms === "string"
+        ? parseTermsInput(body.matchTerms)
+        : [];
+
+    const config = await getHabitConfig(calendar, trackerCalendarId);
+    let found = false;
+    const nextHabits = config.habits.map((habit) => {
+      if (habit.name.toLowerCase() !== habitName.toLowerCase()) return habit;
+      found = true;
+      const mode = body.habitMode ? normalizeHabitMode(body.habitMode) : habit.mode;
+      return {
+        ...habit,
+        mode,
+        sourceCalendarIds: mode === "duration" ? sourceCalendarIds : [],
+        matchTerms: mode === "duration" ? matchTerms : [],
+      };
+    });
+
+    if (!found) {
+      return NextResponse.json({ error: "Habit not found." }, { status: 404 });
+    }
+
+    const updatedHabit = nextHabits.find(
+      (habit) => habit.name.toLowerCase() === habitName.toLowerCase()
+    );
+    if (updatedHabit?.mode === "duration" && updatedHabit.sourceCalendarIds.length === 0) {
+      return NextResponse.json(
+        { error: "Select at least one calendar for time tracking habits." },
+        { status: 400 }
+      );
+    }
+
+    await saveHabitConfig(calendar, trackerCalendarId, nextHabits, config.eventId);
+    return NextResponse.json({ ok: true });
+  } catch (error: unknown) {
+    console.error("Error updating habit config:", error);
+    return toErrorResponse(error, "Failed to update habit config");
   }
 }
 
@@ -675,7 +914,12 @@ export async function PATCH(req: NextRequest) {
     if (!habit) {
       const nextHabits = sanitizeHabitConfigs([
         ...config.habits,
-        { name: habitName, mode: requestedMode },
+        {
+          name: habitName,
+          mode: requestedMode,
+          sourceCalendarIds: [],
+          matchTerms: [],
+        },
       ]);
       await saveHabitConfig(calendar, trackerCalendarId, nextHabits, config.eventId);
       habit = nextHabits.find((entry) => entry.name.toLowerCase() === habitName.toLowerCase());
@@ -686,19 +930,14 @@ export async function PATCH(req: NextRequest) {
     }
 
     if (habit.mode === "duration") {
-      const hours = sanitizeHours(Number(body.hours || 0));
-      await upsertHabitCompletionEvent(calendar, trackerCalendarId, habit, date, hours);
-    } else {
-      const completed = Boolean(body.completed);
-      await upsertHabitCompletionEvent(
-        calendar,
-        trackerCalendarId,
-        habit,
-        date,
-        completed ? 1 : 0
+      return NextResponse.json(
+        { error: "Time tracking habits are auto-calculated from calendar scans." },
+        { status: 400 }
       );
     }
 
+    const completed = Boolean(body.completed);
+    await upsertHabitCompletionEvent(calendar, trackerCalendarId, habit, date, completed ? 1 : 0);
     return NextResponse.json({ ok: true });
   } catch (error: unknown) {
     console.error("Error toggling habit completion:", error);
