@@ -1,10 +1,9 @@
 "use client";
 
-import { FormEvent, useDeferredValue, useEffect, useMemo, useState } from "react";
-import type { Session } from "@supabase/supabase-js";
+import { FormEvent, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import MuscleModel from "@/components/MuscleModel";
-import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
+import { useWorkoutData } from "@/components/WorkoutDataProvider";
 import { lockBodyScroll, unlockBodyScroll } from "@/lib/scroll-lock";
 import type {
   MuscleGroup,
@@ -19,7 +18,6 @@ import { MUSCLE_GROUPS, WORKOUT_WEEK_DAYS } from "@/lib/types";
 import {
   computeMuscleFatigue,
   EXERCISE_MUSCLE_MAP,
-  emptyWorkoutPayload,
   MUSCLE_LABELS,
   UI_MUSCLE_GROUPS,
 } from "@/lib/workouts";
@@ -113,12 +111,9 @@ function fuzzyScore(query: string, target: string): number {
 }
 
 export default function WorkoutPlanner() {
-  const supabase = useMemo(() => getSupabaseBrowserClient(), []);
-  const [session, setSession] = useState<Session | null>(null);
-  const [payload, setPayload] = useState<WorkoutPlannerPayload>(emptyWorkoutPayload());
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { supabase, session, payload, loading, saving, error: sharedError, savePayload } =
+    useWorkoutData();
+  const [actionError, setActionError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
   const [newWorkoutName, setNewWorkoutName] = useState("");
@@ -135,6 +130,8 @@ export default function WorkoutPlanner() {
     emptyWeeklyPlanDays()
   );
   const [editingWeeklyPlanId, setEditingWeeklyPlanId] = useState<string | null>(null);
+  const weeklyPlanSectionRef = useRef<HTMLElement | null>(null);
+  const [weeklyPlanSummariesVisible, setWeeklyPlanSummariesVisible] = useState(false);
 
   const [logDateByWorkout, setLogDateByWorkout] = useState<Record<string, string>>({});
 
@@ -143,51 +140,6 @@ export default function WorkoutPlanner() {
     lockBodyScroll();
     return () => unlockBodyScroll();
   }, [showCreateWorkoutModal]);
-
-  useEffect(() => {
-    if (!supabase) {
-      setLoading(false);
-      return;
-    }
-
-    let mounted = true;
-    supabase.auth.getSession().then(({ data }) => {
-      if (!mounted) return;
-      setSession(data.session);
-    });
-    const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      setSession(nextSession);
-    });
-
-    return () => {
-      mounted = false;
-      data.subscription.unsubscribe();
-    };
-  }, [supabase]);
-
-  const callApi = async (method: "GET" | "PUT", nextPayload?: WorkoutPlannerPayload) => {
-    if (!supabase) throw new Error("Supabase is not configured.");
-    const { data } = await supabase.auth.getSession();
-    const token = data.session?.access_token;
-    if (!token) throw new Error("Sign in to Supabase to save workouts.");
-
-    const response = await fetch("/api/workout-planner", {
-      method,
-      headers: {
-        Authorization: `Bearer ${token}`,
-        ...(method === "PUT" ? { "Content-Type": "application/json" } : {}),
-      },
-      body: method === "PUT" ? JSON.stringify({ payload: nextPayload }) : undefined,
-    });
-
-    const json = (await response.json()) as {
-      error?: string;
-      payload?: WorkoutPlannerPayload;
-    };
-
-    if (!response.ok) throw new Error(json.error || "Request failed.");
-    return json.payload || emptyWorkoutPayload();
-  };
 
   const getTrackerCalendarId = async (): Promise<string | null> => {
     const stored = window.localStorage.getItem(TRACKER_CALENDAR_STORAGE_KEY);
@@ -285,47 +237,16 @@ export default function WorkoutPlanner() {
     return { synced, failed };
   };
 
-  useEffect(() => {
-    if (!session) {
-      setLoading(false);
-      setPayload(emptyWorkoutPayload());
-      return;
-    }
-
-    let cancelled = false;
-    const load = async () => {
-      try {
-        setError(null);
-        setLoading(true);
-        const nextPayload = await callApi("GET");
-        if (!cancelled) setPayload(nextPayload);
-      } catch (loadError: unknown) {
-        if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : "Failed to load workout planner.");
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
-
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, [session]);
-
   const persist = async (nextPayload: WorkoutPlannerPayload, successMessage?: string) => {
     try {
-      setSaving(true);
-      setError(null);
+      setActionError(null);
       setMessage(null);
-      const saved = await callApi("PUT", nextPayload);
-      setPayload(saved);
+      await savePayload(nextPayload);
       if (successMessage) setMessage(successMessage);
     } catch (persistError: unknown) {
-      setError(persistError instanceof Error ? persistError.message : "Failed to save workout data.");
-    } finally {
-      setSaving(false);
+      setActionError(
+        persistError instanceof Error ? persistError.message : "Failed to save workout data."
+      );
     }
   };
 
@@ -454,7 +375,7 @@ export default function WorkoutPlanner() {
 
     const hasAssignedDay = WORKOUT_WEEK_DAYS.some((day) => weeklyPlanDays[day].length > 0);
     if (!hasAssignedDay) {
-      setError("Assign at least one day to a workout before saving a weekly plan.");
+      setActionError("Assign at least one day to a workout before saving a weekly plan.");
       return;
     }
 
@@ -540,7 +461,7 @@ export default function WorkoutPlanner() {
     await persist(nextPayload, `Logged "${workout.name}" on ${date}.`);
     const syncResult = await syncWorkoutLogToGymHabit(date);
     if (syncResult.failed.length > 0) {
-      setError(
+      setActionError(
         `Workout logged, but habit sync had issues: ${syncResult.failed.slice(0, 2).join("; ")}`
       );
     } else if (syncResult.synced > 0) {
@@ -557,17 +478,47 @@ export default function WorkoutPlanner() {
     await persist(nextPayload, "Workout log removed.");
   };
 
-  const fatigueScores = useMemo(() => computeMuscleFatigue(payload), [payload]);
+  useEffect(() => {
+    if (weeklyPlanSummariesVisible) return;
+    const node = weeklyPlanSectionRef.current;
+    if (!node) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries.some((entry) => entry.isIntersecting)) return;
+        setWeeklyPlanSummariesVisible(true);
+        observer.disconnect();
+      },
+      { rootMargin: "180px 0px" }
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [weeklyPlanSummariesVisible]);
+
+  const workouts = payload.workouts;
+  const logs = payload.logs;
+  const weeklyPlans = payload.weeklyPlans;
+
+  const fatigueScores = useMemo(
+    () =>
+      computeMuscleFatigue({
+        workouts,
+        logs,
+        weeklyPlans: [],
+        updatedAt: payload.updatedAt,
+      }),
+    [logs, payload.updatedAt, workouts]
+  );
   const workoutLoadById = useMemo(() => {
     const loadMap = new Map<string, Record<MuscleGroup, number>>();
-    for (const workout of payload.workouts) {
+    for (const workout of workouts) {
       loadMap.set(workout.id, computeWorkoutLoadPoints(workout));
     }
     return loadMap;
-  }, [payload.workouts]);
+  }, [workouts]);
   const currentLoadPoints = useMemo(() => {
     const byMuscle = createMuscleNumberMap(0);
-    for (const log of payload.logs) {
+    for (const log of logs) {
       const workoutLoad = workoutLoadById.get(log.workoutId);
       if (!workoutLoad) continue;
       for (const muscle of MUSCLE_GROUPS) {
@@ -575,7 +526,7 @@ export default function WorkoutPlanner() {
       }
     }
     return byMuscle;
-  }, [payload.logs, workoutLoadById]);
+  }, [logs, workoutLoadById]);
   const draftMuscleScores = useMemo(() => {
     const workout: WorkoutTemplate = {
       id: "draft",
@@ -608,14 +559,14 @@ export default function WorkoutPlanner() {
     [draftExercises]
   );
   const workoutById = useMemo(
-    () => new Map(payload.workouts.map((workout) => [workout.id, workout])),
-    [payload.workouts]
+    () => new Map(workouts.map((workout) => [workout.id, workout])),
+    [workouts]
   );
   const workoutScoresById = useMemo(() => {
     const scoreMap = new Map<string, Record<MuscleGroup, number>>();
     const today = todayDateKey();
 
-    for (const workout of payload.workouts) {
+    for (const workout of workouts) {
       const singleWorkoutPayload: WorkoutPlannerPayload = {
         workouts: [workout],
         logs: [
@@ -633,8 +584,9 @@ export default function WorkoutPlanner() {
     }
 
     return scoreMap;
-  }, [payload.workouts]);
+  }, [workouts]);
   const weeklyPlanSummaries = useMemo(() => {
+    if (!weeklyPlanSummariesVisible) return new Map();
     const summaries = new Map<
       string,
       {
@@ -645,7 +597,7 @@ export default function WorkoutPlanner() {
       }
     >();
 
-    for (const plan of payload.weeklyPlans) {
+    for (const plan of weeklyPlans) {
       const totalByMuscle = createMuscleNumberMap(0);
       const hitDaysByMuscle = createMuscleNumberMap(0);
 
@@ -687,7 +639,7 @@ export default function WorkoutPlanner() {
     }
 
     return summaries;
-  }, [payload.weeklyPlans, workoutById]);
+  }, [weeklyPlanSummariesVisible, weeklyPlans, workoutById]);
 
   if (!supabase) {
     return (
@@ -735,7 +687,9 @@ export default function WorkoutPlanner() {
           {loading ? "Loading planner..." : "Saving..."}
         </div>
       )}
-      {error && <p className="text-sm text-red-500">{error}</p>}
+      {(actionError || sharedError) && (
+        <p className="text-sm text-red-500">{actionError || sharedError}</p>
+      )}
       {message && <p className="text-sm text-emerald-600">{message}</p>}
 
       <MuscleModel
@@ -745,7 +699,10 @@ export default function WorkoutPlanner() {
       />
 
       <div className="grid grid-cols-1 gap-5">
-        <section className="rounded-2xl bg-white dark:bg-zinc-900 p-5 shadow-sm border border-zinc-200 dark:border-zinc-800">
+        <section
+          ref={weeklyPlanSectionRef}
+          className="rounded-2xl bg-white dark:bg-zinc-900 p-5 shadow-sm border border-zinc-200 dark:border-zinc-800"
+        >
           <h2 className="text-lg font-semibold mb-3">Saved Workouts</h2>
           <div className="space-y-3">
             {payload.workouts.length === 0 && (

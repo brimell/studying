@@ -9,6 +9,7 @@ import FirstExamCountdown from "./FirstExamCountdown";
 import HabitTracker from "./HabitTracker";
 import WorkoutFatigueCard from "./WorkoutFatigueCard";
 import AlertsPanel from "./AlertsPanel";
+import { WorkoutDataProvider } from "./WorkoutDataProvider";
 
 const DASHBOARD_LAYOUT_STORAGE_KEY = "study-stats.dashboard.layout.v1";
 const DASHBOARD_SETTINGS_STORAGE_KEY = "study-stats.dashboard.settings.v1";
@@ -187,7 +188,11 @@ export default function Dashboard() {
         },
         "workout-fatigue": {
           title: "Workout Fatigue",
-          content: <WorkoutFatigueCard />,
+          content: (
+            <WorkoutDataProvider>
+              <WorkoutFatigueCard />
+            </WorkoutDataProvider>
+          ),
         },
         "daily-study-chart": {
           title: "Daily Study Chart",

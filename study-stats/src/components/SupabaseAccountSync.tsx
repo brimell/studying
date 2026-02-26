@@ -45,6 +45,12 @@ function applyCloudSettings(payload: SyncPayload): void {
   }
 }
 
+function snapshotPayload(payload: SyncPayload): string {
+  return JSON.stringify(
+    Object.entries(payload).sort(([left], [right]) => left.localeCompare(right))
+  );
+}
+
 function notifySettingsApplied(): void {
   window.dispatchEvent(new CustomEvent("study-stats:refresh-all"));
   window.dispatchEvent(new CustomEvent("study-stats:study-calendars-updated"));
@@ -72,6 +78,11 @@ export default function SupabaseAccountSync() {
   const [cloudUpdatedAt, setCloudUpdatedAt] = useState<string | null>(null);
   const [autoSyncing, setAutoSyncing] = useState(false);
   const lastSyncedSnapshotRef = useRef<string>("");
+  const trackedPayloadRef = useRef<SyncPayload>({});
+  const dirtyKeysRef = useRef<Set<string>>(new Set());
+  const autoSyncDebounceRef = useRef<number | null>(null);
+  const autoSyncInFlightRef = useRef(false);
+  const suspendTrackingRef = useRef(false);
   const autoSyncInitializedRef = useRef(false);
 
   useEffect(() => {
@@ -188,7 +199,8 @@ export default function SupabaseAccountSync() {
     try {
       const payload = collectLocalSettings();
       await autoBackupToCloud(payload);
-      lastSyncedSnapshotRef.current = JSON.stringify(payload);
+      trackedPayloadRef.current = payload;
+      lastSyncedSnapshotRef.current = snapshotPayload(payload);
       setMessage(`Backed up ${Object.keys(payload).length} settings to cloud.`);
     } catch (backupError: unknown) {
       setError(backupError instanceof Error ? backupError.message : "Backup failed.");
@@ -216,9 +228,15 @@ export default function SupabaseAccountSync() {
       );
       if (!confirmed) return;
 
-      applyCloudSettings(payload);
+      suspendTrackingRef.current = true;
+      try {
+        applyCloudSettings(payload);
+      } finally {
+        suspendTrackingRef.current = false;
+      }
       setCloudUpdatedAt(result.updatedAt || null);
-      lastSyncedSnapshotRef.current = JSON.stringify(payload);
+      trackedPayloadRef.current = payload;
+      lastSyncedSnapshotRef.current = snapshotPayload(payload);
       window.location.reload();
     } catch (restoreError: unknown) {
       setError(restoreError instanceof Error ? restoreError.message : "Restore failed.");
@@ -231,10 +249,111 @@ export default function SupabaseAccountSync() {
     if (!session) {
       autoSyncInitializedRef.current = false;
       lastSyncedSnapshotRef.current = "";
+      trackedPayloadRef.current = {};
+      dirtyKeysRef.current.clear();
+      if (autoSyncDebounceRef.current) {
+        window.clearTimeout(autoSyncDebounceRef.current);
+        autoSyncDebounceRef.current = null;
+      }
       return;
     }
 
     let cancelled = false;
+    const storage = window.localStorage;
+    const writableStorage = storage as Storage & {
+      setItem: (key: string, value: string) => void;
+      removeItem: (key: string) => void;
+      clear: () => void;
+    };
+
+    const originalSetItem = storage.setItem.bind(storage);
+    const originalRemoveItem = storage.removeItem.bind(storage);
+    const originalClear = storage.clear.bind(storage);
+    let storagePatched = false;
+
+    const clearDebounceTimer = () => {
+      if (!autoSyncDebounceRef.current) return;
+      window.clearTimeout(autoSyncDebounceRef.current);
+      autoSyncDebounceRef.current = null;
+    };
+
+    const flushDirtyKeys = async () => {
+      if (cancelled) return;
+      if (!autoSyncInitializedRef.current) return;
+      if (autoSyncInFlightRef.current) return;
+
+      const dirtyKeys = [...dirtyKeysRef.current];
+      if (dirtyKeys.length === 0) return;
+
+      autoSyncInFlightRef.current = true;
+      try {
+        const nextPayload: SyncPayload = { ...trackedPayloadRef.current };
+        for (const key of dirtyKeys) {
+          if (!shouldSyncKey(key)) continue;
+          const value = storage.getItem(key);
+          if (value === null) {
+            delete nextPayload[key];
+          } else {
+            nextPayload[key] = value;
+          }
+        }
+
+        const snapshot = snapshotPayload(nextPayload);
+        if (snapshot === lastSyncedSnapshotRef.current) {
+          trackedPayloadRef.current = nextPayload;
+          dirtyKeys.forEach((key) => dirtyKeysRef.current.delete(key));
+          return;
+        }
+
+        setAutoSyncing(true);
+        await autoBackupToCloud(nextPayload);
+        if (cancelled) return;
+        trackedPayloadRef.current = nextPayload;
+        dirtyKeys.forEach((key) => dirtyKeysRef.current.delete(key));
+        lastSyncedSnapshotRef.current = snapshot;
+      } catch (syncError: unknown) {
+        if (!cancelled) {
+          setError(syncError instanceof Error ? syncError.message : "Auto-sync failed.");
+        }
+      } finally {
+        autoSyncInFlightRef.current = false;
+        if (!cancelled) setAutoSyncing(false);
+      }
+    };
+
+    const scheduleDirtySync = () => {
+      clearDebounceTimer();
+      autoSyncDebounceRef.current = window.setTimeout(() => {
+        void flushDirtyKeys();
+      }, 1200);
+    };
+
+    const markDirtyKey = (key: string) => {
+      if (!shouldSyncKey(key)) return;
+      dirtyKeysRef.current.add(key);
+      scheduleDirtySync();
+    };
+
+    const markAllTrackedKeysDirty = () => {
+      const keys = new Set<string>(Object.keys(trackedPayloadRef.current));
+      for (let i = 0; i < storage.length; i += 1) {
+        const key = storage.key(i);
+        if (!key || !shouldSyncKey(key)) continue;
+        keys.add(key);
+      }
+      if (keys.size === 0) return;
+      keys.forEach((key) => dirtyKeysRef.current.add(key));
+      scheduleDirtySync();
+    };
+
+    const onStorageUpdated = (event: StorageEvent) => {
+      if (event.storageArea !== storage) return;
+      if (event.key) {
+        markDirtyKey(event.key);
+      } else {
+        markAllTrackedKeysDirty();
+      }
+    };
 
     const initializeAndSync = async () => {
       try {
@@ -252,14 +371,21 @@ export default function SupabaseAccountSync() {
           ...localPayload,
         };
 
-        const localSnapshot = JSON.stringify(localPayload);
-        const mergedSnapshot = JSON.stringify(mergedPayload);
-        const cloudSnapshot = JSON.stringify(cloudPayload);
+        const localSnapshot = snapshotPayload(localPayload);
+        const mergedSnapshot = snapshotPayload(mergedPayload);
+        const cloudSnapshot = snapshotPayload(cloudPayload);
 
         if (hasCloudData && localSnapshot !== mergedSnapshot) {
-          applyCloudSettings(mergedPayload);
+          suspendTrackingRef.current = true;
+          try {
+            applyCloudSettings(mergedPayload);
+          } finally {
+            suspendTrackingRef.current = false;
+          }
           await autoBackupToCloud(mergedPayload);
           if (cancelled) return;
+          trackedPayloadRef.current = mergedPayload;
+          dirtyKeysRef.current.clear();
           lastSyncedSnapshotRef.current = mergedSnapshot;
           setMessage("Auto-sync applied cloud settings to this device.");
           autoSyncInitializedRef.current = true;
@@ -268,7 +394,14 @@ export default function SupabaseAccountSync() {
         }
 
         if (!hasLocalData && hasCloudData) {
-          applyCloudSettings(cloudPayload);
+          suspendTrackingRef.current = true;
+          try {
+            applyCloudSettings(cloudPayload);
+          } finally {
+            suspendTrackingRef.current = false;
+          }
+          trackedPayloadRef.current = cloudPayload;
+          dirtyKeysRef.current.clear();
           lastSyncedSnapshotRef.current = cloudSnapshot;
           setMessage("Auto-sync restored cloud data to this device.");
           setCloudUpdatedAt(cloud.updatedAt || null);
@@ -279,6 +412,8 @@ export default function SupabaseAccountSync() {
 
         await autoBackupToCloud(localPayload);
         if (cancelled) return;
+        trackedPayloadRef.current = localPayload;
+        dirtyKeysRef.current.clear();
         lastSyncedSnapshotRef.current = localSnapshot;
         autoSyncInitializedRef.current = true;
       } catch (syncError: unknown) {
@@ -292,28 +427,38 @@ export default function SupabaseAccountSync() {
 
     void initializeAndSync();
 
-    const interval = window.setInterval(() => {
-      if (!autoSyncInitializedRef.current) return;
-      const localPayload = collectLocalSettings();
-      const snapshot = JSON.stringify(localPayload);
-      if (snapshot === lastSyncedSnapshotRef.current) return;
-
-      setAutoSyncing(true);
-      void autoBackupToCloud(localPayload)
-        .then(() => {
-          lastSyncedSnapshotRef.current = snapshot;
-        })
-        .catch((syncError: unknown) => {
-          setError(syncError instanceof Error ? syncError.message : "Auto-sync failed.");
-        })
-        .finally(() => {
-          if (!cancelled) setAutoSyncing(false);
-        });
-    }, 15_000);
+    try {
+      writableStorage.setItem = (key: string, value: string) => {
+        originalSetItem(key, value);
+        if (suspendTrackingRef.current) return;
+        markDirtyKey(key);
+      };
+      writableStorage.removeItem = (key: string) => {
+        originalRemoveItem(key);
+        if (suspendTrackingRef.current) return;
+        markDirtyKey(key);
+      };
+      writableStorage.clear = () => {
+        if (!suspendTrackingRef.current) {
+          markAllTrackedKeysDirty();
+        }
+        originalClear();
+      };
+      storagePatched = true;
+    } catch {
+      storagePatched = false;
+    }
+    window.addEventListener("storage", onStorageUpdated);
 
     return () => {
       cancelled = true;
-      window.clearInterval(interval);
+      clearDebounceTimer();
+      window.removeEventListener("storage", onStorageUpdated);
+      if (storagePatched) {
+        writableStorage.setItem = originalSetItem;
+        writableStorage.removeItem = originalRemoveItem;
+        writableStorage.clear = originalClear;
+      }
     };
   }, [session]);
 

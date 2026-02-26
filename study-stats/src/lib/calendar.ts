@@ -59,12 +59,50 @@ export async function fetchEventsFromAllCalendars(
   timeMin: string,
   timeMax: string
 ): Promise<CalendarEvent[]> {
+  const uniqueCalendarIds = [...new Set(calendarIds.filter(Boolean))];
+  if (uniqueCalendarIds.length === 0) return [];
+
+  const concurrency = Math.max(1, Math.min(6, uniqueCalendarIds.length));
   const allEvents: CalendarEvent[] = [];
-  for (const id of calendarIds) {
-    const events = await fetchEvents(calendar, id, timeMin, timeMax);
-    allEvents.push(...events);
-  }
+  let nextIndex = 0;
+
+  const worker = async () => {
+    while (nextIndex < uniqueCalendarIds.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      const events = await fetchEvents(calendar, uniqueCalendarIds[index], timeMin, timeMax);
+      allEvents.push(...events);
+    }
+  };
+
+  await Promise.all(Array.from({ length: concurrency }, () => worker()));
   return allEvents;
+}
+
+function mergeOverlappingIntervals(intervals: Array<[Date, Date]>): Array<[Date, Date]> {
+  if (intervals.length <= 1) return intervals;
+
+  const sorted = [...intervals].sort((left, right) => left[0].getTime() - right[0].getTime());
+  const merged: Array<[Date, Date]> = [sorted[0]];
+
+  for (let i = 1; i < sorted.length; i += 1) {
+    const [start, end] = sorted[i];
+    const previous = merged[merged.length - 1];
+    if (start.getTime() <= previous[1].getTime()) {
+      previous[1] = new Date(Math.max(previous[1].getTime(), end.getTime()));
+    } else {
+      merged.push([start, end]);
+    }
+  }
+
+  return merged;
+}
+
+function eventLogicalDateKey(event: CalendarEvent): string | null {
+  if (event.start.date && !event.start.dateTime) return event.start.date;
+  if (!event.start.dateTime) return null;
+  const { start } = getLogicalDayBoundaries(new Date(event.start.dateTime));
+  return start.toISOString().slice(0, 10);
 }
 
 // ─── Event Matching ──────────────────────────────────────
@@ -114,61 +152,31 @@ export async function calculateTodayProgress(
 ) {
   const now = new Date();
   const { start, end } = getLogicalDayBoundaries(now);
+  const events = await fetchEventsFromAllCalendars(
+    calendar,
+    calendarIds,
+    start.toISOString(),
+    end.toISOString()
+  );
 
-  let totalPlanned = 0;
+  const plannedIntervals: Array<[Date, Date]> = [];
   let totalCompleted = 0;
 
-  for (const calendarId of calendarIds) {
-    // Planned: all events today
-    const plannedEvents = await fetchEvents(
-      calendar,
-      calendarId,
-      start.toISOString(),
-      end.toISOString()
-    );
+  for (const event of events) {
+    if (event.start.date && !event.start.dateTime) continue;
+    const summary = event.summary || "";
+    if (!eventMatchesSubjects(summary, subjects)) continue;
 
-    // Merge overlapping intervals for planned time
-    const intervals: [Date, Date][] = [];
-    for (const event of plannedEvents) {
-      if (event.start.date && !event.start.dateTime) continue;
-      const summary = event.summary || "";
-      if (!eventMatchesSubjects(summary, subjects)) continue;
-
-      const s = new Date(event.start.dateTime!);
-      const e = new Date(event.end.dateTime!);
-      let merged = false;
-      for (let i = 0; i < intervals.length; i++) {
-        const [is, ie] = intervals[i];
-        if (Math.max(s.getTime(), is.getTime()) < Math.min(e.getTime(), ie.getTime())) {
-          intervals[i] = [
-            new Date(Math.min(s.getTime(), is.getTime())),
-            new Date(Math.max(e.getTime(), ie.getTime())),
-          ];
-          merged = true;
-          break;
-        }
-      }
-      if (!merged) intervals.push([s, e]);
-    }
-    totalPlanned += intervals.reduce(
-      (acc, [s, e]) => acc + (e.getTime() - s.getTime()) / (1000 * 3600),
-      0
-    );
-
-    // Completed: events up to now
-    const completedEvents = await fetchEvents(
-      calendar,
-      calendarId,
-      start.toISOString(),
-      now.toISOString()
-    );
-    for (const event of completedEvents) {
-      if (event.start.date && !event.start.dateTime) continue;
-      const summary = event.summary || "";
-      if (!eventMatchesSubjects(summary, subjects)) continue;
-      totalCompleted += getCompletedEventDuration(event, now);
-    }
+    const startAt = new Date(event.start.dateTime || event.start.date!);
+    const endAt = new Date(event.end.dateTime || event.end.date!);
+    plannedIntervals.push([startAt, endAt]);
+    totalCompleted += getCompletedEventDuration(event, now);
   }
+
+  const totalPlanned = mergeOverlappingIntervals(plannedIntervals).reduce(
+    (acc, [s, e]) => acc + (e.getTime() - s.getTime()) / (1000 * 3600),
+    0
+  );
 
   const percentageCompleted =
     totalPlanned === 0 ? 100 : (totalCompleted / totalPlanned) * 100;
@@ -186,49 +194,68 @@ export async function calculateDailyStudyTime(
   subjectFilter?: string
 ) {
   const now = new Date();
-  const entries: { date: string; label: string; hours: number }[] = [];
+  const safeNumDays = Math.max(1, numDays);
+  const firstDate = new Date(now);
+  firstDate.setDate(firstDate.getDate() - (safeNumDays - 1));
+  const firstBoundaries = getLogicalDayBoundaries(firstDate);
+  const timeMinIso = firstBoundaries.start.toISOString();
+  const timeMaxIso = now.toISOString();
+  const allEvents = await fetchEventsFromAllCalendars(
+    calendar,
+    calendarIds,
+    timeMinIso,
+    timeMaxIso
+  );
 
-  for (let i = numDays - 1; i >= 0; i--) {
+  const includedDateKeys = new Set<string>();
+  const isTodayByDateKey = new Set<string>();
+  const entries: { date: string; label: string; hours: number }[] = [];
+  const dayHoursByDate = new Map<string, number>();
+
+  for (let i = safeNumDays - 1; i >= 0; i--) {
     const date = new Date(now);
     date.setDate(date.getDate() - i);
-    const { start, end } = getLogicalDayBoundaries(date);
+    const { start } = getLogicalDayBoundaries(date);
+    const dateKey = start.toISOString().slice(0, 10);
+    includedDateKeys.add(dateKey);
+    if (i === 0) isTodayByDateKey.add(dateKey);
+  }
 
-    let dayHours = 0;
-    for (const calendarId of calendarIds) {
-      const isToday = i === 0;
-      const timeMax = isToday ? now.toISOString() : end.toISOString();
-      const events = await fetchEvents(
-        calendar,
-        calendarId,
-        start.toISOString(),
-        timeMax
-      );
+  for (const event of allEvents) {
+    if (event.start.date && !event.start.dateTime) continue;
+    const summary = event.summary || "";
 
-      for (const event of events) {
-        if (event.start.date && !event.start.dateTime) continue;
-        const summary = event.summary || "";
-
-        if (subjectFilter) {
-          const terms = subjects[subjectFilter];
-          if (!terms || !eventMatchesSubject(summary, terms)) continue;
-        } else {
-          if (!eventMatchesSubjects(summary, subjects)) continue;
-        }
-
-        if (isToday) {
-          dayHours += getCompletedEventDuration(event, now);
-        } else {
-          dayHours += getEventDuration(event);
-        }
-      }
+    if (subjectFilter) {
+      const terms = subjects[subjectFilter];
+      if (!terms || !eventMatchesSubject(summary, terms)) continue;
+    } else if (!eventMatchesSubjects(summary, subjects)) {
+      continue;
     }
+
+    const key = eventLogicalDateKey(event);
+    if (!key || !includedDateKeys.has(key)) continue;
+
+    const hours = isTodayByDateKey.has(key)
+      ? getCompletedEventDuration(event, now)
+      : getEventDuration(event);
+    if (hours <= 0) continue;
+
+    dayHoursByDate.set(key, (dayHoursByDate.get(key) || 0) + hours);
+  }
+
+  for (let i = safeNumDays - 1; i >= 0; i--) {
+    const date = new Date(now);
+    date.setDate(date.getDate() - i);
+    const { start } = getLogicalDayBoundaries(date);
+    const dateKey = start.toISOString().slice(0, 10);
+    const dayHours = dayHoursByDate.get(dateKey) || 0;
 
     const label = date.toLocaleDateString("en-GB", {
       month: "short",
       day: "numeric",
     });
     entries.push({
-      date: date.toISOString().slice(0, 10),
+      date: dateKey,
       label,
       hours: Math.round(dayHours * 100) / 100,
     });

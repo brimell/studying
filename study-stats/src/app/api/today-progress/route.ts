@@ -3,6 +3,8 @@ import { auth } from "@/lib/auth";
 import { getCalendarClient, calculateTodayProgress } from "@/lib/calendar";
 import { DEFAULT_SUBJECTS } from "@/lib/types";
 
+const PRIVATE_CACHE_CONTROL = "private, max-age=30, stale-while-revalidate=120";
+
 export async function GET(req: NextRequest) {
   const session = await auth();
   if (!session || !(session as any).accessToken) {
@@ -24,7 +26,11 @@ export async function GET(req: NextRequest) {
 
   try {
     const data = await calculateTodayProgress(calendar, calendarIds, DEFAULT_SUBJECTS);
-    return NextResponse.json(data);
+    return NextResponse.json(data, {
+      headers: {
+        "Cache-Control": PRIVATE_CACHE_CONTROL,
+      },
+    });
   } catch (err: any) {
     console.error("Error fetching today's progress:", err);
     return NextResponse.json({ error: err.message }, { status: 500 });

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { calendar_v3 } from "googleapis";
 import { auth } from "@/lib/auth";
 import {
-  fetchEventsFromAllCalendars,
+  fetchEvents,
   fetchTrackerCalendars,
   getCalendarClient,
   getLogicalDayBoundaries,
@@ -16,6 +16,7 @@ const MAX_HABITS = 20;
 const MAX_HOURS_PER_DAY = 24;
 const DEFAULT_STUDY_HABIT_NAME = "Studying";
 const DEFAULT_GYM_HABIT_NAME = "Gym";
+const PRIVATE_CACHE_CONTROL = "private, max-age=20, stale-while-revalidate=60";
 
 interface HabitConfigEntry {
   name: string;
@@ -600,22 +601,10 @@ async function deleteHabitCompletionEvents(
   );
 }
 
-async function buildDurationHoursByDate(
-  calendar: calendar_v3.Calendar,
-  habit: HabitConfigEntry,
-  startDate: string,
-  timeMaxIso: string
-): Promise<Record<string, number>> {
-  if (habit.sourceCalendarIds.length === 0) return {};
-
-  const events = await fetchEventsFromAllCalendars(
-    calendar,
-    habit.sourceCalendarIds,
-    getDateTimeMin(startDate),
-    timeMaxIso
-  );
-
-  const terms = extractSearchTermsFromMatchEntries(habit.matchTerms);
+function buildDurationHoursByDateFromEvents(
+  events: calendar_v3.Schema$Event[],
+  terms: string[]
+): Record<string, number> {
   const hoursByDate: Record<string, number> = {};
 
   for (const event of events) {
@@ -633,6 +622,38 @@ async function buildDurationHoursByDate(
   }
 
   return hoursByDate;
+}
+
+async function fetchDurationEventsByCalendarId(
+  calendar: calendar_v3.Calendar,
+  calendarIds: string[],
+  startDate: string,
+  timeMaxIso: string
+): Promise<Map<string, calendar_v3.Schema$Event[]>> {
+  const uniqueCalendarIds = sanitizeCalendarIds(calendarIds);
+  const byCalendarId = new Map<string, calendar_v3.Schema$Event[]>();
+  if (uniqueCalendarIds.length === 0) return byCalendarId;
+
+  const concurrency = Math.max(1, Math.min(6, uniqueCalendarIds.length));
+  let nextIndex = 0;
+
+  const worker = async () => {
+    while (nextIndex < uniqueCalendarIds.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      const calendarId = uniqueCalendarIds[index];
+      const events = await fetchEvents(
+        calendar,
+        calendarId,
+        getDateTimeMin(startDate),
+        timeMaxIso
+      );
+      byCalendarId.set(calendarId, events as calendar_v3.Schema$Event[]);
+    }
+  };
+
+  await Promise.all(Array.from({ length: concurrency }, () => worker()));
+  return byCalendarId;
 }
 
 async function listBinaryCompletionEventsByHabit(
@@ -790,19 +811,26 @@ export async function GET(req: NextRequest) {
     );
 
     if (!trackerCalendarId) {
-      return NextResponse.json({
-        days: [],
-        currentStreak: 0,
-        longestStreak: 0,
-        totalDaysStudied: 0,
-        totalHours: 0,
-        trackerCalendarId: null,
-        trackerRange: {
-          startDate,
-          endDate,
+      return NextResponse.json(
+        {
+          days: [],
+          currentStreak: 0,
+          longestStreak: 0,
+          totalDaysStudied: 0,
+          totalHours: 0,
+          trackerCalendarId: null,
+          trackerRange: {
+            startDate,
+            endDate,
+          },
+          habits: [],
         },
-        habits: [],
-      });
+        {
+          headers: {
+            "Cache-Control": PRIVATE_CACHE_CONTROL,
+          },
+        }
+      );
     }
 
     const config = await getHabitConfig(calendar, trackerCalendarId);
@@ -815,17 +843,21 @@ export async function GET(req: NextRequest) {
     );
 
     const durationHabits = config.habits.filter((habit) => habit.mode === "duration");
-    const durationMaps = await Promise.all(
-      durationHabits.map(async (habit) => {
-        const hoursByDate = await buildDurationHoursByDate(
-          calendar,
-          habit,
-          startDate,
-          now.toISOString()
-        );
-        return [slugifyHabitName(habit.name), hoursByDate] as const;
-      })
+    const durationEventsByCalendarId = await fetchDurationEventsByCalendarId(
+      calendar,
+      durationHabits.flatMap((habit) => habit.sourceCalendarIds),
+      startDate,
+      now.toISOString()
     );
+
+    const durationMaps = durationHabits.map((habit) => {
+      const terms = extractSearchTermsFromMatchEntries(habit.matchTerms);
+      const events = habit.sourceCalendarIds.flatMap(
+        (calendarId) => durationEventsByCalendarId.get(calendarId) || []
+      );
+      const hoursByDate = buildDurationHoursByDateFromEvents(events, terms);
+      return [slugifyHabitName(habit.name), hoursByDate] as const;
+    });
 
     const durationHoursBySlug = new Map<string, Record<string, number>>(durationMaps);
     const habits = buildHabitDefinitions(
@@ -849,19 +881,26 @@ export async function GET(req: NextRequest) {
 
     const metrics = deriveStudyMetrics(days);
 
-    return NextResponse.json({
-      days,
-      currentStreak: metrics.currentStreak,
-      longestStreak: metrics.longestStreak,
-      totalDaysStudied: metrics.totalDaysStudied,
-      totalHours: metrics.totalHours,
-      trackerCalendarId,
-      trackerRange: {
-        startDate,
-        endDate,
+    return NextResponse.json(
+      {
+        days,
+        currentStreak: metrics.currentStreak,
+        longestStreak: metrics.longestStreak,
+        totalDaysStudied: metrics.totalDaysStudied,
+        totalHours: metrics.totalHours,
+        trackerCalendarId,
+        trackerRange: {
+          startDate,
+          endDate,
+        },
+        habits,
       },
-      habits,
-    });
+      {
+        headers: {
+          "Cache-Control": PRIVATE_CACHE_CONTROL,
+        },
+      }
+    );
   } catch (error: unknown) {
     console.error("Error fetching habit tracker data:", error);
     return toErrorResponse(error, "Failed to fetch habit tracker data");

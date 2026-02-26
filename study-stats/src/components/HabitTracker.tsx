@@ -444,6 +444,7 @@ export default function HabitTracker() {
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
+  const [habitColorSyncMessage, setHabitColorSyncMessage] = useState<string | null>(null);
   const [habitColors, setHabitColors] = useState<Record<string, string>>({});
   const [habitWorkoutLinks, setHabitWorkoutLinks] = useState<Record<string, WorkoutLinkEntry>>({});
   const [habitShowFutureDays, setHabitShowFutureDays] = useState<Record<string, boolean>>({});
@@ -458,8 +459,14 @@ export default function HabitTracker() {
   const habitDayQueueRef = useRef<QueuedHabitDayUpdate[]>([]);
   const habitDayQueueRunningRef = useRef(false);
   const milestoneSyncTimeoutRef = useRef<number | null>(null);
+  const localSettingsPersistTimeoutRef = useRef<number | null>(null);
+  const localSettingsPersistReadyRef = useRef(false);
   const lastMilestoneSnapshotRef = useRef("");
   const milestonesHydratedRef = useRef(false);
+  const habitColorsSyncTimeoutRef = useRef<number | null>(null);
+  const habitColorsSyncMessageTimeoutRef = useRef<number | null>(null);
+  const lastHabitColorsSnapshotRef = useRef("");
+  const habitColorsHydratedRef = useRef(false);
   const hasOpenModal =
     showAddMilestoneModal ||
     showAddHabitModal ||
@@ -483,15 +490,6 @@ export default function HabitTracker() {
   }, []);
 
   useEffect(() => {
-    window.localStorage.setItem(HABIT_WEEKS_STORAGE_KEY, String(weeks));
-  }, [weeks]);
-
-  useEffect(() => {
-    if (!selectedStudyHabitSlug) return;
-    window.localStorage.setItem(STUDY_HABIT_STORAGE_KEY, selectedStudyHabitSlug);
-  }, [selectedStudyHabitSlug]);
-
-  useEffect(() => {
     const rawCalendars = window.localStorage.getItem(HABIT_SOURCE_CALENDARS_STORAGE_KEY);
     if (rawCalendars) {
       try {
@@ -511,40 +509,107 @@ export default function HabitTracker() {
   }, []);
 
   useEffect(() => {
-    window.localStorage.setItem(
-      HABIT_SOURCE_CALENDARS_STORAGE_KEY,
-      JSON.stringify(newHabitSourceCalendarIds)
-    );
-  }, [newHabitSourceCalendarIds]);
-
-  useEffect(() => {
-    window.localStorage.setItem(
-      HABIT_MATCH_TERMS_STORAGE_KEY,
-      serializeMatchTermsEntries(newHabitMatchEntries)
-    );
-  }, [newHabitMatchEntries]);
-
-  useEffect(() => {
     const raw = window.localStorage.getItem(HABIT_COLORS_STORAGE_KEY);
-    if (!raw) return;
+    let next: Record<string, string> = {};
     try {
-      const parsed = JSON.parse(raw) as unknown;
-      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return;
-      const next: Record<string, string> = {};
-      for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
-        if (typeof key !== "string" || typeof value !== "string") continue;
-        if (!isHexColor(value)) continue;
-        next[key] = value;
+      if (raw) {
+        const parsed = JSON.parse(raw) as unknown;
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+          for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
+            if (typeof key !== "string" || typeof value !== "string") continue;
+            if (!isHexColor(value)) continue;
+            next[key] = value;
+          }
+        }
       }
-      setHabitColors(next);
     } catch {
       // Ignore malformed localStorage payload.
+    } finally {
+      setHabitColors(next);
+      lastHabitColorsSnapshotRef.current = JSON.stringify(next);
+      habitColorsHydratedRef.current = true;
     }
   }, []);
 
   useEffect(() => {
-    window.localStorage.setItem(HABIT_COLORS_STORAGE_KEY, JSON.stringify(habitColors));
-  }, [habitColors]);
+    const serialized = JSON.stringify(habitColors);
+
+    if (!supabase) return;
+    if (!habitColorsHydratedRef.current) return;
+    if (serialized === lastHabitColorsSnapshotRef.current) return;
+
+    if (habitColorsSyncTimeoutRef.current) {
+      window.clearTimeout(habitColorsSyncTimeoutRef.current);
+    }
+
+    habitColorsSyncTimeoutRef.current = window.setTimeout(() => {
+      void (async () => {
+        try {
+          const { data } = await supabase.auth.getSession();
+          const token = data.session?.access_token;
+          if (!token) return;
+
+          const readResponse = await fetch("/api/account-sync", {
+            method: "GET",
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          });
+          if (!readResponse.ok) return;
+
+          const readJson = (await readResponse.json()) as { payload?: Record<string, string> };
+          const existing = readJson.payload || {};
+          if (existing[HABIT_COLORS_STORAGE_KEY] === serialized) {
+            lastHabitColorsSnapshotRef.current = serialized;
+            return;
+          }
+
+          const writeResponse = await fetch("/api/account-sync", {
+            method: "PUT",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              payload: {
+                ...existing,
+                [HABIT_COLORS_STORAGE_KEY]: serialized,
+              },
+            }),
+          });
+
+          if (!writeResponse.ok) return;
+          lastHabitColorsSnapshotRef.current = serialized;
+          setHabitColorSyncMessage("Habit colors synced to cloud.");
+          if (habitColorsSyncMessageTimeoutRef.current) {
+            window.clearTimeout(habitColorsSyncMessageTimeoutRef.current);
+          }
+          habitColorsSyncMessageTimeoutRef.current = window.setTimeout(() => {
+            setHabitColorSyncMessage(null);
+            habitColorsSyncMessageTimeoutRef.current = null;
+          }, 2500);
+        } catch {
+          // Keep localStorage as source of truth if cloud sync fails.
+        }
+      })();
+    }, 600);
+
+    return () => {
+      if (habitColorsSyncTimeoutRef.current) {
+        window.clearTimeout(habitColorsSyncTimeoutRef.current);
+        habitColorsSyncTimeoutRef.current = null;
+      }
+    };
+  }, [habitColors, supabase]);
+
+  useEffect(() => {
+    return () => {
+      if (habitColorsSyncMessageTimeoutRef.current) {
+        window.clearTimeout(habitColorsSyncMessageTimeoutRef.current);
+        habitColorsSyncMessageTimeoutRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const raw = window.localStorage.getItem(HABIT_WORKOUT_LINKS_STORAGE_KEY);
@@ -568,10 +633,6 @@ export default function HabitTracker() {
   }, []);
 
   useEffect(() => {
-    window.localStorage.setItem(HABIT_WORKOUT_LINKS_STORAGE_KEY, JSON.stringify(habitWorkoutLinks));
-  }, [habitWorkoutLinks]);
-
-  useEffect(() => {
     const raw = window.localStorage.getItem(HABIT_SHOW_FUTURE_DAYS_STORAGE_KEY);
     if (!raw) return;
     try {
@@ -589,11 +650,55 @@ export default function HabitTracker() {
   }, []);
 
   useEffect(() => {
-    window.localStorage.setItem(
-      HABIT_SHOW_FUTURE_DAYS_STORAGE_KEY,
-      JSON.stringify(habitShowFutureDays)
-    );
-  }, [habitShowFutureDays]);
+    if (!localSettingsPersistReadyRef.current) {
+      localSettingsPersistReadyRef.current = true;
+      return;
+    }
+
+    if (localSettingsPersistTimeoutRef.current) {
+      window.clearTimeout(localSettingsPersistTimeoutRef.current);
+    }
+
+    localSettingsPersistTimeoutRef.current = window.setTimeout(() => {
+      window.localStorage.setItem(HABIT_WEEKS_STORAGE_KEY, String(weeks));
+
+      if (selectedStudyHabitSlug) {
+        window.localStorage.setItem(STUDY_HABIT_STORAGE_KEY, selectedStudyHabitSlug);
+      } else {
+        window.localStorage.removeItem(STUDY_HABIT_STORAGE_KEY);
+      }
+
+      window.localStorage.setItem(
+        HABIT_SOURCE_CALENDARS_STORAGE_KEY,
+        JSON.stringify(newHabitSourceCalendarIds)
+      );
+      window.localStorage.setItem(
+        HABIT_MATCH_TERMS_STORAGE_KEY,
+        serializeMatchTermsEntries(newHabitMatchEntries)
+      );
+      window.localStorage.setItem(HABIT_COLORS_STORAGE_KEY, JSON.stringify(habitColors));
+      window.localStorage.setItem(HABIT_WORKOUT_LINKS_STORAGE_KEY, JSON.stringify(habitWorkoutLinks));
+      window.localStorage.setItem(
+        HABIT_SHOW_FUTURE_DAYS_STORAGE_KEY,
+        JSON.stringify(habitShowFutureDays)
+      );
+    }, 140);
+
+    return () => {
+      if (localSettingsPersistTimeoutRef.current) {
+        window.clearTimeout(localSettingsPersistTimeoutRef.current);
+        localSettingsPersistTimeoutRef.current = null;
+      }
+    };
+  }, [
+    habitColors,
+    habitShowFutureDays,
+    habitWorkoutLinks,
+    newHabitMatchEntries,
+    newHabitSourceCalendarIds,
+    selectedStudyHabitSlug,
+    weeks,
+  ]);
 
   useEffect(() => {
     const initialMilestones = readMilestonesFromStorage();
@@ -847,7 +952,7 @@ export default function HabitTracker() {
       }
     };
 
-    loadData(false);
+    loadData(true);
 
     return () => {
       cancelled = true;
@@ -1585,6 +1690,9 @@ export default function HabitTracker() {
 
             {actionError && <p className="text-sm text-red-500 mb-3">{actionError}</p>}
             {actionSuccess && <p className="text-sm text-emerald-600 mb-3">{actionSuccess}</p>}
+            {habitColorSyncMessage && (
+              <p className="text-sm text-emerald-600 mb-3">{habitColorSyncMessage}</p>
+            )}
 
             {!selectedTrackerCalendarId && (
               <p className="text-sm text-zinc-500">
@@ -2389,6 +2497,9 @@ export default function HabitTracker() {
 
                 {actionError && <p className="text-sm text-red-500 mb-3">{actionError}</p>}
                 {actionSuccess && <p className="text-sm text-emerald-600 mb-3">{actionSuccess}</p>}
+                {habitColorSyncMessage && (
+                  <p className="text-sm text-emerald-600 mb-3">{habitColorSyncMessage}</p>
+                )}
 
                 {newHabitMode === "duration" && (
                   <div className="rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 p-3 space-y-3">

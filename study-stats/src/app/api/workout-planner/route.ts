@@ -8,6 +8,7 @@ import {
 } from "@/lib/workouts";
 
 const WORKOUT_TABLE = process.env.SUPABASE_WORKOUT_TABLE || "study_stats_workout_planner";
+const READ_CACHE_CONTROL = "private, max-age=20, stale-while-revalidate=40";
 
 function getSupabaseAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -55,15 +56,24 @@ export async function GET(req: NextRequest) {
 
   if (!data) {
     const seeded = defaultWorkoutPlannerPayload();
-    return NextResponse.json({
-      payload: seeded,
-      updatedAt: null,
-    });
+    return NextResponse.json(
+      {
+        payload: seeded,
+        updatedAt: null,
+      },
+      {
+        headers: {
+          "Cache-Control": READ_CACHE_CONTROL,
+        },
+      }
+    );
   }
 
-  const sanitized = sanitizeWorkoutPayload(data?.payload || emptyWorkoutPayload());
+  const rawPayload = data?.payload || emptyWorkoutPayload();
+  const sanitized = sanitizeWorkoutPayload(rawPayload);
+  const schemaChanged = JSON.stringify(rawPayload) !== JSON.stringify(sanitized);
   const { payload, changed } = forceApplyDefaultTemplates(sanitized);
-  if (changed) {
+  if (schemaChanged) {
     await client.from(WORKOUT_TABLE).upsert(
       {
         user_id: userId,
@@ -74,10 +84,17 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  return NextResponse.json({
-    payload,
-    updatedAt: changed ? payload.updatedAt : data?.updated_at || null,
-  });
+  return NextResponse.json(
+    {
+      payload,
+      updatedAt: schemaChanged || changed ? payload.updatedAt : data?.updated_at || null,
+    },
+    {
+      headers: {
+        "Cache-Control": READ_CACHE_CONTROL,
+      },
+    }
+  );
 }
 
 export async function PUT(req: NextRequest) {

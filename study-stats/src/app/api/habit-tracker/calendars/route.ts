@@ -6,6 +6,8 @@ import {
   getCalendarClient,
 } from "@/lib/calendar";
 
+const PRIVATE_CACHE_CONTROL = "private, max-age=120, stale-while-revalidate=300";
+
 function isGoogleAuthError(error: unknown): boolean {
   const anyError = error as {
     code?: number;
@@ -48,12 +50,19 @@ export async function GET() {
       .filter(Boolean)
       .filter((id) => sourceCalendars.some((calendarEntry) => calendarEntry.id === id));
 
-    return NextResponse.json({
-      trackerCalendars,
-      sourceCalendars,
-      defaultTrackerCalendarId: defaultCalendarId,
-      defaultSourceCalendarIds,
-    });
+    return NextResponse.json(
+      {
+        trackerCalendars,
+        sourceCalendars,
+        defaultTrackerCalendarId: defaultCalendarId,
+        defaultSourceCalendarIds,
+      },
+      {
+        headers: {
+          "Cache-Control": PRIVATE_CACHE_CONTROL,
+        },
+      }
+    );
   } catch (error: unknown) {
     if (isGoogleAuthError(error)) {
       return NextResponse.json(

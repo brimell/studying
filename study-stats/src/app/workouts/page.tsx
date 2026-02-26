@@ -3,6 +3,7 @@
 import Link from "next/link";
 import AuthButton from "@/components/AuthButton";
 import SupabaseAccountSync from "@/components/SupabaseAccountSync";
+import { WorkoutDataProvider } from "@/components/WorkoutDataProvider";
 import WorkoutPlanner from "@/components/WorkoutPlanner";
 
 export default function WorkoutsPage() {
@@ -27,7 +28,9 @@ export default function WorkoutsPage() {
       </header>
 
       <main className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <WorkoutPlanner />
+        <WorkoutDataProvider>
+          <WorkoutPlanner />
+        </WorkoutDataProvider>
       </main>
     </div>
   );

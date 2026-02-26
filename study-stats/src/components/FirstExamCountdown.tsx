@@ -42,8 +42,10 @@ export default function FirstExamCountdown() {
   const [countdownStartDate, setCountdownStartDate] = useState(() =>
     toDateInputValue(getTodayAtNoon())
   );
+  const [localHydrated, setLocalHydrated] = useState(false);
   const syncTimeoutRef = useRef<number | null>(null);
   const hydratedFromCloudRef = useRef(false);
+  const cloudHydrationCompleteRef = useRef(false);
 
   const callApi = async (
     method: "GET" | "PUT",
@@ -97,10 +99,12 @@ export default function FirstExamCountdown() {
       PROJECTION_COUNTDOWN_START_STORAGE_KEY
     );
     if (storedCountdownStart) setCountdownStartDate(storedCountdownStart);
+
+    setLocalHydrated(true);
   }, []);
 
   useEffect(() => {
-    if (!session || !supabase || hydratedFromCloudRef.current) return;
+    if (!session || !supabase || !localHydrated || hydratedFromCloudRef.current || cloudHydrationCompleteRef.current) return;
     let cancelled = false;
 
     const loadCloud = async () => {
@@ -112,6 +116,8 @@ export default function FirstExamCountdown() {
         hydratedFromCloudRef.current = true;
       } catch {
         // Ignore cloud load errors; localStorage still works.
+      } finally {
+        if (!cancelled) cloudHydrationCompleteRef.current = true;
       }
     };
 
@@ -119,22 +125,24 @@ export default function FirstExamCountdown() {
     return () => {
       cancelled = true;
     };
-  }, [session, supabase]);
+  }, [localHydrated, session, supabase]);
 
   useEffect(() => {
+    if (!localHydrated) return;
     window.localStorage.setItem(PROJECTION_EXAM_DATE_STORAGE_KEY, firstExamDate);
     window.dispatchEvent(new CustomEvent(EXAM_DATE_UPDATED_EVENT));
-  }, [firstExamDate]);
+  }, [firstExamDate, localHydrated]);
 
   useEffect(() => {
+    if (!localHydrated) return;
     window.localStorage.setItem(
       PROJECTION_COUNTDOWN_START_STORAGE_KEY,
       countdownStartDate
     );
-  }, [countdownStartDate]);
+  }, [countdownStartDate, localHydrated]);
 
   useEffect(() => {
-    if (!session || !supabase) return;
+    if (!session || !supabase || !localHydrated || !cloudHydrationCompleteRef.current) return;
     if (syncTimeoutRef.current) window.clearTimeout(syncTimeoutRef.current);
     syncTimeoutRef.current = window.setTimeout(() => {
       void callApi("PUT", {
@@ -151,7 +159,7 @@ export default function FirstExamCountdown() {
         syncTimeoutRef.current = null;
       }
     };
-  }, [countdownStartDate, firstExamDate, session, supabase]);
+  }, [countdownStartDate, firstExamDate, localHydrated, session, supabase]);
 
   const now = getTodayAtNoon();
   const examDateObject = parseDateInput(firstExamDate);

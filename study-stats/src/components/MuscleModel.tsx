@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { MuscleGroup } from "@/lib/types";
 import { MUSCLE_LABELS, UI_MUSCLE_GROUPS } from "@/lib/workouts";
 
@@ -421,6 +421,80 @@ function RedOnlyOverlay({
   );
 }
 
+interface OverlayRenderEntry {
+  key: string;
+  src: string;
+  opacity: number;
+  delayMs: number;
+  hoverKeys: string[];
+}
+
+function OverlayPanel({
+  baseSrc,
+  alt,
+  overlays,
+  hoveredEntryKey,
+  hasHover,
+}: {
+  baseSrc: string;
+  alt: string;
+  overlays: OverlayRenderEntry[];
+  hoveredEntryKey: string | null;
+  hasHover: boolean;
+}) {
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  const [isVisible, setIsVisible] = useState(false);
+
+  useEffect(() => {
+    if (isVisible) return;
+    const node = panelRef.current;
+    if (!node) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries.some((entry) => entry.isIntersecting)) return;
+        setIsVisible(true);
+        observer.disconnect();
+      },
+      { rootMargin: "120px 0px" }
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [isVisible]);
+
+  return (
+    <div
+      ref={panelRef}
+      className="rounded-md border border-zinc-200 dark:border-zinc-700 overflow-hidden bg-white relative aspect-[3/4] isolate"
+    >
+      <img
+        src={baseSrc}
+        alt={alt}
+        className="absolute inset-0 w-full h-full object-contain"
+        loading="lazy"
+        style={{ opacity: 1 }}
+      />
+      {isVisible &&
+        overlays.map((overlay) => {
+          const highlighted =
+            hoveredEntryKey !== null && overlay.hoverKeys.includes(hoveredEntryKey);
+          const dimmed = hasHover && !highlighted;
+          return (
+            <RedOnlyOverlay
+              key={overlay.key}
+              src={overlay.src}
+              baseSrc={baseSrc}
+              opacity={hasHover ? (highlighted ? 0.98 : 0.02) : overlay.opacity}
+              delayMs={overlay.delayMs}
+              highlighted={highlighted}
+              dimmed={dimmed}
+            />
+          );
+        })}
+    </div>
+  );
+}
+
 interface MuscleModelProps {
   scores: Record<MuscleGroup, number>;
   loadPoints?: Partial<Record<MuscleGroup, number>>;
@@ -480,15 +554,6 @@ export default function MuscleModel({
 
     return [...grouped.values()].sort((a, b) => b.score - a.score);
   }, [nonZero, simplifyLabels]);
-  const simplifiedGroupScoreByKey = useMemo(() => {
-    const map = new Map<keyof typeof CORE_DIAGRAM_FILES, number>();
-    for (const { muscle, score } of nonZero) {
-      const groupKey = getCommonGroupKey(muscle);
-      const existing = map.get(groupKey) || 0;
-      map.set(groupKey, Math.max(existing, score));
-    }
-    return map;
-  }, [nonZero]);
   const normalizedLoadByMuscle = useMemo(() => {
     const map = new Map<MuscleGroup, number>();
     if (!loadPoints) return map;
@@ -506,70 +571,95 @@ export default function MuscleModel({
     }
     return map;
   }, [loadPoints]);
-  const simplifiedGroupLoadByKey = useMemo(() => {
-    const map = new Map<keyof typeof CORE_DIAGRAM_FILES, number>();
-    if (normalizedLoadByMuscle.size === 0) return map;
+  const normalizedGradeByMuscle = useMemo(() => {
+    const rawGrade = new Map<MuscleGroup, number>();
+    let maxRawGrade = 0;
 
-    for (const muscle of UI_MUSCLE_GROUPS) {
-      const value = normalizedLoadByMuscle.get(muscle) || 0;
-      if (value <= 0) continue;
-      const groupKey = getCommonGroupKey(muscle);
-      const existing = map.get(groupKey) || 0;
-      map.set(groupKey, Math.max(existing, value));
+    for (const { muscle, score } of nonZero) {
+      const normalizedLoad = normalizedLoadByMuscle.get(muscle) ?? 0;
+      const grade = loadPoints ? (score * normalizedLoad) / 100 : score;
+      if (grade <= 0) continue;
+      rawGrade.set(muscle, grade);
+      if (grade > maxRawGrade) maxRawGrade = grade;
     }
-    return map;
-  }, [normalizedLoadByMuscle]);
+
+    if (maxRawGrade <= 0) return new Map<MuscleGroup, number>();
+
+    const normalized = new Map<MuscleGroup, number>();
+    for (const [muscle, grade] of rawGrade.entries()) {
+      normalized.set(muscle, (grade / maxRawGrade) * 100);
+    }
+    return normalized;
+  }, [loadPoints, nonZero, normalizedLoadByMuscle]);
   const hasHover = hoveredEntryKey !== null;
-  const renderOverlayPanel = (view: DiagramView, dissection: DissectionLayer) => (
-    <div className="rounded-md border border-zinc-200 dark:border-zinc-700 overflow-hidden bg-white relative aspect-[3/4] isolate">
-      {(() => {
+  const overlayPanels = useMemo(
+    () =>
+      (
+        [
+          { view: "anterior" as const, dissection: "Outer Muscles" as const },
+          { view: "posterior" as const, dissection: "Outer Muscles" as const },
+          { view: "anterior" as const, dissection: "Inner Muscles" as const },
+          { view: "posterior" as const, dissection: "Inner Muscles" as const },
+        ] satisfies Array<{ view: DiagramView; dissection: DissectionLayer }>
+      ).map(({ view, dissection }) => {
         const baseSrc = toDiagramPath(BASE_DIAGRAM[dissection][view]);
-        return (
-          <>
-      <img
-        src={baseSrc}
-        alt={`${view === "anterior" ? "Anterior" : "Posterior"} ${dissection.toLowerCase()} muscle model`}
-        className="absolute inset-0 w-full h-full object-contain"
-        loading="lazy"
-        style={{ opacity: 1 }}
-      />
-      {sorted.map(({ muscle, score }, index) => {
-        if (score <= 0) return null;
-        const groupKey = getCommonGroupKey(muscle);
-        const effectiveScore = simplifiedGroupScoreByKey.get(groupKey) ?? score;
-        const normalizedLoad = normalizedLoadByMuscle.get(muscle) ?? 0;
-        const effectiveNormalizedLoad = simplifyLabels
-          ? (simplifiedGroupLoadByKey.get(groupKey) ?? normalizedLoad)
-          : normalizedLoad;
-        // Load points drive relative intensity, but soreness score caps maximum opacity.
-        const opacitySource =
-          effectiveNormalizedLoad > 0
-            ? (effectiveNormalizedLoad * effectiveScore) / 100
-            : effectiveScore;
-        const usesLoadDrivenOpacity = effectiveNormalizedLoad > 0;
-        const highlighted = simplifyLabels ? hoveredEntryKey === groupKey : hoveredEntryKey === muscle;
-        const dimmed = hasHover && !highlighted;
-        return (
-          <RedOnlyOverlay
-            key={`${dissection}-${view}-${muscle}`}
-            src={toDiagramPath(resolveDiagramFiles(muscle, simplifyLabels, dissection)[view])}
-            baseSrc={baseSrc}
-            opacity={
-              hasHover
-                ? (highlighted ? 0.98 : 0.02)
-                : fatigueToOpacity(opacitySource, usesLoadDrivenOpacity ? 0 : 0.16)
-            }
-            delayMs={index * 28}
-            highlighted={highlighted}
-            dimmed={dimmed}
-          />
-        );
-      })}
-          </>
-        );
-      })()}
-    </div>
+        const groupedOverlays = new Map<
+          string,
+          { opacity: number; hoverKeys: Set<string>; ordinal: number }
+        >();
+
+        for (const { muscle } of sorted) {
+          const normalizedGrade = normalizedGradeByMuscle.get(muscle) || 0;
+          if (normalizedGrade <= 0) continue;
+
+          const src = toDiagramPath(resolveDiagramFiles(muscle, simplifyLabels, dissection)[view]);
+          const hoverKey = String(simplifyLabels ? getCommonGroupKey(muscle) : muscle);
+          const opacity = fatigueToOpacity(normalizedGrade, 0);
+          const existing = groupedOverlays.get(src);
+          if (existing) {
+            existing.opacity = Math.max(existing.opacity, opacity);
+            existing.hoverKeys.add(hoverKey);
+            continue;
+          }
+          groupedOverlays.set(src, {
+            opacity,
+            hoverKeys: new Set([hoverKey]),
+            ordinal: groupedOverlays.size,
+          });
+        }
+
+        const overlays: OverlayRenderEntry[] = [...groupedOverlays.entries()]
+          .sort((left, right) => left[1].ordinal - right[1].ordinal)
+          .map(([src, overlay], index) => ({
+            key: `${dissection}-${view}-${src}`,
+            src,
+            opacity: overlay.opacity,
+            delayMs: index * 22,
+            hoverKeys: [...overlay.hoverKeys],
+          }));
+
+        return {
+          key: `${dissection}-${view}`,
+          view,
+          dissection,
+          baseSrc,
+          overlays,
+        };
+      }),
+    [normalizedGradeByMuscle, simplifyLabels, sorted]
   );
+
+  useEffect(() => {
+    const warmedPairs = new Set<string>();
+    for (const panel of overlayPanels) {
+      for (const overlay of panel.overlays) {
+        const pairKey = getOverlayCacheKey(overlay.src, panel.baseSrc);
+        if (warmedPairs.has(pairKey)) continue;
+        warmedPairs.add(pairKey);
+        void toRedOnlyDataUrl(overlay.src, panel.baseSrc);
+      }
+    }
+  }, [overlayPanels]);
 
   return (
     <div className="rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 p-3">
@@ -592,10 +682,16 @@ export default function MuscleModel({
               <span>Posterior</span>
             </div>
             <div className="grid grid-cols-2 gap-2">
-              {renderOverlayPanel("anterior", "Outer Muscles")}
-              {renderOverlayPanel("posterior", "Outer Muscles")}
-              {renderOverlayPanel("anterior", "Inner Muscles")}
-              {renderOverlayPanel("posterior", "Inner Muscles")}
+              {overlayPanels.map((panel) => (
+                <OverlayPanel
+                  key={panel.key}
+                  baseSrc={panel.baseSrc}
+                  alt={`${panel.view === "anterior" ? "Anterior" : "Posterior"} ${panel.dissection.toLowerCase()} muscle model`}
+                  overlays={panel.overlays}
+                  hoveredEntryKey={hoveredEntryKey}
+                  hasHover={hasHover}
+                />
+              ))}
             </div>
           </div>
         </div>

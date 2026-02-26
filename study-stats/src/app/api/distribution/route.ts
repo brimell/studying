@@ -3,6 +3,8 @@ import { auth } from "@/lib/auth";
 import { getCalendarClient, calculateSubjectDistribution } from "@/lib/calendar";
 import { DEFAULT_SUBJECTS } from "@/lib/types";
 
+const PRIVATE_CACHE_CONTROL = "private, max-age=60, stale-while-revalidate=180";
+
 export async function GET(req: NextRequest) {
   const session = await auth();
   if (!session || !(session as any).accessToken) {
@@ -30,7 +32,11 @@ export async function GET(req: NextRequest) {
       DEFAULT_SUBJECTS,
       numDays
     );
-    return NextResponse.json(data);
+    return NextResponse.json(data, {
+      headers: {
+        "Cache-Control": PRIVATE_CACHE_CONTROL,
+      },
+    });
   } catch (err: any) {
     console.error("Error fetching distribution:", err);
     return NextResponse.json({ error: err.message }, { status: 500 });
