@@ -10,17 +10,63 @@ import type {
 import { MUSCLE_GROUPS, WORKOUT_WEEK_DAYS } from "@/lib/types";
 
 export const MUSCLE_LABELS: Record<MuscleGroup, string> = {
+  abductors: "Abductors",
   chest: "Chest",
   back: "Back",
   shoulders: "Shoulders",
   biceps: "Biceps",
+  "biceps-brachii": "Biceps Brachii",
+  brachialis: "Brachialis",
+  brachioradialis: "Brachioradialis",
   triceps: "Triceps",
+  "triceps-brachii": "Triceps Brachii",
+  "upper-arms": "Upper Arms",
   forearms: "Forearms",
+  "wrist-extensors": "Wrist Extensors",
+  "wrist-flexors": "Wrist Flexors",
+  pronators: "Pronators",
+  supinators: "Supinators",
   core: "Core",
+  obliques: "Obliques",
+  "rectus-abdominis": "Rectus Abdominis",
+  waist: "Waist",
   glutes: "Glutes",
+  "gluteus-maximus": "Gluteus Maximus",
+  hips: "Hips",
+  "hip-flexors": "Hip Flexors",
+  "hip-adductors": "Hip Adductors",
+  "deep-external-rotators": "Deep External Rotators",
   quads: "Quads",
+  quadriceps: "Quadriceps",
+  thighs: "Thighs",
+  sartorius: "Sartorius",
   hamstrings: "Hamstrings",
   calves: "Calves",
+  gastrocnemius: "Gastrocnemius",
+  soleus: "Soleus",
+  "tibialis-anterior": "Tibialis Anterior",
+  feet: "Feet",
+  hands: "Hands",
+  neck: "Neck",
+  "deltoid-anterior": "Deltoid Anterior",
+  "deltoid-medial-lateral": "Deltoid Medial/Lateral",
+  "deltoid-posterior": "Deltoid Posterior",
+  "erector-spinae": "Erector Spinae",
+  "infraspinatus-teres-minor": "Infraspinatus & Teres Minor",
+  "latissimus-dorsi-teres-major": "Latissimus Dorsi & Teres Major",
+  "levator-scapulae": "Levator Scapulae",
+  "pectoralis-major": "Pectoralis Major",
+  "pectoralis-minor": "Pectoralis Minor",
+  "quadratus-lumborum": "Quadratus Lumborum",
+  rhomboids: "Rhomboids",
+  "serratus-anterior": "Serratus Anterior",
+  splenius: "Splenius",
+  sternocleidomastoid: "Sternocleidomastoid",
+  subscapularis: "Subscapularis",
+  supraspinatus: "Supraspinatus",
+  "trapezius-lower": "Trapezius Lower",
+  "trapezius-middle": "Trapezius Middle",
+  "trapezius-upper": "Trapezius Upper",
 };
 
 const MAX_WORKOUTS = 100;
@@ -428,19 +474,52 @@ function toUtcDate(date: string): Date {
 
 type FatigueTier = "light" | "moderate" | "heavy" | "very-heavy";
 
-const BASE_RECOVERY_HOURS: Record<MuscleGroup, number> = {
-  chest: 60,
-  back: 60,
-  shoulders: 36,
-  biceps: 36,
-  triceps: 36,
-  forearms: 36,
-  core: 36,
-  glutes: 84,
-  quads: 84,
-  hamstrings: 84,
-  calves: 48,
-};
+function createMuscleNumberMap(initialValue = 0): Record<MuscleGroup, number> {
+  return Object.fromEntries(MUSCLE_GROUPS.map((muscle) => [muscle, initialValue])) as Record<
+    MuscleGroup,
+    number
+  >;
+}
+
+function getBaseRecoveryHours(muscle: MuscleGroup): number {
+  const label = MUSCLE_LABELS[muscle].toLowerCase();
+
+  if (
+    label.includes("quad") ||
+    label.includes("hamstring") ||
+    label.includes("thigh") ||
+    label.includes("glute") ||
+    label.includes("hip") ||
+    label.includes("adductor") ||
+    label.includes("abductor") ||
+    label.includes("sartorius")
+  ) {
+    return 84;
+  }
+
+  if (
+    label.includes("calf") ||
+    label.includes("soleus") ||
+    label.includes("gastrocnemius") ||
+    label.includes("tibialis") ||
+    label.includes("feet")
+  ) {
+    return 48;
+  }
+
+  if (
+    label.includes("chest") ||
+    label.includes("back") ||
+    label.includes("latissimus") ||
+    label.includes("rhomboid") ||
+    label.includes("trapezius") ||
+    label.includes("erector")
+  ) {
+    return 60;
+  }
+
+  return 36;
+}
 
 const TIER_MULTIPLIER: Record<FatigueTier, number> = {
   light: 0.35,
@@ -468,19 +547,7 @@ function repFactor(reps: number): number {
 }
 
 function getMuscleStimulusByLog(workout: WorkoutTemplate): Record<MuscleGroup, number> {
-  const byMuscle: Record<MuscleGroup, number> = {
-    chest: 0,
-    back: 0,
-    shoulders: 0,
-    biceps: 0,
-    triceps: 0,
-    forearms: 0,
-    core: 0,
-    glutes: 0,
-    quads: 0,
-    hamstrings: 0,
-    calves: 0,
-  };
+  const byMuscle = createMuscleNumberMap(0);
 
   for (const exercise of workout.exercises) {
     const perExerciseStimulus = Math.max(0.6, exercise.sets * repFactor(exercise.reps));
@@ -501,33 +568,9 @@ export function computeMuscleFatigue(
   payload: WorkoutPlannerPayload,
   now = new Date()
 ): Record<MuscleGroup, number> {
-  const result: Record<MuscleGroup, number> = {
-    chest: 0,
-    back: 0,
-    shoulders: 0,
-    biceps: 0,
-    triceps: 0,
-    forearms: 0,
-    core: 0,
-    glutes: 0,
-    quads: 0,
-    hamstrings: 0,
-    calves: 0,
-  };
+  const result = createMuscleNumberMap(0);
   const workoutById = new Map(payload.workouts.map((workout) => [workout.id, workout]));
-  const carryoverLoad: Record<MuscleGroup, number> = {
-    chest: 0,
-    back: 0,
-    shoulders: 0,
-    biceps: 0,
-    triceps: 0,
-    forearms: 0,
-    core: 0,
-    glutes: 0,
-    quads: 0,
-    hamstrings: 0,
-    calves: 0,
-  };
+  const carryoverLoad = createMuscleNumberMap(0);
 
   for (const log of payload.logs) {
     const workout = workoutById.get(log.workoutId);
@@ -543,7 +586,7 @@ export function computeMuscleFatigue(
       if (stimulus <= 0) continue;
 
       const tier = classifyFatigueTier(stimulus);
-      const recoveryHours = BASE_RECOVERY_HOURS[muscle] * TIER_MULTIPLIER[tier];
+      const recoveryHours = getBaseRecoveryHours(muscle) * TIER_MULTIPLIER[tier];
       if (recoveryHours <= 0) continue;
 
       const decay = Math.exp((-3 * ageHours) / recoveryHours);

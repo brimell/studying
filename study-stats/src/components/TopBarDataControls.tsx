@@ -2,11 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { formatTimeSince, readGlobalLastFetched } from "@/lib/client-cache";
+import StudyProjection from "@/components/StudyProjection";
 
 export default function TopBarDataControls() {
   const [lastFetchedAt, setLastFetchedAt] = useState<number | null>(null);
   const [now, setNow] = useState(Date.now());
   const [refreshing, setRefreshing] = useState(false);
+  const [showStudyProjection, setShowStudyProjection] = useState(false);
 
   useEffect(() => {
     setLastFetchedAt(readGlobalLastFetched());
@@ -32,6 +34,13 @@ export default function TopBarDataControls() {
 
   return (
     <div className="flex items-center gap-2">
+      <button
+        type="button"
+        onClick={() => setShowStudyProjection(true)}
+        className="px-2 py-1 rounded-md text-xs bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors"
+      >
+        Project Studying
+      </button>
       <p className="text-[11px] text-zinc-500 hidden md:block">
         Last fetched {formatTimeSince(lastFetchedAt, now)}
       </p>
@@ -42,6 +51,24 @@ export default function TopBarDataControls() {
       >
         {refreshing ? "Refreshing..." : "Refresh Data"}
       </button>
+
+      {showStudyProjection && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/45 p-4">
+          <div className="w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-sm font-semibold">Project Studying</h4>
+              <button
+                type="button"
+                onClick={() => setShowStudyProjection(false)}
+                className="px-2 py-1 rounded-md text-xs bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+            <StudyProjection />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

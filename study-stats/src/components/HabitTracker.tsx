@@ -23,7 +23,7 @@ const HABIT_WORKOUT_LINKS_STORAGE_KEY = "study-stats.habit-tracker.workout-links
 const HABIT_SHOW_FUTURE_DAYS_STORAGE_KEY = "study-stats.habit-tracker.show-future-days";
 const STUDY_HABIT_STORAGE_KEY = "study-stats.habit-tracker.study-habit";
 const STUDY_FUTURE_PREVIEW_DAYS = 35;
-const STUDY_FUTURE_PREVIEW_MAX_DAYS = 100;
+const STUDY_FUTURE_PREVIEW_MAX_MONTHS = 6;
 const DEFAULT_STUDY_HABIT_NAME = "Studying";
 const DEFAULT_GYM_HABIT_NAME = "Gym";
 const DEFAULT_HABITS = [
@@ -136,7 +136,7 @@ function getHeatCellColor(baseColor: string, level: 0 | 1 | 2 | 3 | 4): string {
 
 function getFutureCellColor(): string {
   // Darker than the "no activity" color so future days are clearly distinct.
-  return "rgba(63, 63, 70, 0.7)";
+  return "rgba(39, 39, 42, 0.9)";
 }
 
 function resolveDefaultHabitColor(slug: string, preferred = "#10b981"): string {
@@ -174,6 +174,17 @@ function addDays(dateKey: string, amount: number): string {
   const [year, month, day] = dateKey.split("-").map(Number);
   const date = new Date(Date.UTC(year, month - 1, day));
   date.setUTCDate(date.getUTCDate() + amount);
+  return date.toISOString().slice(0, 10);
+}
+
+function addMonths(dateKey: string, amount: number): string {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  date.setUTCMonth(date.getUTCMonth() + amount);
+  // If month math overflows (e.g. Jan 31 -> May 1), clamp to last day of target month.
+  if (date.getUTCDate() !== day) {
+    date.setUTCDate(0);
+  }
   return date.toISOString().slice(0, 10);
 }
 
@@ -1497,9 +1508,9 @@ export default function HabitTracker() {
                         const lastTrackedDate =
                           next[next.length - 1]?.date || data.trackerRange.endDate;
                         const previewEndDate = addDays(lastTrackedDate, STUDY_FUTURE_PREVIEW_DAYS);
-                        const maxAllowedEndDate = addDays(
+                        const maxAllowedEndDate = addMonths(
                           lastTrackedDate,
-                          STUDY_FUTURE_PREVIEW_MAX_DAYS
+                          STUDY_FUTURE_PREVIEW_MAX_MONTHS
                         );
                         const targetEndDate = isSelectedStudyHabit
                           ? (() => {
@@ -1720,8 +1731,8 @@ export default function HabitTracker() {
                                       : day.completed
                                         ? `${getBinaryCompletedColorClass(habitColor)} hover:opacity-90 ring-1 ring-zinc-400/30 dark:ring-zinc-300/30`
                                         : isFutureDay
-                                          ? "bg-zinc-400 dark:bg-zinc-800"
-                                        : "bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600"
+                                          ? "bg-zinc-500 dark:bg-zinc-900"
+                                          : "bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600"
                                     : "bg-transparent"
                                 }`}
                                 style={{

@@ -52,6 +52,13 @@ function emptyWeeklyPlanDays(): Record<WorkoutWeekDay, string[]> {
   };
 }
 
+function createMuscleNumberMap(initialValue = 0): Record<MuscleGroup, number> {
+  return Object.fromEntries(MUSCLE_GROUPS.map((muscle) => [muscle, initialValue])) as Record<
+    MuscleGroup,
+    number
+  >;
+}
+
 export default function WorkoutPlanner() {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const [session, setSession] = useState<Session | null>(null);
@@ -506,32 +513,8 @@ export default function WorkoutPlanner() {
     >();
 
     for (const plan of payload.weeklyPlans) {
-      const totalByMuscle: Record<MuscleGroup, number> = {
-        chest: 0,
-        back: 0,
-        shoulders: 0,
-        biceps: 0,
-        triceps: 0,
-        forearms: 0,
-        core: 0,
-        glutes: 0,
-        quads: 0,
-        hamstrings: 0,
-        calves: 0,
-      };
-      const hitDaysByMuscle: Record<MuscleGroup, number> = {
-        chest: 0,
-        back: 0,
-        shoulders: 0,
-        biceps: 0,
-        triceps: 0,
-        forearms: 0,
-        core: 0,
-        glutes: 0,
-        quads: 0,
-        hamstrings: 0,
-        calves: 0,
-      };
+      const totalByMuscle = createMuscleNumberMap(0);
+      const hitDaysByMuscle = createMuscleNumberMap(0);
 
       for (const day of WORKOUT_WEEK_DAYS) {
         const workoutIds = plan.days[day];
@@ -556,19 +539,7 @@ export default function WorkoutPlanner() {
       }
 
       const totalLoad = MUSCLE_GROUPS.reduce((sum, muscle) => sum + totalByMuscle[muscle], 0);
-      const scores: Record<MuscleGroup, number> = {
-        chest: 0,
-        back: 0,
-        shoulders: 0,
-        biceps: 0,
-        triceps: 0,
-        forearms: 0,
-        core: 0,
-        glutes: 0,
-        quads: 0,
-        hamstrings: 0,
-        calves: 0,
-      };
+      const scores = createMuscleNumberMap(0);
 
       for (const muscle of MUSCLE_GROUPS) {
         scores[muscle] = totalLoad > 0 ? Math.round((totalByMuscle[muscle] / totalLoad) * 100) : 0;

@@ -5,7 +5,6 @@ import { useSession } from "next-auth/react";
 import TodayProgress from "./TodayProgress";
 import DailyStudyChart from "./DailyStudyChart";
 import SubjectDistribution from "./SubjectDistribution";
-import StudyProjection from "./StudyProjection";
 import FirstExamCountdown from "./FirstExamCountdown";
 import HabitTracker from "./HabitTracker";
 import WorkoutFatigueCard from "./WorkoutFatigueCard";
@@ -15,7 +14,6 @@ const DASHBOARD_LAYOUT_STORAGE_KEY = "study-stats.dashboard.layout.v1";
 const DASHBOARD_SETTINGS_STORAGE_KEY = "study-stats.dashboard.settings.v1";
 const DEFAULT_ORDER = [
   "today-progress",
-  "study-projection",
   "first-exam-countdown",
   "habit-tracker",
   "workout-fatigue",
@@ -30,7 +28,6 @@ type CardSizePreset = "compact" | "standard" | "large" | "full";
 
 const DEFAULT_CARD_SIZES: Record<CardId, CardSizePreset> = {
   "today-progress": "standard",
-  "study-projection": "large",
   "first-exam-countdown": "standard",
   "habit-tracker": "full",
   "workout-fatigue": "large",
@@ -179,10 +176,6 @@ export default function Dashboard() {
         "today-progress": {
           title: "Today Progress",
           content: <TodayProgress />,
-        },
-        "study-projection": {
-          title: "Study Projection",
-          content: <StudyProjection />,
         },
         "first-exam-countdown": {
           title: "First Exam Countdown",

@@ -15,7 +15,20 @@ const BASE_DIAGRAM: MuscleDiagramFiles = {
   posterior: "Muscle Group=Back, View=Posterior, Dissection=Outer Muscles.svg",
 };
 
-const DIAGRAM_FILES: Record<MuscleGroup, MuscleDiagramFiles> = {
+const CORE_DIAGRAM_FILES: Record<
+  | "chest"
+  | "back"
+  | "shoulders"
+  | "biceps"
+  | "triceps"
+  | "forearms"
+  | "core"
+  | "glutes"
+  | "quads"
+  | "hamstrings"
+  | "calves",
+  MuscleDiagramFiles
+> = {
   chest: {
     anterior: "Muscle Group=Chest, View=Anterior, Dissection=Outer Muscles.svg",
     posterior: "Muscle Group=Chest, View=Posterior, Dissection=Outer Muscles.svg",
@@ -61,6 +74,60 @@ const DIAGRAM_FILES: Record<MuscleGroup, MuscleDiagramFiles> = {
     posterior: "Muscle Group=Calves, View=Posterior, Dissection=Outer Muscles.svg",
   },
 };
+
+const DIAGRAM_ALIAS: Partial<Record<MuscleGroup, keyof typeof CORE_DIAGRAM_FILES>> = {
+  "biceps-brachii": "biceps",
+  brachialis: "biceps",
+  brachioradialis: "forearms",
+  "triceps-brachii": "triceps",
+  "upper-arms": "shoulders",
+  "wrist-extensors": "forearms",
+  "wrist-flexors": "forearms",
+  pronators: "forearms",
+  supinators: "forearms",
+  obliques: "core",
+  "rectus-abdominis": "core",
+  waist: "core",
+  "gluteus-maximus": "glutes",
+  hips: "glutes",
+  "hip-flexors": "quads",
+  "hip-adductors": "quads",
+  "deep-external-rotators": "glutes",
+  quadriceps: "quads",
+  thighs: "quads",
+  sartorius: "quads",
+  gastrocnemius: "calves",
+  soleus: "calves",
+  "tibialis-anterior": "calves",
+  feet: "calves",
+  hands: "forearms",
+  neck: "shoulders",
+  "deltoid-anterior": "shoulders",
+  "deltoid-medial-lateral": "shoulders",
+  "deltoid-posterior": "shoulders",
+  "erector-spinae": "back",
+  "infraspinatus-teres-minor": "back",
+  "latissimus-dorsi-teres-major": "back",
+  "levator-scapulae": "back",
+  "pectoralis-major": "chest",
+  "pectoralis-minor": "chest",
+  "quadratus-lumborum": "back",
+  rhomboids: "back",
+  "serratus-anterior": "chest",
+  splenius: "back",
+  sternocleidomastoid: "shoulders",
+  subscapularis: "back",
+  supraspinatus: "back",
+  "trapezius-lower": "back",
+  "trapezius-middle": "back",
+  "trapezius-upper": "back",
+  abductors: "glutes",
+};
+
+function resolveDiagramFiles(muscle: MuscleGroup): MuscleDiagramFiles {
+  const alias = DIAGRAM_ALIAS[muscle] || (muscle as keyof typeof CORE_DIAGRAM_FILES);
+  return CORE_DIAGRAM_FILES[alias] || CORE_DIAGRAM_FILES.back;
+}
 
 function toDiagramPath(fileName: string): string {
   return `/diagrams/muscular_system/${encodeURIComponent(fileName)}`;
@@ -195,7 +262,7 @@ export default function MuscleModel({ scores, title = "Muscle Load Map", compact
                   return (
                     <RedOnlyOverlay
                       key={`anterior-${muscle}`}
-                      src={toDiagramPath(DIAGRAM_FILES[muscle].anterior)}
+                      src={toDiagramPath(resolveDiagramFiles(muscle).anterior)}
                       opacity={fatigueToOpacity(score)}
                     />
                   );
@@ -214,7 +281,7 @@ export default function MuscleModel({ scores, title = "Muscle Load Map", compact
                   return (
                     <RedOnlyOverlay
                       key={`posterior-${muscle}`}
-                      src={toDiagramPath(DIAGRAM_FILES[muscle].posterior)}
+                      src={toDiagramPath(resolveDiagramFiles(muscle).posterior)}
                       opacity={fatigueToOpacity(score)}
                     />
                   );
