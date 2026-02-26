@@ -6,12 +6,14 @@ import MuscleModel from "@/components/MuscleModel";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import type {
   MuscleGroup,
+  WorkoutWeekDay,
+  WeeklyWorkoutPlan,
   WorkoutExercise,
   WorkoutLogEntry,
   WorkoutPlannerPayload,
   WorkoutTemplate,
 } from "@/lib/types";
-import { MUSCLE_GROUPS } from "@/lib/types";
+import { MUSCLE_GROUPS, WORKOUT_WEEK_DAYS } from "@/lib/types";
 import { computeMuscleFatigue, emptyWorkoutPayload, MUSCLE_LABELS } from "@/lib/workouts";
 
 function generateId(): string {
@@ -27,6 +29,28 @@ const TRACKER_CALENDAR_STORAGE_KEY = "study-stats.tracker-calendar-id";
 const HABIT_WORKOUT_LINKS_STORAGE_KEY = "study-stats.habit-tracker.workout-links";
 
 const DEFAULT_EXERCISE_MUSCLES: MuscleGroup[] = ["chest"];
+
+const WEEKDAY_LABELS: Record<WorkoutWeekDay, string> = {
+  monday: "Monday",
+  tuesday: "Tuesday",
+  wednesday: "Wednesday",
+  thursday: "Thursday",
+  friday: "Friday",
+  saturday: "Saturday",
+  sunday: "Sunday",
+};
+
+function emptyWeeklyPlanDays(): Record<WorkoutWeekDay, string[]> {
+  return {
+    monday: [],
+    tuesday: [],
+    wednesday: [],
+    thursday: [],
+    friday: [],
+    saturday: [],
+    sunday: [],
+  };
+}
 
 export default function WorkoutPlanner() {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
@@ -44,6 +68,11 @@ export default function WorkoutPlanner() {
   const [exerciseReps, setExerciseReps] = useState(10);
   const [exerciseMuscles, setExerciseMuscles] = useState<MuscleGroup[]>(DEFAULT_EXERCISE_MUSCLES);
   const [showCreateWorkoutModal, setShowCreateWorkoutModal] = useState(false);
+  const [weeklyPlanName, setWeeklyPlanName] = useState("");
+  const [weeklyPlanDays, setWeeklyPlanDays] = useState<Record<WorkoutWeekDay, string[]>>(
+    emptyWeeklyPlanDays()
+  );
+  const [editingWeeklyPlanId, setEditingWeeklyPlanId] = useState<string | null>(null);
 
   const [logDateByWorkout, setLogDateByWorkout] = useState<Record<string, string>>({});
 
@@ -112,7 +141,10 @@ export default function WorkoutPlanner() {
     }
   };
 
-  const syncWorkoutLogToGymHabit = async (date: string) => {
+  const syncWorkoutLogToGymHabit = async (date: string): Promise<{
+    synced: number;
+    failed: string[];
+  }> => {
     const linkedHabitNames = (() => {
       const raw = window.localStorage.getItem(HABIT_WORKOUT_LINKS_STORAGE_KEY);
       if (!raw) return ["Gym"];
@@ -135,33 +167,54 @@ export default function WorkoutPlanner() {
       }
     })();
 
-    if (linkedHabitNames.length === 0) return;
+    if (linkedHabitNames.length === 0) return { synced: 0, failed: [] };
 
     const trackerCalendarId = await getTrackerCalendarId();
-    if (!trackerCalendarId) return;
-
-    try {
-      await Promise.all(
-        linkedHabitNames.map((habitName) =>
-          fetch("/api/habit-tracker", {
-            method: "PATCH",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              trackerCalendarId,
-              habitName,
-              habitMode: "binary",
-              date,
-              completed: true,
-              hours: 1,
-            }),
-          })
-        )
-      );
-    } catch {
-      // Do not block workout logging if habit sync fails.
+    if (!trackerCalendarId) {
+      return { synced: 0, failed: linkedHabitNames };
     }
+
+    const results = await Promise.allSettled(
+      linkedHabitNames.map(async (habitName) => {
+        const response = await fetch("/api/habit-tracker", {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            trackerCalendarId,
+            habitName,
+            habitMode: "binary",
+            date,
+            completed: true,
+            hours: 1,
+          }),
+        });
+
+        if (!response.ok) {
+          const payload = (await response.json().catch(() => ({}))) as { error?: string };
+          throw new Error(payload.error || `Failed to sync "${habitName}"`);
+        }
+
+        return habitName;
+      })
+    );
+
+    const failed: string[] = [];
+    let synced = 0;
+    for (const result of results) {
+      if (result.status === "fulfilled") {
+        synced += 1;
+      } else {
+        failed.push(result.reason instanceof Error ? result.reason.message : "Habit sync failed");
+      }
+    }
+
+    if (synced > 0) {
+      window.dispatchEvent(new CustomEvent("study-stats:refresh-all"));
+    }
+
+    return { synced, failed };
   };
 
   useEffect(() => {
@@ -267,9 +320,97 @@ export default function WorkoutPlanner() {
       ...payload,
       workouts: payload.workouts.filter((entry) => entry.id !== workoutId),
       logs: payload.logs.filter((log) => log.workoutId !== workoutId),
+      weeklyPlans: payload.weeklyPlans.map((plan) => {
+        const days = { ...plan.days };
+        for (const day of WORKOUT_WEEK_DAYS) {
+          days[day] = days[day].filter((id) => id !== workoutId);
+        }
+        return {
+          ...plan,
+          days,
+        };
+      }),
       updatedAt: new Date().toISOString(),
     };
     await persist(nextPayload, `Deleted workout "${workout.name}".`);
+  };
+
+  const saveWeeklyPlan = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const name = weeklyPlanName.trim();
+    if (!name) return;
+
+    const hasAssignedDay = WORKOUT_WEEK_DAYS.some((day) => weeklyPlanDays[day].length > 0);
+    if (!hasAssignedDay) {
+      setError("Assign at least one day to a workout before saving a weekly plan.");
+      return;
+    }
+
+    const nextWeeklyPlans = (() => {
+      if (!editingWeeklyPlanId) {
+        const plan: WeeklyWorkoutPlan = {
+          id: generateId(),
+          name,
+          days: { ...weeklyPlanDays },
+          createdAt: new Date().toISOString(),
+        };
+        return [plan, ...payload.weeklyPlans];
+      }
+
+      return payload.weeklyPlans.map((plan) =>
+        plan.id === editingWeeklyPlanId
+          ? {
+              ...plan,
+              name,
+              days: { ...weeklyPlanDays },
+            }
+          : plan
+      );
+    })();
+
+    const nextPayload: WorkoutPlannerPayload = {
+      ...payload,
+      weeklyPlans: nextWeeklyPlans,
+      updatedAt: new Date().toISOString(),
+    };
+
+    await persist(
+      nextPayload,
+      editingWeeklyPlanId
+        ? `Updated weekly plan "${name}".`
+        : `Saved weekly plan "${name}".`
+    );
+    setEditingWeeklyPlanId(null);
+    setWeeklyPlanName("");
+    setWeeklyPlanDays(emptyWeeklyPlanDays());
+  };
+
+  const startEditingWeeklyPlan = (plan: WeeklyWorkoutPlan) => {
+    setEditingWeeklyPlanId(plan.id);
+    setWeeklyPlanName(plan.name);
+    setWeeklyPlanDays({ ...plan.days });
+  };
+
+  const cancelEditingWeeklyPlan = () => {
+    setEditingWeeklyPlanId(null);
+    setWeeklyPlanName("");
+    setWeeklyPlanDays(emptyWeeklyPlanDays());
+  };
+
+  const removeWeeklyPlan = async (planId: string) => {
+    const target = payload.weeklyPlans.find((plan) => plan.id === planId);
+    if (!target) return;
+
+    const confirmed = window.confirm(`Delete weekly plan "${target.name}"?`);
+    if (!confirmed) return;
+
+    const nextPayload: WorkoutPlannerPayload = {
+      ...payload,
+      weeklyPlans: payload.weeklyPlans.filter((plan) => plan.id !== planId),
+      updatedAt: new Date().toISOString(),
+    };
+
+    await persist(nextPayload, `Deleted weekly plan "${target.name}".`);
   };
 
   const logWorkout = async (workout: WorkoutTemplate) => {
@@ -285,7 +426,14 @@ export default function WorkoutPlanner() {
       updatedAt: new Date().toISOString(),
     };
     await persist(nextPayload, `Logged "${workout.name}" on ${date}.`);
-    void syncWorkoutLogToGymHabit(date);
+    const syncResult = await syncWorkoutLogToGymHabit(date);
+    if (syncResult.failed.length > 0) {
+      setError(
+        `Workout logged, but habit sync had issues: ${syncResult.failed.slice(0, 2).join("; ")}`
+      );
+    } else if (syncResult.synced > 0) {
+      setMessage(`Logged "${workout.name}" on ${date} and synced ${syncResult.synced} linked habit(s).`);
+    }
   };
 
   const removeLog = async (logId: string) => {
@@ -314,6 +462,7 @@ export default function WorkoutPlanner() {
           performedOn: todayDateKey(),
         },
       ],
+      weeklyPlans: [],
       updatedAt: new Date().toISOString(),
     };
     return computeMuscleFatigue(draftPayload);
@@ -336,6 +485,7 @@ export default function WorkoutPlanner() {
             performedOn: today,
           },
         ],
+        weeklyPlans: [],
         updatedAt: new Date().toISOString(),
       };
 
@@ -344,6 +494,96 @@ export default function WorkoutPlanner() {
 
     return scoreMap;
   }, [payload.workouts]);
+  const weeklyPlanSummaries = useMemo(() => {
+    const summaries = new Map<
+      string,
+      {
+        scores: Record<MuscleGroup, number>;
+        totalByMuscle: Record<MuscleGroup, number>;
+        hitDaysByMuscle: Record<MuscleGroup, number>;
+        totalLoad: number;
+      }
+    >();
+
+    for (const plan of payload.weeklyPlans) {
+      const totalByMuscle: Record<MuscleGroup, number> = {
+        chest: 0,
+        back: 0,
+        shoulders: 0,
+        biceps: 0,
+        triceps: 0,
+        forearms: 0,
+        core: 0,
+        glutes: 0,
+        quads: 0,
+        hamstrings: 0,
+        calves: 0,
+      };
+      const hitDaysByMuscle: Record<MuscleGroup, number> = {
+        chest: 0,
+        back: 0,
+        shoulders: 0,
+        biceps: 0,
+        triceps: 0,
+        forearms: 0,
+        core: 0,
+        glutes: 0,
+        quads: 0,
+        hamstrings: 0,
+        calves: 0,
+      };
+
+      for (const day of WORKOUT_WEEK_DAYS) {
+        const workoutIds = plan.days[day];
+        if (workoutIds.length === 0) continue;
+
+        const hitToday = new Set<MuscleGroup>();
+        for (const workoutId of workoutIds) {
+          const workout = workoutById.get(workoutId);
+          if (!workout) continue;
+
+          for (const exercise of workout.exercises) {
+            const load = Math.max(1, exercise.sets * exercise.reps);
+            for (const muscle of exercise.muscles) {
+              totalByMuscle[muscle] += load;
+              hitToday.add(muscle);
+            }
+          }
+        }
+        for (const muscle of hitToday) {
+          hitDaysByMuscle[muscle] += 1;
+        }
+      }
+
+      const totalLoad = MUSCLE_GROUPS.reduce((sum, muscle) => sum + totalByMuscle[muscle], 0);
+      const scores: Record<MuscleGroup, number> = {
+        chest: 0,
+        back: 0,
+        shoulders: 0,
+        biceps: 0,
+        triceps: 0,
+        forearms: 0,
+        core: 0,
+        glutes: 0,
+        quads: 0,
+        hamstrings: 0,
+        calves: 0,
+      };
+
+      for (const muscle of MUSCLE_GROUPS) {
+        scores[muscle] = totalLoad > 0 ? Math.round((totalByMuscle[muscle] / totalLoad) * 100) : 0;
+      }
+
+      summaries.set(plan.id, {
+        scores,
+        totalByMuscle,
+        hitDaysByMuscle,
+        totalLoad,
+      });
+    }
+
+    return summaries;
+  }, [payload.weeklyPlans, workoutById]);
 
   if (!supabase) {
     return (
@@ -453,6 +693,168 @@ export default function WorkoutPlanner() {
                 </div>
               </div>
             ))}
+          </div>
+        </section>
+
+        <section className="rounded-2xl bg-white dark:bg-zinc-900 p-5 shadow-sm border border-zinc-200 dark:border-zinc-800">
+          <h2 className="text-lg font-semibold mb-3">Weekly Workout Plans</h2>
+
+          <form onSubmit={saveWeeklyPlan} className="rounded-lg border border-zinc-200 dark:border-zinc-700 p-3 space-y-3">
+            <input
+              type="text"
+              value={weeklyPlanName}
+              onChange={(event) => setWeeklyPlanName(event.target.value)}
+              placeholder="Plan name (e.g. Weekly Push/Pull/Legs)"
+              className="w-full border rounded-lg px-3 py-2 text-sm bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
+            />
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+              {WORKOUT_WEEK_DAYS.map((day) => (
+                <div key={day} className="rounded-lg border border-zinc-200 dark:border-zinc-700 p-2 text-xs">
+                  <p className="font-medium mb-1">{WEEKDAY_LABELS[day]}</p>
+                  <div className="space-y-1 max-h-32 overflow-y-auto pr-1">
+                    {payload.workouts.length === 0 && <p className="text-zinc-500">No workouts</p>}
+                    {payload.workouts.map((workout) => {
+                      const checked = weeklyPlanDays[day].includes(workout.id);
+                      return (
+                        <label key={`${day}-${workout.id}`} className="flex items-center gap-1.5">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(event) =>
+                              setWeeklyPlanDays((previous) => ({
+                                ...previous,
+                                [day]: event.target.checked
+                                  ? [...previous[day], workout.id]
+                                  : previous[day].filter((id) => id !== workout.id),
+                              }))
+                            }
+                          />
+                          <span className="truncate">{workout.name}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="submit"
+                disabled={!weeklyPlanName.trim() || saving || payload.workouts.length === 0}
+                className="px-4 py-2 rounded-lg bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white text-sm font-medium transition-colors"
+              >
+                {editingWeeklyPlanId ? "Update Weekly Plan" : "Save Weekly Plan"}
+              </button>
+              {editingWeeklyPlanId && (
+                <button
+                  type="button"
+                  onClick={cancelEditingWeeklyPlan}
+                  className="px-4 py-2 rounded-lg bg-zinc-200 dark:bg-zinc-700 text-sm font-medium"
+                >
+                  Cancel Edit
+                </button>
+              )}
+            </div>
+          </form>
+
+          <div className="mt-4 space-y-3">
+            {payload.weeklyPlans.length === 0 && (
+              <p className="text-sm text-zinc-500">No weekly plans saved yet.</p>
+            )}
+
+            {payload.weeklyPlans.map((plan) => {
+              const summary = weeklyPlanSummaries.get(plan.id);
+              const nonZeroMuscles = MUSCLE_GROUPS
+                .map((muscle) => ({
+                  muscle,
+                  load: summary?.totalByMuscle[muscle] || 0,
+                  hitDays: summary?.hitDaysByMuscle[muscle] || 0,
+                  pct: summary?.scores[muscle] || 0,
+                }))
+                .filter((entry) => entry.load > 0)
+                .sort((a, b) => b.load - a.load);
+              const missingMuscles = MUSCLE_GROUPS.filter(
+                (muscle) => (summary?.totalByMuscle[muscle] || 0) <= 0
+              );
+
+              return (
+                <div key={plan.id} className="rounded-lg border border-zinc-200 dark:border-zinc-700 p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-medium">{plan.name}</p>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => startEditingWeeklyPlan(plan)}
+                        className="px-2 py-1 rounded-md text-xs bg-sky-500 hover:bg-sky-600 text-white"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => removeWeeklyPlan(plan.id)}
+                        className="px-2 py-1 rounded-md text-xs bg-zinc-200 dark:bg-zinc-700"
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-1 text-xs">
+                    {WORKOUT_WEEK_DAYS.map((day) => {
+                      const workoutNames = plan.days[day]
+                        .map((workoutId) => workoutById.get(workoutId)?.name)
+                        .filter((name): name is string => Boolean(name));
+                      return (
+                        <div key={`${plan.id}-${day}`} className="rounded-md bg-zinc-50 dark:bg-zinc-800 px-2 py-1">
+                          <p className="font-medium">{WEEKDAY_LABELS[day]}</p>
+                          <p className="text-zinc-500 truncate">
+                            {workoutNames.length > 0 ? workoutNames.join(", ") : "Rest"}
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="mt-3">
+                    <MuscleModel
+                      scores={summary?.scores || fatigueScores}
+                      title="Weekly Muscle Groups Hit"
+                      compact
+                    />
+                  </div>
+
+                  <div className="mt-2 text-xs text-zinc-500">
+                    Total weekly load: {summary?.totalLoad || 0}
+                  </div>
+
+                  <div className="mt-2 grid sm:grid-cols-2 gap-2">
+                    {nonZeroMuscles.map(({ muscle, load, hitDays, pct }) => (
+                      <div
+                        key={`${plan.id}-${muscle}`}
+                        className="rounded-md border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 px-2 py-1.5 text-xs"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span>{MUSCLE_LABELS[muscle]}</span>
+                          <span className="font-medium">{pct}%</span>
+                        </div>
+                        <div className="text-zinc-500 mt-1">
+                          Hit {hitDays} day{hitDays === 1 ? "" : "s"} • Load {load}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="mt-3 rounded-md border border-amber-200 dark:border-amber-900 bg-amber-50/60 dark:bg-amber-950/30 px-3 py-2 text-xs">
+                    <p className="font-medium text-amber-800 dark:text-amber-300">Missing muscle groups</p>
+                    <p className="text-amber-700 dark:text-amber-400 mt-1">
+                      {missingMuscles.length > 0
+                        ? missingMuscles.map((muscle) => MUSCLE_LABELS[muscle]).join(", ")
+                        : "None — all tracked muscle groups are hit in this plan."}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </section>
       </div>

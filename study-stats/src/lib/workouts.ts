@@ -1,11 +1,13 @@
 import type {
   MuscleGroup,
+  WeeklyWorkoutPlan,
+  WorkoutWeekDay,
   WorkoutExercise,
   WorkoutLogEntry,
   WorkoutPlannerPayload,
   WorkoutTemplate,
 } from "@/lib/types";
-import { MUSCLE_GROUPS } from "@/lib/types";
+import { MUSCLE_GROUPS, WORKOUT_WEEK_DAYS } from "@/lib/types";
 
 export const MUSCLE_LABELS: Record<MuscleGroup, string> = {
   chest: "Chest",
@@ -24,11 +26,24 @@ export const MUSCLE_LABELS: Record<MuscleGroup, string> = {
 const MAX_WORKOUTS = 100;
 const MAX_EXERCISES_PER_WORKOUT = 60;
 const MAX_LOGS = 3000;
+const MAX_WEEKLY_PLANS = 30;
+
+const DEFAULT_DAILY_STRETCHING_ID = "default-stretching";
+const DEFAULT_DAY_WORKOUT_BY_WEEKDAY: Record<WorkoutWeekDay, string> = {
+  monday: "default-day-1-push-upper-chest",
+  tuesday: "default-day-2-pull-width",
+  wednesday: "default-day-3-legs",
+  thursday: "default-day-4-mix",
+  friday: "default-day-5-push-shoulder",
+  saturday: "default-day-6-5k",
+  sunday: "default-day-7-pull-arms",
+};
 
 export function emptyWorkoutPayload(): WorkoutPlannerPayload {
   return {
     workouts: [],
     logs: [],
+    weeklyPlans: [],
     updatedAt: new Date().toISOString(),
   };
 }
@@ -138,10 +153,32 @@ export function getDefaultWorkoutTemplates(): WorkoutTemplate[] {
   ];
 }
 
+function getDefaultWeeklyPlans(): WeeklyWorkoutPlan[] {
+  const createdAt = new Date().toISOString();
+
+  return [
+    {
+      id: "default-weekly-plan",
+      name: "Default Weekly Plan",
+      days: {
+        monday: [DEFAULT_DAILY_STRETCHING_ID, DEFAULT_DAY_WORKOUT_BY_WEEKDAY.monday],
+        tuesday: [DEFAULT_DAILY_STRETCHING_ID, DEFAULT_DAY_WORKOUT_BY_WEEKDAY.tuesday],
+        wednesday: [DEFAULT_DAILY_STRETCHING_ID, DEFAULT_DAY_WORKOUT_BY_WEEKDAY.wednesday],
+        thursday: [DEFAULT_DAILY_STRETCHING_ID, DEFAULT_DAY_WORKOUT_BY_WEEKDAY.thursday],
+        friday: [DEFAULT_DAILY_STRETCHING_ID, DEFAULT_DAY_WORKOUT_BY_WEEKDAY.friday],
+        saturday: [DEFAULT_DAILY_STRETCHING_ID, DEFAULT_DAY_WORKOUT_BY_WEEKDAY.saturday],
+        sunday: [DEFAULT_DAILY_STRETCHING_ID, DEFAULT_DAY_WORKOUT_BY_WEEKDAY.sunday],
+      },
+      createdAt,
+    },
+  ];
+}
+
 export function defaultWorkoutPlannerPayload(): WorkoutPlannerPayload {
   return {
     workouts: getDefaultWorkoutTemplates(),
     logs: [],
+    weeklyPlans: getDefaultWeeklyPlans(),
     updatedAt: new Date().toISOString(),
   };
 }
@@ -178,6 +215,12 @@ export function forceApplyDefaultTemplates(
     changed = true;
   }
 
+  const nextWeeklyPlans =
+    payload.weeklyPlans.length > 0 ? payload.weeklyPlans : getDefaultWeeklyPlans();
+  if (payload.weeklyPlans.length === 0) {
+    changed = true;
+  }
+
   if (!changed) {
     return { payload, changed: false };
   }
@@ -186,6 +229,7 @@ export function forceApplyDefaultTemplates(
     payload: {
       ...payload,
       workouts: nextWorkouts,
+      weeklyPlans: nextWeeklyPlans,
       updatedAt: new Date().toISOString(),
     },
     changed: true,
@@ -272,6 +316,60 @@ function sanitizeLog(input: unknown): WorkoutLogEntry | null {
   };
 }
 
+function emptyWeekPlanDays(): Record<WorkoutWeekDay, string[]> {
+  return {
+    monday: [],
+    tuesday: [],
+    wednesday: [],
+    thursday: [],
+    friday: [],
+    saturday: [],
+    sunday: [],
+  };
+}
+
+function sanitizeWeeklyPlan(input: unknown): WeeklyWorkoutPlan | null {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return null;
+  const value = input as Record<string, unknown>;
+  const id = safeString(value.id, 80) || crypto.randomUUID();
+  const name = safeString(value.name, 100);
+  if (!name) return null;
+
+  const rawDays =
+    value.days && typeof value.days === "object" && !Array.isArray(value.days)
+      ? (value.days as Record<string, unknown>)
+      : {};
+
+  const days = emptyWeekPlanDays();
+  for (const day of WORKOUT_WEEK_DAYS) {
+    const rawWorkoutId = rawDays[day];
+    if (Array.isArray(rawWorkoutId)) {
+      const seen = new Set<string>();
+      for (const entry of rawWorkoutId) {
+        const parsed = safeString(entry, 80);
+        if (!parsed || seen.has(parsed)) continue;
+        seen.add(parsed);
+        days[day].push(parsed);
+      }
+      continue;
+    }
+
+    const legacySingle = safeString(rawWorkoutId, 80);
+    if (legacySingle) {
+      days[day] = [legacySingle];
+    }
+  }
+
+  const createdAt = safeString(value.createdAt, 40) || new Date().toISOString();
+
+  return {
+    id,
+    name,
+    days,
+    createdAt,
+  };
+}
+
 export function sanitizeWorkoutPayload(input: unknown): WorkoutPlannerPayload {
   if (!input || typeof input !== "object" || Array.isArray(input)) {
     return emptyWorkoutPayload();
@@ -279,6 +377,7 @@ export function sanitizeWorkoutPayload(input: unknown): WorkoutPlannerPayload {
   const value = input as Record<string, unknown>;
   const workoutsRaw = Array.isArray(value.workouts) ? value.workouts : [];
   const logsRaw = Array.isArray(value.logs) ? value.logs : [];
+  const weeklyPlansRaw = Array.isArray(value.weeklyPlans) ? value.weeklyPlans : [];
 
   const workouts = workoutsRaw
     .map(sanitizeWorkout)
@@ -293,11 +392,27 @@ export function sanitizeWorkoutPayload(input: unknown): WorkoutPlannerPayload {
     .slice(0, MAX_LOGS)
     .sort((a, b) => b.performedOn.localeCompare(a.performedOn));
 
+  const weeklyPlans = weeklyPlansRaw
+    .map(sanitizeWeeklyPlan)
+    .filter((entry): entry is WeeklyWorkoutPlan => Boolean(entry))
+    .slice(0, MAX_WEEKLY_PLANS)
+    .map((plan) => {
+      const days = emptyWeekPlanDays();
+      for (const day of WORKOUT_WEEK_DAYS) {
+        days[day] = plan.days[day].filter((workoutId) => workoutIds.has(workoutId));
+      }
+      return {
+        ...plan,
+        days,
+      };
+    });
+
   const updatedAt = safeString(value.updatedAt, 40) || new Date().toISOString();
 
   return {
     workouts,
     logs,
+    weeklyPlans,
     updatedAt,
   };
 }

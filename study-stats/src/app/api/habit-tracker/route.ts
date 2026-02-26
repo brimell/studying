@@ -107,6 +107,22 @@ function sanitizeTerms(terms: string[]): string[] {
   return normalized;
 }
 
+function sanitizeMatchEntries(entries: string[]): string[] {
+  const unique: string[] = [];
+  const seen = new Set<string>();
+
+  for (const rawEntry of entries) {
+    const entry = rawEntry.trim();
+    if (!entry) continue;
+    const key = entry.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(entry);
+  }
+
+  return unique;
+}
+
 function sanitizeCalendarIds(ids: string[]): string[] {
   const seen = new Set<string>();
   const normalized: string[] = [];
@@ -141,7 +157,7 @@ function sanitizeHabitConfigs(habits: HabitConfigEntry[]): HabitConfigEntry[] {
         mode === "binary" ? rawHabit.trackingCalendarId?.trim() || null : null,
       sourceCalendarIds:
         mode === "duration" ? sanitizeCalendarIds(rawHabit.sourceCalendarIds || []) : [],
-      matchTerms: mode === "duration" ? sanitizeTerms(rawHabit.matchTerms || []) : [],
+      matchTerms: mode === "duration" ? sanitizeMatchEntries(rawHabit.matchTerms || []) : [],
     });
 
     if (unique.length >= MAX_HABITS) break;
@@ -191,32 +207,74 @@ function parseTermsInput(input: string): string[] {
   if (segments.length === 0) return [];
 
   const collected: string[] = [];
+  let lastSubjectIndex = -1;
   for (const segment of segments) {
     const separatorIndex = segment.indexOf(":");
     if (separatorIndex >= 0) {
       const subject = segment.slice(0, separatorIndex).trim();
       const rawTerms = segment.slice(separatorIndex + 1);
-      if (subject) collected.push(subject);
-      rawTerms
+      const terms = rawTerms
         .split(",")
         .map((term) => term.trim())
-        .filter(Boolean)
-        .forEach((term) => collected.push(term));
+        .filter(Boolean);
+      if (subject && terms.length > 0) {
+        collected.push(`${subject}: ${terms.join(", ")}`);
+        lastSubjectIndex = collected.length - 1;
+      } else if (subject) {
+        collected.push(subject);
+        lastSubjectIndex = collected.length - 1;
+      } else if (terms.length > 0) {
+        collected.push(terms.join(", "));
+      }
       continue;
     }
 
-    segment
+    if (lastSubjectIndex >= 0) {
+      const previous = collected[lastSubjectIndex] || "";
+      const prevSep = previous.indexOf(":");
+      if (prevSep >= 0) {
+        const prevSubject = previous.slice(0, prevSep).trim();
+        const prevTerms = previous.slice(prevSep + 1).trim();
+        const mergedTerms = [prevTerms, segment].filter(Boolean).join(", ");
+        collected[lastSubjectIndex] = `${prevSubject}: ${mergedTerms}`;
+        continue;
+      }
+    }
+
+    collected.push(segment);
+  }
+
+  return sanitizeMatchEntries(collected);
+}
+
+function getDefaultStudyMatchEntries(): string[] {
+  return Object.entries(DEFAULT_SUBJECTS).map(
+    ([subject, terms]) => `${subject}: ${terms.join(", ")}`
+  );
+}
+
+function extractSearchTermsFromMatchEntries(matchEntries: string[]): string[] {
+  const expanded: string[] = [];
+  for (const entry of matchEntries) {
+    const separatorIndex = entry.indexOf(":");
+    if (separatorIndex >= 0) {
+      const subject = entry.slice(0, separatorIndex).trim();
+      const terms = entry
+        .slice(separatorIndex + 1)
+        .split(",")
+        .map((term) => term.trim())
+        .filter(Boolean);
+      if (subject) expanded.push(subject);
+      expanded.push(...terms);
+      continue;
+    }
+    entry
       .split(",")
       .map((term) => term.trim())
       .filter(Boolean)
-      .forEach((term) => collected.push(term));
+      .forEach((term) => expanded.push(term));
   }
-
-  return sanitizeTerms(collected);
-}
-
-function getDefaultStudyTerms(): string[] {
-  return sanitizeTerms(Object.values(DEFAULT_SUBJECTS).flat());
+  return sanitizeTerms(expanded);
 }
 
 function getDefaultSourceCalendarIds(): string[] {
@@ -230,7 +288,7 @@ function getDefaultHabitConfigs(): HabitConfigEntry[] {
       mode: "duration",
       trackingCalendarId: null,
       sourceCalendarIds: getDefaultSourceCalendarIds(),
-      matchTerms: getDefaultStudyTerms(),
+      matchTerms: getDefaultStudyMatchEntries(),
     },
     {
       name: DEFAULT_GYM_HABIT_NAME,
@@ -551,7 +609,7 @@ async function buildDurationHoursByDate(
     timeMaxIso
   );
 
-  const terms = sanitizeTerms(habit.matchTerms);
+  const terms = extractSearchTermsFromMatchEntries(habit.matchTerms);
   const hoursByDate: Record<string, number> = {};
 
   for (const event of events) {
@@ -844,7 +902,7 @@ export async function POST(req: NextRequest) {
         ? ((body.trackingCalendarId || "").trim() || trackerCalendarId)
         : null;
     let matchTerms = Array.isArray(body.matchTerms)
-      ? sanitizeTerms(body.matchTerms)
+      ? sanitizeMatchEntries(body.matchTerms)
       : typeof body.matchTerms === "string"
         ? parseTermsInput(body.matchTerms)
         : [];
@@ -853,7 +911,7 @@ export async function POST(req: NextRequest) {
       habitName.toLowerCase() === DEFAULT_STUDY_HABIT_NAME.toLowerCase() &&
       matchTerms.length === 0
     ) {
-      matchTerms = getDefaultStudyTerms();
+      matchTerms = getDefaultStudyMatchEntries();
     }
 
     if (habitMode === "duration" && sourceCalendarIds.length === 0) {
@@ -923,7 +981,7 @@ export async function PUT(req: NextRequest) {
     const sourceCalendarIds = sanitizeCalendarIds(body.sourceCalendarIds || []);
     const requestedTrackingCalendarId = (body.trackingCalendarId || "").trim();
     const matchTerms = Array.isArray(body.matchTerms)
-      ? sanitizeTerms(body.matchTerms)
+      ? sanitizeMatchEntries(body.matchTerms)
       : typeof body.matchTerms === "string"
         ? parseTermsInput(body.matchTerms)
         : [];

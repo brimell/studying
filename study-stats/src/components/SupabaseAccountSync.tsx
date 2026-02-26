@@ -240,19 +240,42 @@ export default function SupabaseAccountSync() {
         const hasLocalData = Object.keys(localPayload).length > 0;
         const hasCloudData = Object.keys(cloudPayload).length > 0;
 
-        if (!hasLocalData && hasCloudData) {
-          applyCloudSettings(cloudPayload);
-          lastSyncedSnapshotRef.current = JSON.stringify(cloudPayload);
-          setMessage("Auto-sync restored cloud data to this device.");
+        const mergedPayload: SyncPayload = {
+          ...localPayload,
+          ...cloudPayload,
+        };
+
+        const localSnapshot = JSON.stringify(localPayload);
+        const mergedSnapshot = JSON.stringify(mergedPayload);
+        const cloudSnapshot = JSON.stringify(cloudPayload);
+
+        if (hasCloudData && localSnapshot !== mergedSnapshot) {
+          applyCloudSettings(mergedPayload);
+          lastSyncedSnapshotRef.current = mergedSnapshot;
+          setMessage("Auto-sync applied cloud settings to this device.");
           setCloudUpdatedAt(cloud.updatedAt || null);
           autoSyncInitializedRef.current = true;
+          window.dispatchEvent(new CustomEvent("study-stats:refresh-all"));
+          window.dispatchEvent(new CustomEvent("study-stats:study-calendars-updated"));
+          window.dispatchEvent(new CustomEvent("study-stats:exam-date-updated"));
           return;
         }
 
-        const snapshot = JSON.stringify(localPayload);
+        if (!hasLocalData && hasCloudData) {
+          applyCloudSettings(cloudPayload);
+          lastSyncedSnapshotRef.current = cloudSnapshot;
+          setMessage("Auto-sync restored cloud data to this device.");
+          setCloudUpdatedAt(cloud.updatedAt || null);
+          autoSyncInitializedRef.current = true;
+          window.dispatchEvent(new CustomEvent("study-stats:refresh-all"));
+          window.dispatchEvent(new CustomEvent("study-stats:study-calendars-updated"));
+          window.dispatchEvent(new CustomEvent("study-stats:exam-date-updated"));
+          return;
+        }
+
         await autoBackupToCloud(localPayload);
         if (cancelled) return;
-        lastSyncedSnapshotRef.current = snapshot;
+        lastSyncedSnapshotRef.current = localSnapshot;
         autoSyncInitializedRef.current = true;
       } catch (syncError: unknown) {
         if (!cancelled) {

@@ -157,8 +157,28 @@ export interface WorkoutLogEntry {
   notes?: string;
 }
 
+export const WORKOUT_WEEK_DAYS = [
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+  "sunday",
+] as const;
+
+export type WorkoutWeekDay = (typeof WORKOUT_WEEK_DAYS)[number];
+
+export interface WeeklyWorkoutPlan {
+  id: string;
+  name: string;
+  days: Record<WorkoutWeekDay, string[]>;
+  createdAt: string;
+}
+
 export interface WorkoutPlannerPayload {
   workouts: WorkoutTemplate[];
   logs: WorkoutLogEntry[];
+  weeklyPlans: WeeklyWorkoutPlan[];
   updatedAt: string;
 }
