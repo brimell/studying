@@ -1,5 +1,20 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { z } from "zod";
+import { getSupabaseAdminEnv } from "@/lib/env";
+import {
+  ApiRouteError,
+  apiJson,
+  apiLog,
+  assertRateLimit,
+  checkIdempotencyReplay,
+  clientAddress,
+  createApiRequestContext,
+  handleApiError,
+  idempotencyFingerprint,
+  parseJsonBody,
+  storeIdempotencyResult,
+} from "@/lib/api-runtime";
 import {
   defaultWorkoutPlannerPayload,
   emptyWorkoutPayload,
@@ -7,74 +22,136 @@ import {
   sanitizeWorkoutPayload,
 } from "@/lib/workouts";
 
-const WORKOUT_TABLE = process.env.SUPABASE_WORKOUT_TABLE || "study_stats_workout_planner";
+const supabaseEnv = getSupabaseAdminEnv();
+const WORKOUT_TABLE = supabaseEnv.workoutTable;
 const READ_CACHE_CONTROL = "private, max-age=20, stale-while-revalidate=40";
+const workoutPutBodySchema = z.object({
+  payload: z.unknown().optional(),
+});
 
 function getSupabaseAdminClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRole = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !serviceRole) return null;
-  return createClient(url, serviceRole, { auth: { persistSession: false } });
-}
-
-function toErrorResponse(status: number, message: string) {
-  return NextResponse.json({ error: message }, { status });
+  return createClient(supabaseEnv.url, supabaseEnv.serviceRoleKey, {
+    auth: { persistSession: false },
+  });
 }
 
 async function getUserFromRequest(req: NextRequest) {
   const client = getSupabaseAdminClient();
-  if (!client) return { error: toErrorResponse(500, "Supabase is not configured.") };
 
-  const authHeader = req.headers.get("authorization");
+  const authHeader = req.headers.get("authorization")?.trim();
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return { error: toErrorResponse(401, "Missing authentication token.") };
+    throw new ApiRouteError(401, "MISSING_BEARER_TOKEN", "auth", "Missing authentication token.");
   }
 
-  const token = authHeader.slice("Bearer ".length);
+  const token = authHeader.slice("Bearer ".length).trim();
+  if (!token) {
+    throw new ApiRouteError(401, "EMPTY_BEARER_TOKEN", "auth", "Missing authentication token.");
+  }
+
   const { data, error } = await client.auth.getUser(token);
   if (error || !data.user) {
-    return { error: toErrorResponse(401, "Invalid authentication token.") };
+    throw new ApiRouteError(401, "INVALID_BEARER_TOKEN", "auth", "Invalid authentication token.");
   }
 
   return { client, userId: data.user.id };
 }
 
 export async function GET(req: NextRequest) {
-  const auth = await getUserFromRequest(req);
-  if ("error" in auth) return auth.error;
+  const context = createApiRequestContext(req, "/api/workout-planner");
 
-  const { client, userId } = auth;
-  const { data, error } = await client
-    .from(WORKOUT_TABLE)
-    .select("payload, updated_at")
-    .eq("user_id", userId)
-    .maybeSingle();
+  try {
+    const auth = await getUserFromRequest(req);
+    const { client, userId } = auth;
+    const { data, error } = await client
+      .from(WORKOUT_TABLE)
+      .select("payload, updated_at")
+      .eq("user_id", userId)
+      .maybeSingle();
 
-  if (error) {
-    return toErrorResponse(500, error.message || "Failed to read workout data.");
-  }
+    if (error) {
+      throw new ApiRouteError(
+        502,
+        "SUPABASE_READ_FAILED",
+        "upstream",
+        error.message || "Failed to read workout data."
+      );
+    }
 
-  if (!data) {
-    const seeded = defaultWorkoutPlannerPayload();
-    return NextResponse.json(
+    if (!data) {
+      const seeded = defaultWorkoutPlannerPayload();
+      return apiJson(
+        {
+          payload: seeded,
+          updatedAt: null,
+        },
+        context,
+        {
+          headers: {
+            "Cache-Control": READ_CACHE_CONTROL,
+          },
+        }
+      );
+    }
+
+    const rawPayload = data.payload || emptyWorkoutPayload();
+    const sanitized = sanitizeWorkoutPayload(rawPayload);
+    const schemaChanged = JSON.stringify(rawPayload) !== JSON.stringify(sanitized);
+    const { payload, changed } = forceApplyDefaultTemplates(sanitized);
+    if (schemaChanged || changed) {
+      apiLog("info", context, "workout_payload_transformed_on_read", {
+        userId,
+        schemaChanged,
+        templateChanged: changed,
+      });
+    }
+
+    return apiJson(
       {
-        payload: seeded,
-        updatedAt: null,
+        payload,
+        updatedAt: data.updated_at || null,
       },
+      context,
       {
         headers: {
           "Cache-Control": READ_CACHE_CONTROL,
         },
       }
     );
+  } catch (error: unknown) {
+    return handleApiError(error, context, "Failed to read workout data.");
   }
+}
 
-  const rawPayload = data?.payload || emptyWorkoutPayload();
-  const sanitized = sanitizeWorkoutPayload(rawPayload);
-  const schemaChanged = JSON.stringify(rawPayload) !== JSON.stringify(sanitized);
-  const { payload, changed } = forceApplyDefaultTemplates(sanitized);
-  if (schemaChanged) {
-    await client.from(WORKOUT_TABLE).upsert(
+export async function PUT(req: NextRequest) {
+  const context = createApiRequestContext(req, "/api/workout-planner");
+
+  try {
+    const auth = await getUserFromRequest(req);
+    const { client, userId } = auth;
+    assertRateLimit({
+      key: `workout-planner:put:${userId}:${clientAddress(req)}`,
+      limit: 45,
+      windowMs: 60_000,
+    });
+    const body = await parseJsonBody(req, workoutPutBodySchema);
+    const idempotencyKey = req.headers.get("idempotency-key");
+    const fingerprint = idempotencyFingerprint(body);
+    const replay = checkIdempotencyReplay(
+      `workout-planner:put:${userId}`,
+      idempotencyKey,
+      fingerprint
+    );
+    if (replay) {
+      replay.headers.set("x-request-id", context.requestId);
+      return replay;
+    }
+
+    const sanitized = sanitizeWorkoutPayload(body.payload);
+    const applied = forceApplyDefaultTemplates(sanitized);
+    const payload = applied.payload;
+    payload.updatedAt = new Date().toISOString();
+
+    const { error } = await client.from(WORKOUT_TABLE).upsert(
       {
         user_id: userId,
         payload,
@@ -82,51 +159,31 @@ export async function GET(req: NextRequest) {
       },
       { onConflict: "user_id" }
     );
-  }
 
-  return NextResponse.json(
-    {
-      payload,
-      updatedAt: schemaChanged || changed ? payload.updatedAt : data?.updated_at || null,
-    },
-    {
-      headers: {
-        "Cache-Control": READ_CACHE_CONTROL,
-      },
+    if (error) {
+      throw new ApiRouteError(
+        502,
+        "SUPABASE_WRITE_FAILED",
+        "upstream",
+        error.message || "Failed to save workout data."
+      );
     }
-  );
-}
 
-export async function PUT(req: NextRequest) {
-  const auth = await getUserFromRequest(req);
-  if ("error" in auth) return auth.error;
-
-  let body: unknown;
-  try {
-    body = await req.json();
-  } catch {
-    return toErrorResponse(400, "Invalid JSON body.");
+    const responseBody = { ok: true, payload, updatedAt: payload.updatedAt };
+    storeIdempotencyResult({
+      scope: `workout-planner:put:${userId}`,
+      idempotencyKey,
+      fingerprint,
+      status: 200,
+      body: responseBody,
+    });
+    apiLog("info", context, "workout_payload_saved", {
+      userId,
+      workoutCount: payload.workouts.length,
+      weeklyPlanCount: payload.weeklyPlans.length,
+    });
+    return apiJson(responseBody, context);
+  } catch (error: unknown) {
+    return handleApiError(error, context, "Failed to save workout data.");
   }
-
-  const inputPayload = (body as { payload?: unknown })?.payload;
-  const sanitized = sanitizeWorkoutPayload(inputPayload);
-  const applied = forceApplyDefaultTemplates(sanitized);
-  const payload = applied.payload;
-  payload.updatedAt = new Date().toISOString();
-
-  const { client, userId } = auth;
-  const { error } = await client.from(WORKOUT_TABLE).upsert(
-    {
-      user_id: userId,
-      payload,
-      updated_at: payload.updatedAt,
-    },
-    { onConflict: "user_id" }
-  );
-
-  if (error) {
-    return toErrorResponse(500, error.message || "Failed to save workout data.");
-  }
-
-  return NextResponse.json({ ok: true, payload, updatedAt: payload.updatedAt });
 }

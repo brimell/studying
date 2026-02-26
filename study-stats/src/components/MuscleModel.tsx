@@ -11,6 +11,26 @@ interface MuscleDiagramFiles {
 
 type DissectionLayer = "Outer Muscles" | "Inner Muscles";
 type DiagramView = keyof MuscleDiagramFiles;
+type CommonGroupKey = keyof typeof CORE_DIAGRAM_FILES;
+type SkeletalRegionKey =
+  | "spine"
+  | "ribs-sternum"
+  | "pelvis"
+  | "scapulae"
+  | "humerus"
+  | "radius-ulna"
+  | "femur-patella"
+  | "tibia-fibula";
+type OrganRegionKey =
+  | "heart"
+  | "lungs"
+  | "brain"
+  | "nervous-system"
+  | "digestive-system"
+  | "liver-gallbladder"
+  | "kidneys-bladder"
+  | "endocrine-system"
+  | "immune-system";
 
 const BASE_DIAGRAM: Record<DissectionLayer, MuscleDiagramFiles> = {
   "Outer Muscles": {
@@ -146,6 +166,109 @@ const COMMON_LABELS: Record<keyof typeof CORE_DIAGRAM_FILES, string> = {
   calves: "Calves",
 };
 
+const SKELETAL_REGION_LABELS: Record<SkeletalRegionKey, string> = {
+  spine: "Spine",
+  "ribs-sternum": "Ribs & Sternum",
+  pelvis: "Pelvis",
+  scapulae: "Scapulae",
+  humerus: "Humerus",
+  "radius-ulna": "Radius & Ulna",
+  "femur-patella": "Femur & Patella",
+  "tibia-fibula": "Tibia & Fibula",
+};
+
+const ORGAN_REGION_LABELS: Record<OrganRegionKey, string> = {
+  heart: "Heart",
+  lungs: "Lungs",
+  brain: "Brain",
+  "nervous-system": "Nervous System",
+  "digestive-system": "Digestive System",
+  "liver-gallbladder": "Liver & Gallbladder",
+  "kidneys-bladder": "Kidneys & Bladder",
+  "endocrine-system": "Endocrine System",
+  "immune-system": "Immune System",
+};
+
+const SKELETAL_REGION_FILES: Record<SkeletalRegionKey, MuscleDiagramFiles> = {
+  spine: {
+    anterior: "View=Anterior, Callout=Spine with Sacrus & Coccyx.svg",
+    posterior: "View=Posterior, Callout=Spine with Sacrus & Coccyx.svg",
+  },
+  "ribs-sternum": {
+    anterior: "View=Anterior, Callout=Ribs & Sternum.svg",
+    posterior: "View=Posterior, Callout=Ribs & Sternum.svg",
+  },
+  pelvis: {
+    anterior: "View=Anterior, Callout=Pelvis.svg",
+    posterior: "View=Posterior, Callout=Pelvis.svg",
+  },
+  scapulae: {
+    anterior: "View=Anterior, Callout=Scapulae.svg",
+    posterior: "View=Posterior, Callout=Scapulae.svg",
+  },
+  humerus: {
+    anterior: "View=Anterior, Callout=Humerus.svg",
+    posterior: "View=Posterior, Callout=Humerus.svg",
+  },
+  "radius-ulna": {
+    anterior: "View=Anterior, Callout=Radius & Ulna.svg",
+    posterior: "View=Posterior, Callout=Radius & Ulna.svg",
+  },
+  "femur-patella": {
+    anterior: "View=Anterior, Callout=Femur & Patella.svg",
+    posterior: "View=Posterior, Callout=Femur & Patella.svg",
+  },
+  "tibia-fibula": {
+    anterior: "View=Anterior, Callout=Tibia & Fibula.svg",
+    posterior: "View=Posterior, Callout=Tibia & Fibula.svg",
+  },
+};
+
+const ORGAN_REGION_FILES: Record<OrganRegionKey, string> = {
+  heart: "Callout=Heart.svg",
+  lungs: "Callout=Lungs.svg",
+  brain: "Callout=Brain.svg",
+  "nervous-system": "Callout=Nervous System.svg",
+  "digestive-system": "Callout=Digestive System.svg",
+  "liver-gallbladder": "Callout=Liver & Gallbladder.svg",
+  "kidneys-bladder": "Callout=Kidneys & Bladder.svg",
+  "endocrine-system": "Callout=Male Endocrine System.svg",
+  "immune-system": "Callout=Imune System.svg",
+};
+
+const BONE_EFFECTS_BY_GROUP: Record<CommonGroupKey, Partial<Record<SkeletalRegionKey, number>>> = {
+  chest: { "ribs-sternum": 1, humerus: 0.5, scapulae: 0.45 },
+  back: { spine: 1, scapulae: 0.75, pelvis: 0.5, "ribs-sternum": 0.35 },
+  shoulders: { scapulae: 1, humerus: 0.8, "ribs-sternum": 0.35, spine: 0.25 },
+  biceps: { humerus: 0.8, "radius-ulna": 1, scapulae: 0.25 },
+  triceps: { humerus: 1, "radius-ulna": 0.75, scapulae: 0.25 },
+  forearms: { "radius-ulna": 1, humerus: 0.35 },
+  core: { spine: 0.9, pelvis: 0.8, "ribs-sternum": 0.45 },
+  glutes: { pelvis: 1, spine: 0.65, "femur-patella": 0.35 },
+  quads: { "femur-patella": 1, pelvis: 0.45, "tibia-fibula": 0.5 },
+  hamstrings: { pelvis: 0.75, "femur-patella": 0.9, "tibia-fibula": 0.45 },
+  calves: { "tibia-fibula": 1, "femur-patella": 0.35, pelvis: 0.25 },
+};
+
+const ORGAN_EFFECTS_BY_GROUP: Record<CommonGroupKey, Partial<Record<OrganRegionKey, number>>> = {
+  chest: { heart: 1, lungs: 1, "immune-system": 0.25 },
+  back: { lungs: 0.65, "digestive-system": 0.4, "kidneys-bladder": 0.45, "nervous-system": 0.45 },
+  shoulders: { heart: 0.35, lungs: 0.5, "nervous-system": 0.4 },
+  biceps: { heart: 0.35, "nervous-system": 0.5, "endocrine-system": 0.2 },
+  triceps: { heart: 0.35, "nervous-system": 0.5, "endocrine-system": 0.2 },
+  forearms: { heart: 0.25, "nervous-system": 0.45 },
+  core: {
+    "digestive-system": 1,
+    "liver-gallbladder": 0.7,
+    "kidneys-bladder": 0.7,
+    "endocrine-system": 0.45,
+  },
+  glutes: { heart: 0.55, "digestive-system": 0.35, "kidneys-bladder": 0.5, "endocrine-system": 0.4 },
+  quads: { heart: 0.65, lungs: 0.45, "digestive-system": 0.25, "immune-system": 0.2 },
+  hamstrings: { heart: 0.65, lungs: 0.45, "digestive-system": 0.25, "immune-system": 0.2 },
+  calves: { heart: 0.6, lungs: 0.4, "immune-system": 0.2 },
+};
+
 const SPECIFIC_FILE_BASE_BY_MUSCLE: Partial<Record<MuscleGroup, string>> = {
   abductors: "Muscle Group=- Abductors",
   "biceps-brachii": "Muscle Group=- Biceps Brachii",
@@ -240,11 +363,33 @@ function toDiagramPath(fileName: string): string {
   return `/diagrams/muscular_system/${encodeURIComponent(fileName)}?v=${DIAGRAM_ASSET_VERSION}`;
 }
 
+function toSkeletalPath(fileName: string): string {
+  return `/diagrams/skeletal_system/${encodeURIComponent(fileName)}?v=${DIAGRAM_ASSET_VERSION}`;
+}
+
+function toOrganPath(fileName: string): string {
+  return `/diagrams/organs/${encodeURIComponent(fileName)}?v=${DIAGRAM_ASSET_VERSION}`;
+}
+
 function normalizedGradeToOpacity(grade: number): number {
   if (grade <= 0) return 0;
   const clamped = Math.max(0, Math.min(100, grade)) / 100;
   const lifted = Math.pow(clamped, 0.68);
   return Math.max(0.2, Math.min(0.98, 0.2 + lifted * 0.78));
+}
+
+function normalizeRegionScores<TRegion extends string>(raw: Map<TRegion, number>): Map<TRegion, number> {
+  let maxRaw = 0;
+  for (const value of raw.values()) {
+    if (value > maxRaw) maxRaw = value;
+  }
+  if (maxRaw <= 0) return new Map<TRegion, number>();
+
+  const normalized = new Map<TRegion, number>();
+  for (const [region, value] of raw.entries()) {
+    normalized.set(region, (value / maxRaw) * 100);
+  }
+  return normalized;
 }
 
 const overlayImageCache = new Map<string, string>();
@@ -612,6 +757,38 @@ export default function MuscleModel({
     }
     return normalized;
   }, [nonZero, normalizedLoadByMuscle]);
+  const commonGroupGrade = useMemo(() => {
+    const grouped = new Map<CommonGroupKey, number>();
+    for (const { muscle } of nonZero) {
+      const group = getCommonGroupKey(muscle);
+      const grade = normalizedGradeByMuscle.get(muscle) || 0;
+      if (grade <= 0) continue;
+      grouped.set(group, Math.max(grouped.get(group) || 0, grade));
+    }
+    return grouped;
+  }, [nonZero, normalizedGradeByMuscle]);
+  const normalizedBoneScores = useMemo(() => {
+    const raw = new Map<SkeletalRegionKey, number>();
+    for (const [group, grade] of commonGroupGrade.entries()) {
+      const effects = BONE_EFFECTS_BY_GROUP[group];
+      for (const [region, weight] of Object.entries(effects) as Array<[SkeletalRegionKey, number]>) {
+        if (weight <= 0) continue;
+        raw.set(region, (raw.get(region) || 0) + grade * weight);
+      }
+    }
+    return normalizeRegionScores(raw);
+  }, [commonGroupGrade]);
+  const normalizedOrganScores = useMemo(() => {
+    const raw = new Map<OrganRegionKey, number>();
+    for (const [group, grade] of commonGroupGrade.entries()) {
+      const effects = ORGAN_EFFECTS_BY_GROUP[group];
+      for (const [region, weight] of Object.entries(effects) as Array<[OrganRegionKey, number]>) {
+        if (weight <= 0) continue;
+        raw.set(region, (raw.get(region) || 0) + grade * weight);
+      }
+    }
+    return normalizeRegionScores(raw);
+  }, [commonGroupGrade]);
   const hasHover = hoveredEntryKey !== null;
   const overlayPanels = useMemo(
     () =>
@@ -669,6 +846,52 @@ export default function MuscleModel({
       }),
     [normalizedGradeByMuscle, simplifyLabels, sorted]
   );
+  const skeletalPanels = useMemo(
+    () =>
+      (["anterior", "posterior"] as const).map((view) => {
+        const baseSrc = toSkeletalPath(
+          view === "anterior" ? "View=Anterior.svg" : "View=Posterior.svg"
+        );
+        const overlays: OverlayRenderEntry[] = [...normalizedBoneScores.entries()]
+          .filter(([, score]) => score > 0)
+          .map(([region, score], index) => ({
+            key: `skeleton-${view}-${region}`,
+            src: toSkeletalPath(SKELETAL_REGION_FILES[region][view]),
+            opacity: normalizedGradeToOpacity(score),
+            delayMs: index * 20,
+            hoverKeys: [region],
+          }));
+        return { key: `skeleton-${view}`, view, baseSrc, overlays };
+      }),
+    [normalizedBoneScores]
+  );
+  const organPanel = useMemo(() => {
+    const baseSrc = toOrganPath("Reproductive Organ=None.svg");
+    const overlays: OverlayRenderEntry[] = [...normalizedOrganScores.entries()]
+      .filter(([, score]) => score > 0)
+      .map(([region, score], index) => ({
+        key: `organ-${region}`,
+        src: toOrganPath(ORGAN_REGION_FILES[region]),
+        opacity: normalizedGradeToOpacity(score),
+        delayMs: index * 20,
+        hoverKeys: [region],
+      }));
+    return { key: "organs", baseSrc, overlays };
+  }, [normalizedOrganScores]);
+  const topBoneEntries = useMemo(
+    () =>
+      [...normalizedBoneScores.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5),
+    [normalizedBoneScores]
+  );
+  const topOrganEntries = useMemo(
+    () =>
+      [...normalizedOrganScores.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5),
+    [normalizedOrganScores]
+  );
 
   useEffect(() => {
     const warmedPairs = new Set<string>();
@@ -681,6 +904,24 @@ export default function MuscleModel({
       }
     }
   }, [overlayPanels]);
+
+  useEffect(() => {
+    const warmedPairs = new Set<string>();
+    for (const panel of skeletalPanels) {
+      for (const overlay of panel.overlays) {
+        const pairKey = getOverlayCacheKey(overlay.src, panel.baseSrc);
+        if (warmedPairs.has(pairKey)) continue;
+        warmedPairs.add(pairKey);
+        void toRedOnlyDataUrl(overlay.src, panel.baseSrc);
+      }
+    }
+    for (const overlay of organPanel.overlays) {
+      const pairKey = getOverlayCacheKey(overlay.src, organPanel.baseSrc);
+      if (warmedPairs.has(pairKey)) continue;
+      warmedPairs.add(pairKey);
+      void toRedOnlyDataUrl(overlay.src, organPanel.baseSrc);
+    }
+  }, [organPanel, skeletalPanels]);
 
   return (
     <div className="rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 p-3">
@@ -712,6 +953,50 @@ export default function MuscleModel({
                   hoveredEntryKey={hoveredEntryKey}
                   hasHover={hasHover}
                 />
+              ))}
+            </div>
+          </div>
+          <div className="rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-2 mt-3">
+            <p className="text-xs font-medium mb-2">Skeletal support impact</p>
+            <div className="grid grid-cols-2 gap-2 text-[10px] text-zinc-500 dark:text-zinc-400 mb-1 px-1">
+              <span>Anterior</span>
+              <span>Posterior</span>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {skeletalPanels.map((panel) => (
+                <OverlayPanel
+                  key={panel.key}
+                  baseSrc={panel.baseSrc}
+                  alt={`${panel.view === "anterior" ? "Anterior" : "Posterior"} skeletal model`}
+                  overlays={panel.overlays}
+                  hoveredEntryKey={null}
+                  hasHover={false}
+                />
+              ))}
+            </div>
+            <div className="grid grid-cols-2 gap-x-3 gap-y-1 mt-2">
+              {topBoneEntries.map(([region, score]) => (
+                <div key={`bone-impact-${region}`} className="text-[10px] text-zinc-500 dark:text-zinc-400">
+                  {SKELETAL_REGION_LABELS[region]} {Math.round(score)}%
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-2 mt-3">
+            <p className="text-xs font-medium mb-2">Internal system support impact</p>
+            <OverlayPanel
+              key={organPanel.key}
+              baseSrc={organPanel.baseSrc}
+              alt="Organ system support model"
+              overlays={organPanel.overlays}
+              hoveredEntryKey={null}
+              hasHover={false}
+            />
+            <div className="grid grid-cols-2 gap-x-3 gap-y-1 mt-2">
+              {topOrganEntries.map(([region, score]) => (
+                <div key={`organ-impact-${region}`} className="text-[10px] text-zinc-500 dark:text-zinc-400">
+                  {ORGAN_REGION_LABELS[region]} {Math.round(score)}%
+                </div>
               ))}
             </div>
           </div>

@@ -1,17 +1,32 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { z } from "zod";
+import {
+  ApiRouteError,
+  apiJson,
+  apiLog,
+  assertRateLimit,
+  checkIdempotencyReplay,
+  clientAddress,
+  createApiRequestContext,
+  handleApiError,
+  idempotencyFingerprint,
+  parseJsonBody,
+  storeIdempotencyResult,
+} from "@/lib/api-runtime";
+import { getSupabaseAdminEnv } from "@/lib/env";
 
-const EXAM_TABLE = process.env.SUPABASE_EXAM_COUNTDOWN_TABLE || "study_stats_exam_countdown";
-type SupabaseAdminClient = NonNullable<ReturnType<typeof getSupabaseAdminClient>>;
-type AuthResult =
-  | { error: NextResponse<{ error: string }> }
-  | { client: SupabaseAdminClient; userId: string };
+const supabaseEnv = getSupabaseAdminEnv();
+const EXAM_TABLE = supabaseEnv.examCountdownTable;
+const examPutBodySchema = z.object({
+  examDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  countdownStartDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+});
 
 function getSupabaseAdminClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRole = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !serviceRole) return null;
-  return createClient(url, serviceRole, { auth: { persistSession: false } });
+  return createClient(supabaseEnv.url, supabaseEnv.serviceRoleKey, {
+    auth: { persistSession: false },
+  });
 }
 
 function isRecoverableStorageError(error: { code?: string; message?: string } | null | undefined) {
@@ -21,129 +36,153 @@ function isRecoverableStorageError(error: { code?: string; message?: string } | 
   return message.includes("does not exist") || message.includes("relation");
 }
 
-function toErrorResponse(status: number, message: string) {
-  return NextResponse.json({ error: message }, { status });
-}
-
-async function getUserFromRequest(req: NextRequest): Promise<AuthResult> {
+async function getUserFromRequest(req: NextRequest) {
   const client = getSupabaseAdminClient();
-  if (!client) return { error: toErrorResponse(500, "Supabase is not configured.") };
-
-  const authHeader = req.headers.get("authorization");
+  const authHeader = req.headers.get("authorization")?.trim();
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return { error: toErrorResponse(401, "Missing authentication token.") };
+    throw new ApiRouteError(401, "MISSING_BEARER_TOKEN", "auth", "Missing authentication token.");
   }
 
-  const token = authHeader.slice("Bearer ".length);
+  const token = authHeader.slice("Bearer ".length).trim();
+  if (!token) {
+    throw new ApiRouteError(401, "EMPTY_BEARER_TOKEN", "auth", "Missing authentication token.");
+  }
+
   const { data, error } = await client.auth.getUser(token);
   if (error || !data.user) {
-    return { error: toErrorResponse(401, "Invalid authentication token.") };
+    throw new ApiRouteError(401, "INVALID_BEARER_TOKEN", "auth", "Invalid authentication token.");
   }
 
   return { client, userId: data.user.id };
 }
 
-function isDateKey(value: string): boolean {
-  return /^\d{4}-\d{2}-\d{2}$/.test(value);
-}
-
 export async function GET(req: NextRequest) {
-  const auth = await getUserFromRequest(req);
-  if ("error" in auth) {
-    const errorResponse = auth.error;
-    const isConfigMissing = errorResponse.status === 500;
-    if (isConfigMissing) {
-      return NextResponse.json({
-        examDate: null,
-        countdownStartDate: null,
-        updatedAt: null,
-        cloudDisabled: true,
-      });
+  const context = createApiRequestContext(req, "/api/exam-countdown");
+
+  try {
+    const { client, userId } = await getUserFromRequest(req);
+    const { data, error } = await client
+      .from(EXAM_TABLE)
+      .select("exam_date, countdown_start_date, updated_at")
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (error) {
+      if (isRecoverableStorageError(error)) {
+        return apiJson(
+          {
+            examDate: null,
+            countdownStartDate: null,
+            updatedAt: null,
+            cloudDisabled: true,
+          },
+          context
+        );
+      }
+
+      throw new ApiRouteError(
+        502,
+        "SUPABASE_READ_FAILED",
+        "upstream",
+        error.message || "Failed to read exam countdown."
+      );
     }
-    return errorResponse;
+
+    return apiJson(
+      {
+        examDate: data?.exam_date || null,
+        countdownStartDate: data?.countdown_start_date || null,
+        updatedAt: data?.updated_at || null,
+      },
+      context
+    );
+  } catch (error: unknown) {
+    return handleApiError(error, context, "Failed to read exam countdown.");
   }
-
-  const { client, userId } = auth;
-  const { data, error } = await client
-    .from(EXAM_TABLE)
-    .select("exam_date, countdown_start_date, updated_at")
-    .eq("user_id", userId)
-    .maybeSingle();
-
-  if (error) {
-    if (isRecoverableStorageError(error)) {
-      return NextResponse.json({
-        examDate: null,
-        countdownStartDate: null,
-        updatedAt: null,
-        cloudDisabled: true,
-      });
-    }
-    return toErrorResponse(500, error.message || "Failed to read exam countdown.");
-  }
-
-  return NextResponse.json({
-    examDate: data?.exam_date || null,
-    countdownStartDate: data?.countdown_start_date || null,
-    updatedAt: data?.updated_at || null,
-  });
 }
 
 export async function PUT(req: NextRequest) {
-  const auth = await getUserFromRequest(req);
-  if ("error" in auth) {
-    const errorResponse = auth.error;
-    const isConfigMissing = errorResponse.status === 500;
-    if (isConfigMissing) {
-      return NextResponse.json({ ok: false, cloudDisabled: true });
-    }
-    return errorResponse;
-  }
+  const context = createApiRequestContext(req, "/api/exam-countdown");
 
-  let body: unknown;
   try {
-    body = await req.json();
-  } catch {
-    return toErrorResponse(400, "Invalid JSON body.");
-  }
+    const { client, userId } = await getUserFromRequest(req);
+    assertRateLimit({
+      key: `exam-countdown:put:${userId}:${clientAddress(req)}`,
+      limit: 30,
+      windowMs: 60_000,
+    });
 
-  const examDate = String((body as { examDate?: unknown }).examDate || "");
-  const countdownStartDate = String(
-    (body as { countdownStartDate?: unknown }).countdownStartDate || ""
-  );
-  if (!isDateKey(examDate) || !isDateKey(countdownStartDate)) {
-    return toErrorResponse(400, "examDate and countdownStartDate must be YYYY-MM-DD.");
-  }
-
-  const { client, userId } = auth;
-  const updatedAt = new Date().toISOString();
-  const { error } = await client.from(EXAM_TABLE).upsert(
-    {
-      user_id: userId,
-      exam_date: examDate,
-      countdown_start_date: countdownStartDate,
-      updated_at: updatedAt,
-    },
-    { onConflict: "user_id" }
-  );
-
-  if (error) {
-    if (isRecoverableStorageError(error)) {
-      return NextResponse.json({
-        ok: false,
-        examDate,
-        countdownStartDate,
-        updatedAt,
-        cloudDisabled: true,
-      });
+    const body = await parseJsonBody(req, examPutBodySchema);
+    const idempotencyKey = req.headers.get("idempotency-key");
+    const fingerprint = idempotencyFingerprint(body);
+    const replay = checkIdempotencyReplay(
+      `exam-countdown:put:${userId}`,
+      idempotencyKey,
+      fingerprint
+    );
+    if (replay) {
+      replay.headers.set("x-request-id", context.requestId);
+      return replay;
     }
-    return toErrorResponse(500, error.message || "Failed to save exam countdown.");
-  }
 
-  return NextResponse.json({
-    ok: true,
-    examDate,
-    countdownStartDate,
-    updatedAt,
-  });
+    const updatedAt = new Date().toISOString();
+    const { error } = await client.from(EXAM_TABLE).upsert(
+      {
+        user_id: userId,
+        exam_date: body.examDate,
+        countdown_start_date: body.countdownStartDate,
+        updated_at: updatedAt,
+      },
+      { onConflict: "user_id" }
+    );
+
+    if (error) {
+      if (isRecoverableStorageError(error)) {
+        const disabledResponse = {
+          ok: false,
+          examDate: body.examDate,
+          countdownStartDate: body.countdownStartDate,
+          updatedAt,
+          cloudDisabled: true,
+        };
+        storeIdempotencyResult({
+          scope: `exam-countdown:put:${userId}`,
+          idempotencyKey,
+          fingerprint,
+          status: 200,
+          body: disabledResponse,
+        });
+        return apiJson(disabledResponse, context);
+      }
+
+      throw new ApiRouteError(
+        502,
+        "SUPABASE_WRITE_FAILED",
+        "upstream",
+        error.message || "Failed to save exam countdown."
+      );
+    }
+
+    const responseBody = {
+      ok: true,
+      examDate: body.examDate,
+      countdownStartDate: body.countdownStartDate,
+      updatedAt,
+    };
+    storeIdempotencyResult({
+      scope: `exam-countdown:put:${userId}`,
+      idempotencyKey,
+      fingerprint,
+      status: 200,
+      body: responseBody,
+    });
+    apiLog("info", context, "exam_countdown_saved", {
+      userId,
+      examDate: body.examDate,
+      countdownStartDate: body.countdownStartDate,
+    });
+    return apiJson(responseBody, context);
+  } catch (error: unknown) {
+    return handleApiError(error, context, "Failed to save exam countdown.");
+  }
 }

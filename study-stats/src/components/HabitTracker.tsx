@@ -24,6 +24,7 @@ const HABIT_MATCH_TERMS_STORAGE_KEY = "study-stats.habit-tracker.new-habit.match
 const HABIT_COLORS_STORAGE_KEY = "study-stats.habit-tracker.colors";
 const HABIT_WORKOUT_LINKS_STORAGE_KEY = "study-stats.habit-tracker.workout-links";
 const HABIT_SHOW_FUTURE_DAYS_STORAGE_KEY = "study-stats.habit-tracker.show-future-days";
+const HABIT_ORDER_STORAGE_KEY = "study-stats.habit-tracker.order";
 const STUDY_HABIT_STORAGE_KEY = "study-stats.habit-tracker.study-habit";
 const STUDY_FUTURE_PREVIEW_DAYS = 35;
 const STUDY_FUTURE_PREVIEW_MAX_MONTHS = 6;
@@ -125,8 +126,12 @@ function withAlpha(hexColor: string, alpha: number): string {
   return `rgba(${r}, ${g}, ${b}, ${Math.max(0, Math.min(1, alpha))})`;
 }
 
+function getBlankCellColor(): string {
+  return "rgba(113, 113, 122, 0.28)";
+}
+
 function getHeatCellColor(baseColor: string, level: 0 | 1 | 2 | 3 | 4): string {
-  if (level === 0) return "rgba(113, 113, 122, 0.28)";
+  if (level === 0) return getBlankCellColor();
   const alphaByLevel: Record<0 | 1 | 2 | 3 | 4, number> = {
     0: 0.08,
     1: 0.22,
@@ -452,6 +457,9 @@ export default function HabitTracker() {
   const [habitColors, setHabitColors] = useState<Record<string, string>>({});
   const [habitWorkoutLinks, setHabitWorkoutLinks] = useState<Record<string, WorkoutLinkEntry>>({});
   const [habitShowFutureDays, setHabitShowFutureDays] = useState<Record<string, boolean>>({});
+  const [habitOrder, setHabitOrder] = useState<string[]>([]);
+  const [draggingHabitSlug, setDraggingHabitSlug] = useState<string | null>(null);
+  const [dragOverHabitSlug, setDragOverHabitSlug] = useState<string | null>(null);
   const [milestones, setMilestones] = useState<MilestoneDate[]>([]);
   const [newMilestoneType, setNewMilestoneType] = useState<"exam" | "coursework">("exam");
   const [newMilestoneTitle, setNewMilestoneTitle] = useState("");
@@ -656,6 +664,74 @@ export default function HabitTracker() {
   }, []);
 
   useEffect(() => {
+    const raw = window.localStorage.getItem(HABIT_ORDER_STORAGE_KEY);
+    if (!raw) return;
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      if (!Array.isArray(parsed)) return;
+      const next = parsed.filter((value): value is string => typeof value === "string" && value.length > 0);
+      setHabitOrder(next);
+    } catch {
+      // Ignore malformed localStorage payload.
+    }
+  }, []);
+
+  const defaultHabitOrder = useMemo(() => {
+    if (!data) return [];
+    return [...data.habits]
+      .sort((a, b) => {
+        if (a.slug === selectedStudyHabitSlug) return -1;
+        if (b.slug === selectedStudyHabitSlug) return 1;
+        return a.name.localeCompare(b.name);
+      })
+      .map((habit) => habit.slug);
+  }, [data, selectedStudyHabitSlug]);
+
+  useEffect(() => {
+    if (!data) return;
+    setHabitOrder((previous) => {
+      const valid = new Set(data.habits.map((habit) => habit.slug));
+      const filtered = previous.filter((slug) => valid.has(slug));
+      const used = new Set(filtered);
+      const missing = defaultHabitOrder.filter((slug) => !used.has(slug));
+      const next = [...filtered, ...missing];
+      if (next.length === previous.length && next.every((slug, index) => slug === previous[index])) {
+        return previous;
+      }
+      return next;
+    });
+  }, [data, defaultHabitOrder]);
+
+  const orderedHabits = useMemo(() => {
+    if (!data) return [];
+    const bySlug = new Map(data.habits.map((habit) => [habit.slug, habit]));
+    const ordered = habitOrder
+      .map((slug) => bySlug.get(slug))
+      .filter((habit): habit is HabitDefinition => Boolean(habit));
+    if (ordered.length === data.habits.length) return ordered;
+
+    for (const slug of defaultHabitOrder) {
+      const habit = bySlug.get(slug);
+      if (!habit || ordered.some((entry) => entry.slug === slug)) continue;
+      ordered.push(habit);
+    }
+    return ordered;
+  }, [data, defaultHabitOrder, habitOrder]);
+
+  const moveHabit = useCallback((sourceSlug: string, targetSlug: string) => {
+    if (sourceSlug === targetSlug) return;
+    setHabitOrder((previous) => {
+      const sourceIndex = previous.indexOf(sourceSlug);
+      const targetIndex = previous.indexOf(targetSlug);
+      if (sourceIndex === -1 || targetIndex === -1) return previous;
+      const next = [...previous];
+      next.splice(sourceIndex, 1);
+      next.splice(targetIndex, 0, sourceSlug);
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
     if (!localSettingsPersistReadyRef.current) {
       localSettingsPersistReadyRef.current = true;
       return;
@@ -688,6 +764,7 @@ export default function HabitTracker() {
         HABIT_SHOW_FUTURE_DAYS_STORAGE_KEY,
         JSON.stringify(habitShowFutureDays)
       );
+      window.localStorage.setItem(HABIT_ORDER_STORAGE_KEY, JSON.stringify(habitOrder));
     }, 140);
 
     return () => {
@@ -700,6 +777,7 @@ export default function HabitTracker() {
     habitColors,
     habitShowFutureDays,
     habitWorkoutLinks,
+    habitOrder,
     newHabitMatchEntries,
     newHabitSourceCalendarIds,
     selectedStudyHabitSlug,
@@ -1790,13 +1868,7 @@ export default function HabitTracker() {
             )}
 
             <div className="space-y-4">
-              {[...data.habits]
-                .sort((a, b) => {
-                  if (a.slug === selectedStudyHabitSlug) return -1;
-                  if (b.slug === selectedStudyHabitSlug) return 1;
-                  return a.name.localeCompare(b.name);
-                })
-                .map((habit) => {
+              {orderedHabits.map((habit) => {
                 const isSelectedStudyHabit = habit.slug === selectedStudyHabitSlug;
                 const shouldShowFutureDays = Boolean(habitShowFutureDays[habit.slug]);
                 const habitDaysForGrid =
@@ -1851,11 +1923,51 @@ export default function HabitTracker() {
                 return (
                   <div
                     key={habit.slug}
-                    className="rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 p-3"
+                    className={`rounded-xl border bg-zinc-50 dark:bg-zinc-800 p-3 ${
+                      dragOverHabitSlug === habit.slug
+                        ? "border-sky-400 dark:border-sky-500"
+                        : "border-zinc-200 dark:border-zinc-700"
+                    }`}
+                    draggable
+                    onDragStart={(event) => {
+                      event.dataTransfer.effectAllowed = "move";
+                      event.dataTransfer.setData("text/plain", habit.slug);
+                      setDraggingHabitSlug(habit.slug);
+                      setDragOverHabitSlug(null);
+                    }}
+                    onDragOver={(event) => {
+                      event.preventDefault();
+                      event.dataTransfer.dropEffect = "move";
+                      if (draggingHabitSlug && draggingHabitSlug !== habit.slug) {
+                        setDragOverHabitSlug(habit.slug);
+                      }
+                    }}
+                    onDrop={(event) => {
+                      event.preventDefault();
+                      const sourceSlug = draggingHabitSlug || event.dataTransfer.getData("text/plain");
+                      if (sourceSlug && sourceSlug !== habit.slug) {
+                        moveHabit(sourceSlug, habit.slug);
+                      }
+                      setDraggingHabitSlug(null);
+                      setDragOverHabitSlug(null);
+                    }}
+                    onDragEnd={() => {
+                      setDraggingHabitSlug(null);
+                      setDragOverHabitSlug(null);
+                    }}
                   >
                     <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                       <div>
-                        <p className="font-medium text-sm">{habit.name}</p>
+                        <p className="font-medium text-sm flex items-center gap-2">
+                          <span
+                            className="cursor-grab active:cursor-grabbing select-none text-zinc-400"
+                            title="Drag to reorder"
+                            aria-hidden="true"
+                          >
+                            ↕
+                          </span>
+                          <span>{habit.name}</span>
+                        </p>
                         <p className="text-xs text-zinc-500">
                           {habit.mode === "duration"
                             ? `⏱️ Hours mode, current streak ${habit.currentStreak}d, longest ${habit.longestStreak}d, active ${habit.totalCompleted} days, total ${habit.totalHours.toFixed(1)}h`
@@ -2026,17 +2138,22 @@ export default function HabitTracker() {
                                       : day.completed
                                         ? `${getBinaryCompletedColorClass(habitColor)} hover:opacity-90 ring-1 ring-zinc-400/30 dark:ring-zinc-300/30`
                                         : isFutureDay
-                                          ? "bg-zinc-600 dark:bg-zinc-900"
-                                          : "bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600"
+                                          ? ""
+                                          : "hover:ring-1 hover:ring-zinc-400"
                                     : "bg-transparent"
                                 }`}
                                 style={{
-                                  backgroundColor:
-                                    day && habit.mode === "duration"
+                                  backgroundColor: day
+                                    ? habit.mode === "duration"
                                       ? isFutureDay
                                         ? getFutureCellColor()
                                         : getHeatCellColor(habitColor, day.level)
-                                      : undefined,
+                                      : day.completed
+                                        ? undefined
+                                        : isFutureDay
+                                          ? getFutureCellColor()
+                                          : getBlankCellColor()
+                                    : undefined,
                                 }}
                               />
                             )})}

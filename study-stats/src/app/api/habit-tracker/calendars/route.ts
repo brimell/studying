@@ -1,37 +1,61 @@
-import { NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { auth } from "@/lib/auth";
 import {
   fetchHabitSourceCalendars,
   fetchTrackerCalendars,
   getCalendarClient,
 } from "@/lib/calendar";
+import {
+  ApiRouteError,
+  apiJson,
+  createApiRequestContext,
+  handleApiError,
+} from "@/lib/api-runtime";
 
 const PRIVATE_CACHE_CONTROL = "private, max-age=120, stale-while-revalidate=300";
 
-function isGoogleAuthError(error: unknown): boolean {
+function normalizeCalendarError(error: unknown): ApiRouteError {
+  if (error instanceof ApiRouteError) return error;
+
   const anyError = error as {
     code?: number;
     response?: { status?: number };
     message?: string;
   };
   const status = anyError?.code || anyError?.response?.status;
-  if (status === 401) return true;
   const message = (anyError?.message || "").toLowerCase();
-  return (
+  if (
+    status === 401 ||
     message.includes("invalid authentication credentials") ||
     message.includes("invalid credentials") ||
     message.includes("login required")
+  ) {
+    return new ApiRouteError(
+      401,
+      "GOOGLE_SESSION_EXPIRED",
+      "auth",
+      "Google session expired. Sign out and sign in with Google again."
+    );
+  }
+
+  return new ApiRouteError(
+    500,
+    "HABIT_CALENDARS_GET_FAILED",
+    "internal",
+    error instanceof Error ? error.message : "Failed to fetch calendars."
   );
 }
 
-export async function GET() {
-  const session = await auth();
-  const accessToken = (session as unknown as { accessToken?: string } | null)?.accessToken;
-  if (!accessToken) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+export async function GET(req: NextRequest) {
+  const context = createApiRequestContext(req, "/api/habit-tracker/calendars");
 
   try {
+    const session = await auth();
+    const accessToken = (session as { accessToken?: string } | null)?.accessToken;
+    if (!accessToken) {
+      throw new ApiRouteError(401, "UNAUTHORIZED", "auth", "Unauthorized");
+    }
+
     const calendar = getCalendarClient(accessToken);
     const [trackerCalendars, sourceCalendars] = await Promise.all([
       fetchTrackerCalendars(calendar),
@@ -50,13 +74,14 @@ export async function GET() {
       .filter(Boolean)
       .filter((id) => sourceCalendars.some((calendarEntry) => calendarEntry.id === id));
 
-    return NextResponse.json(
+    return apiJson(
       {
         trackerCalendars,
         sourceCalendars,
         defaultTrackerCalendarId: defaultCalendarId,
         defaultSourceCalendarIds,
       },
+      context,
       {
         headers: {
           "Cache-Control": PRIVATE_CACHE_CONTROL,
@@ -64,13 +89,6 @@ export async function GET() {
       }
     );
   } catch (error: unknown) {
-    if (isGoogleAuthError(error)) {
-      return NextResponse.json(
-        { error: "Google session expired. Sign out and sign in with Google again." },
-        { status: 401 }
-      );
-    }
-    const message = error instanceof Error ? error.message : "Failed to fetch calendars";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return handleApiError(normalizeCalendarError(error), context, "Failed to fetch calendars.");
   }
 }

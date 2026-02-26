@@ -7,6 +7,8 @@ const serverEnvSchema = z.object({
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).optional(),
   SUPABASE_SYNC_TABLE: z.string().min(1).optional(),
   SUPABASE_WORKOUT_TABLE: z.string().min(1).optional(),
+  SUPABASE_EXAM_COUNTDOWN_TABLE: z.string().min(1).optional(),
+  SUPABASE_STUDY_PROJECTION_TABLE: z.string().min(1).optional(),
   GOOGLE_CLIENT_ID: z.string().min(1).optional(),
   GOOGLE_CLIENT_SECRET: z.string().min(1).optional(),
   NEXTAUTH_SECRET: z.string().min(1).optional(),
@@ -47,6 +49,8 @@ export function getSupabaseAdminEnv() {
     serviceRoleKey: requireEnvValue("SUPABASE_SERVICE_ROLE_KEY"),
     syncTable: env.SUPABASE_SYNC_TABLE || "study_stats_user_sync",
     workoutTable: env.SUPABASE_WORKOUT_TABLE || "study_stats_workout_planner",
+    examCountdownTable: env.SUPABASE_EXAM_COUNTDOWN_TABLE || "study_stats_exam_countdown",
+    studyProjectionTable: env.SUPABASE_STUDY_PROJECTION_TABLE || "study_stats_projection",
   };
 }
 

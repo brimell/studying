@@ -1,6 +1,21 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { calendar_v3 } from "googleapis";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
+import {
+  ApiRouteError,
+  apiJson,
+  apiLog,
+  assertRateLimit,
+  checkIdempotencyReplay,
+  clientAddress,
+  createApiRequestContext,
+  handleApiError,
+  idempotencyFingerprint,
+  parseJsonBody,
+  parseQuery,
+  storeIdempotencyResult,
+} from "@/lib/api-runtime";
 import {
   fetchEvents,
   fetchTrackerCalendars,
@@ -25,6 +40,48 @@ interface HabitConfigEntry {
   sourceCalendarIds: string[];
   matchTerms: string[];
 }
+
+const habitQuerySchema = z.object({
+  weeks: z.coerce.number().int().min(1).max(104).default(20),
+  trackerCalendarId: z.string().trim().min(1).optional(),
+});
+
+const habitModeSchema = z.enum(["binary", "duration"]);
+const trackerCalendarIdSchema = z.string().trim().min(1).optional();
+const calendarIdsSchema = z.array(z.string().trim().min(1)).optional();
+const matchTermsSchema = z.union([z.string(), z.array(z.string().trim().min(1))]).optional();
+
+const habitPostBodySchema = z.object({
+  trackerCalendarId: trackerCalendarIdSchema,
+  habitName: z.string().trim().min(1),
+  habitMode: habitModeSchema.optional(),
+  trackingCalendarId: trackerCalendarIdSchema,
+  sourceCalendarIds: calendarIdsSchema,
+  matchTerms: matchTermsSchema,
+});
+
+const habitPutBodySchema = z.object({
+  trackerCalendarId: trackerCalendarIdSchema,
+  habitName: z.string().trim().min(1),
+  habitMode: habitModeSchema.optional(),
+  trackingCalendarId: trackerCalendarIdSchema,
+  sourceCalendarIds: calendarIdsSchema,
+  matchTerms: matchTermsSchema,
+});
+
+const habitPatchBodySchema = z.object({
+  trackerCalendarId: trackerCalendarIdSchema,
+  habitName: z.string().trim().min(1),
+  habitMode: habitModeSchema.optional(),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  completed: z.boolean().optional(),
+  hours: z.number().optional(),
+});
+
+const habitDeleteBodySchema = z.object({
+  trackerCalendarId: trackerCalendarIdSchema,
+  habitName: z.string().trim().min(1),
+});
 
 function getEventDuration(event: {
   start?: { dateTime?: string | null; date?: string | null } | null;
@@ -302,7 +359,15 @@ function getDefaultHabitConfigs(): HabitConfigEntry[] {
   ];
 }
 
-function toErrorResponse(error: unknown, fallback: string): NextResponse {
+function normalizeUnhandledError(
+  error: unknown,
+  fallbackCode: string,
+  fallbackMessage: string
+): ApiRouteError {
+  if (error instanceof ApiRouteError) {
+    return error;
+  }
+
   const anyError = error as {
     code?: number;
     response?: { status?: number };
@@ -316,22 +381,35 @@ function toErrorResponse(error: unknown, fallback: string): NextResponse {
     messageLower.includes("invalid credentials") ||
     messageLower.includes("login required");
   if (isAuthError) {
-    return NextResponse.json(
-      { error: "Google session expired. Sign out and sign in with Google again." },
-      { status: 401 }
+    return new ApiRouteError(
+      401,
+      "GOOGLE_SESSION_EXPIRED",
+      "auth",
+      "Google session expired. Sign out and sign in with Google again."
     );
   }
-  const message = error instanceof Error ? error.message : fallback;
-  return NextResponse.json({ error: message }, { status: 500 });
+
+  const message = error instanceof Error ? error.message : fallbackMessage;
+  return new ApiRouteError(500, fallbackCode, "internal", message);
 }
 
-async function ensureAuthenticatedCalendar() {
+async function ensureAuthenticatedCalendar(): Promise<{
+  calendar: calendar_v3.Calendar;
+  principal: string;
+}> {
   const session = await auth();
-  const accessToken = (session as unknown as { accessToken?: string } | null)?.accessToken;
+  const typedSession = session as
+    | { accessToken?: string; user?: { email?: string | null } | null }
+    | null;
+  const accessToken = typedSession?.accessToken;
   if (!accessToken) {
-    return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
+    throw new ApiRouteError(401, "UNAUTHORIZED", "auth", "Unauthorized");
   }
-  return { calendar: getCalendarClient(accessToken) };
+
+  return {
+    calendar: getCalendarClient(accessToken),
+    principal: typedSession?.user?.email?.trim().toLowerCase() || "anonymous",
+  };
 }
 
 async function resolveWritableTrackerCalendar(
@@ -753,10 +831,6 @@ function buildHabitDefinitions(
   });
 }
 
-function validateDateKey(dateKey: string): boolean {
-  return /^\d{4}-\d{2}-\d{2}$/.test(dateKey);
-}
-
 function deriveStudyMetrics(days: HabitDay[]) {
   let currentStreak = 0;
   let longestStreak = 0;
@@ -789,31 +863,27 @@ function deriveStudyMetrics(days: HabitDay[]) {
 }
 
 export async function GET(req: NextRequest) {
-  const authResult = await ensureAuthenticatedCalendar();
-  if (authResult.error) return authResult.error;
-
-  const { calendar } = authResult;
-
-  const { searchParams } = new URL(req.url);
-  const numWeeks = parseInt(searchParams.get("weeks") || "20", 10);
-  const trackerCalendarParam = searchParams.get("trackerCalendarId");
-  const numDays = Math.max(1, numWeeks) * 7;
-
-  const now = new Date();
-  const timeMin = new Date(now);
-  timeMin.setDate(timeMin.getDate() - numDays);
-
-  const startDate = timeMin.toISOString().slice(0, 10);
-  const endDate = now.toISOString().slice(0, 10);
+  const context = createApiRequestContext(req, "/api/habit-tracker");
 
   try {
+    const { calendar } = await ensureAuthenticatedCalendar();
+    const query = parseQuery(req, habitQuerySchema);
+    const numDays = query.weeks * 7;
+
+    const now = new Date();
+    const timeMin = new Date(now);
+    timeMin.setDate(timeMin.getDate() - numDays);
+
+    const startDate = timeMin.toISOString().slice(0, 10);
+    const endDate = now.toISOString().slice(0, 10);
+
     const trackerCalendarId = await resolveWritableTrackerCalendar(
       calendar,
-      trackerCalendarParam
+      query.trackerCalendarId || null
     );
 
     if (!trackerCalendarId) {
-      return NextResponse.json(
+      return apiJson(
         {
           days: [],
           currentStreak: 0,
@@ -827,6 +897,7 @@ export async function GET(req: NextRequest) {
           },
           habits: [],
         },
+        context,
         {
           headers: {
             "Cache-Control": PRIVATE_CACHE_CONTROL,
@@ -883,7 +954,7 @@ export async function GET(req: NextRequest) {
 
     const metrics = deriveStudyMetrics(days);
 
-    return NextResponse.json(
+    return apiJson(
       {
         days,
         currentStreak: metrics.currentStreak,
@@ -897,6 +968,7 @@ export async function GET(req: NextRequest) {
         },
         habits,
       },
+      context,
       {
         headers: {
           "Cache-Control": PRIVATE_CACHE_CONTROL,
@@ -904,43 +976,59 @@ export async function GET(req: NextRequest) {
       }
     );
   } catch (error: unknown) {
-    console.error("Error fetching habit tracker data:", error);
-    return toErrorResponse(error, "Failed to fetch habit tracker data");
+    return handleApiError(
+      normalizeUnhandledError(
+        error,
+        "HABIT_TRACKER_GET_FAILED",
+        "Failed to fetch habit tracker data."
+      ),
+      context,
+      "Failed to fetch habit tracker data."
+    );
   }
 }
 
 export async function POST(req: NextRequest) {
-  const authResult = await ensureAuthenticatedCalendar();
-  if (authResult.error) return authResult.error;
-
-  const { calendar } = authResult;
+  const context = createApiRequestContext(req, "/api/habit-tracker");
 
   try {
-    const body = (await req.json()) as {
-      trackerCalendarId?: string;
-      habitName?: string;
-      habitMode?: HabitMode;
-      trackingCalendarId?: string;
-      sourceCalendarIds?: string[];
-      matchTerms?: string | string[];
-    };
+    const { calendar, principal } = await ensureAuthenticatedCalendar();
+    assertRateLimit({
+      key: `habit-tracker:post:${principal}:${clientAddress(req)}`,
+      limit: 30,
+      windowMs: 60_000,
+    });
+    const body = await parseJsonBody(req, habitPostBodySchema);
+    const idempotencyKey = req.headers.get("idempotency-key");
+    const fingerprint = idempotencyFingerprint(body);
+    const replay = checkIdempotencyReplay(
+      `habit-tracker:post:${principal}`,
+      idempotencyKey,
+      fingerprint
+    );
+    if (replay) {
+      replay.headers.set("x-request-id", context.requestId);
+      return replay;
+    }
 
     const trackerCalendarId = await resolveWritableTrackerCalendar(
       calendar,
-      body.trackerCalendarId
+      body.trackerCalendarId || null
     );
 
     if (!trackerCalendarId) {
-      return NextResponse.json(
-        { error: "Please select a writable Google Calendar." },
-        { status: 400 }
+      throw new ApiRouteError(
+        400,
+        "NO_WRITABLE_CALENDAR",
+        "validation",
+        "Please select a writable Google Calendar."
       );
     }
 
     const habitName = normalizeHabitName(body.habitName || "");
     const habitMode = normalizeHabitMode(body.habitMode || "binary");
     if (!habitName) {
-      return NextResponse.json({ error: "Habit name is required." }, { status: 400 });
+      throw new ApiRouteError(400, "HABIT_NAME_REQUIRED", "validation", "Habit name is required.");
     }
 
     const sourceCalendarIds = sanitizeCalendarIds(body.sourceCalendarIds || []);
@@ -962,9 +1050,11 @@ export async function POST(req: NextRequest) {
     }
 
     if (habitMode === "duration" && sourceCalendarIds.length === 0) {
-      return NextResponse.json(
-        { error: "Select at least one calendar for time tracking habits." },
-        { status: 400 }
+      throw new ApiRouteError(
+        400,
+        "SOURCE_CALENDARS_REQUIRED",
+        "validation",
+        "Select at least one calendar for time tracking habits."
       );
     }
 
@@ -981,48 +1071,74 @@ export async function POST(req: NextRequest) {
     ]);
 
     if (nextHabits.length === config.habits.length) {
-      return NextResponse.json({ error: "Habit already exists." }, { status: 400 });
+      throw new ApiRouteError(409, "HABIT_EXISTS", "conflict", "Habit already exists.");
     }
 
     await saveHabitConfig(calendar, trackerCalendarId, nextHabits, config.eventId);
-    return NextResponse.json({ ok: true });
+    const responseBody = { ok: true };
+    storeIdempotencyResult({
+      scope: `habit-tracker:post:${principal}`,
+      idempotencyKey,
+      fingerprint,
+      status: 200,
+      body: responseBody,
+    });
+    apiLog("info", context, "habit_created", {
+      principal,
+      trackerCalendarId,
+      habitName,
+      habitMode,
+    });
+    return apiJson(responseBody, context);
   } catch (error: unknown) {
-    console.error("Error creating habit:", error);
-    return toErrorResponse(error, "Failed to create habit");
+    return handleApiError(
+      normalizeUnhandledError(error, "HABIT_TRACKER_POST_FAILED", "Failed to create habit."),
+      context,
+      "Failed to create habit."
+    );
   }
 }
 
 export async function PUT(req: NextRequest) {
-  const authResult = await ensureAuthenticatedCalendar();
-  if (authResult.error) return authResult.error;
-
-  const { calendar } = authResult;
+  const context = createApiRequestContext(req, "/api/habit-tracker");
 
   try {
-    const body = (await req.json()) as {
-      trackerCalendarId?: string;
-      habitName?: string;
-      habitMode?: HabitMode;
-      trackingCalendarId?: string;
-      sourceCalendarIds?: string[];
-      matchTerms?: string | string[];
-    };
+    const { calendar, principal } = await ensureAuthenticatedCalendar();
+    assertRateLimit({
+      key: `habit-tracker:put:${principal}:${clientAddress(req)}`,
+      limit: 30,
+      windowMs: 60_000,
+    });
+    const body = await parseJsonBody(req, habitPutBodySchema);
+    const idempotencyKey = req.headers.get("idempotency-key");
+    const fingerprint = idempotencyFingerprint(body);
+    const replay = checkIdempotencyReplay(
+      `habit-tracker:put:${principal}`,
+      idempotencyKey,
+      fingerprint
+    );
+    if (replay) {
+      replay.headers.set("x-request-id", context.requestId);
+      return replay;
+    }
 
     const trackerCalendarId = await resolveWritableTrackerCalendar(
       calendar,
-      body.trackerCalendarId
+      body.trackerCalendarId || null
     );
 
     if (!trackerCalendarId) {
-      return NextResponse.json(
-        { error: "Please select a writable Google Calendar." },
-        { status: 400 }
+      throw new ApiRouteError(
+        400,
+        "NO_WRITABLE_CALENDAR",
+        "validation",
+        "Please select a writable Google Calendar."
       );
     }
 
     const habitName = normalizeHabitName(body.habitName || "");
     if (!habitName) {
-      return NextResponse.json({ error: "Habit name is required." }, { status: 400 });
+      throw new ApiRouteError(400, "HABIT_NAME_REQUIRED", "validation", "Habit name is required.");
     }
 
     const sourceCalendarIds = sanitizeCalendarIds(body.sourceCalendarIds || []);
@@ -1052,64 +1168,92 @@ export async function PUT(req: NextRequest) {
     });
 
     if (!found) {
-      return NextResponse.json({ error: "Habit not found." }, { status: 404 });
+      throw new ApiRouteError(404, "HABIT_NOT_FOUND", "validation", "Habit not found.");
     }
 
     const updatedHabit = nextHabits.find(
       (habit) => habit.name.toLowerCase() === habitName.toLowerCase()
     );
     if (updatedHabit?.mode === "duration" && updatedHabit.sourceCalendarIds.length === 0) {
-      return NextResponse.json(
-        { error: "Select at least one calendar for time tracking habits." },
-        { status: 400 }
+      throw new ApiRouteError(
+        400,
+        "SOURCE_CALENDARS_REQUIRED",
+        "validation",
+        "Select at least one calendar for time tracking habits."
       );
     }
 
     await saveHabitConfig(calendar, trackerCalendarId, nextHabits, config.eventId);
-    return NextResponse.json({ ok: true });
+    const responseBody = { ok: true };
+    storeIdempotencyResult({
+      scope: `habit-tracker:put:${principal}`,
+      idempotencyKey,
+      fingerprint,
+      status: 200,
+      body: responseBody,
+    });
+    apiLog("info", context, "habit_updated", {
+      principal,
+      trackerCalendarId,
+      habitName,
+    });
+    return apiJson(responseBody, context);
   } catch (error: unknown) {
-    console.error("Error updating habit config:", error);
-    return toErrorResponse(error, "Failed to update habit config");
+    return handleApiError(
+      normalizeUnhandledError(
+        error,
+        "HABIT_TRACKER_PUT_FAILED",
+        "Failed to update habit config."
+      ),
+      context,
+      "Failed to update habit config."
+    );
   }
 }
 
 export async function PATCH(req: NextRequest) {
-  const authResult = await ensureAuthenticatedCalendar();
-  if (authResult.error) return authResult.error;
-
-  const { calendar } = authResult;
+  const context = createApiRequestContext(req, "/api/habit-tracker");
 
   try {
-    const body = (await req.json()) as {
-      trackerCalendarId?: string;
-      habitName?: string;
-      habitMode?: HabitMode;
-      date?: string;
-      completed?: boolean;
-      hours?: number;
-    };
+    const { calendar, principal } = await ensureAuthenticatedCalendar();
+    assertRateLimit({
+      key: `habit-tracker:patch:${principal}:${clientAddress(req)}`,
+      limit: 90,
+      windowMs: 60_000,
+    });
+    const body = await parseJsonBody(req, habitPatchBodySchema);
+    const idempotencyKey = req.headers.get("idempotency-key");
+    const fingerprint = idempotencyFingerprint(body);
+    const replay = checkIdempotencyReplay(
+      `habit-tracker:patch:${principal}`,
+      idempotencyKey,
+      fingerprint
+    );
+    if (replay) {
+      replay.headers.set("x-request-id", context.requestId);
+      return replay;
+    }
 
     const trackerCalendarId = await resolveWritableTrackerCalendar(
       calendar,
-      body.trackerCalendarId
+      body.trackerCalendarId || null
     );
 
     if (!trackerCalendarId) {
-      return NextResponse.json(
-        { error: "Please select a writable Google Calendar." },
-        { status: 400 }
+      throw new ApiRouteError(
+        400,
+        "NO_WRITABLE_CALENDAR",
+        "validation",
+        "Please select a writable Google Calendar."
       );
     }
 
     const habitName = normalizeHabitName(body.habitName || "");
-    const date = body.date || "";
+    const date = body.date;
     const requestedMode = normalizeHabitMode(body.habitMode || "binary");
 
     if (!habitName) {
-      return NextResponse.json({ error: "Habit name is required." }, { status: 400 });
-    }
-    if (!validateDateKey(date)) {
-      return NextResponse.json({ error: "Date must be in YYYY-MM-DD format." }, { status: 400 });
+      throw new ApiRouteError(400, "HABIT_NAME_REQUIRED", "validation", "Habit name is required.");
     }
 
     const config = await getHabitConfig(calendar, trackerCalendarId);
@@ -1133,53 +1277,90 @@ export async function PATCH(req: NextRequest) {
     }
 
     if (!habit) {
-      return NextResponse.json({ error: "Habit not found." }, { status: 400 });
+      throw new ApiRouteError(404, "HABIT_NOT_FOUND", "validation", "Habit not found.");
     }
 
     if (habit.mode === "duration") {
-      return NextResponse.json(
-        { error: "Time tracking habits are auto-calculated from calendar scans." },
-        { status: 400 }
+      throw new ApiRouteError(
+        400,
+        "DURATION_HABIT_READ_ONLY",
+        "validation",
+        "Time tracking habits are auto-calculated from calendar scans."
       );
     }
 
     const completed = Boolean(body.completed);
     const binaryCalendarId = habit.trackingCalendarId || trackerCalendarId;
     await upsertHabitCompletionEvent(calendar, binaryCalendarId, habit, date, completed ? 1 : 0);
-    return NextResponse.json({ ok: true });
+    const responseBody = { ok: true };
+    storeIdempotencyResult({
+      scope: `habit-tracker:patch:${principal}`,
+      idempotencyKey,
+      fingerprint,
+      status: 200,
+      body: responseBody,
+    });
+    apiLog("info", context, "habit_completion_updated", {
+      principal,
+      trackerCalendarId: binaryCalendarId,
+      habitName,
+      date,
+      completed,
+    });
+    return apiJson(responseBody, context);
   } catch (error: unknown) {
-    console.error("Error toggling habit completion:", error);
-    return toErrorResponse(error, "Failed to update habit completion");
+    return handleApiError(
+      normalizeUnhandledError(
+        error,
+        "HABIT_TRACKER_PATCH_FAILED",
+        "Failed to update habit completion."
+      ),
+      context,
+      "Failed to update habit completion."
+    );
   }
 }
 
 export async function DELETE(req: NextRequest) {
-  const authResult = await ensureAuthenticatedCalendar();
-  if (authResult.error) return authResult.error;
-
-  const { calendar } = authResult;
+  const context = createApiRequestContext(req, "/api/habit-tracker");
 
   try {
-    const body = (await req.json()) as {
-      trackerCalendarId?: string;
-      habitName?: string;
-    };
+    const { calendar, principal } = await ensureAuthenticatedCalendar();
+    assertRateLimit({
+      key: `habit-tracker:delete:${principal}:${clientAddress(req)}`,
+      limit: 20,
+      windowMs: 60_000,
+    });
+    const body = await parseJsonBody(req, habitDeleteBodySchema);
+    const idempotencyKey = req.headers.get("idempotency-key");
+    const fingerprint = idempotencyFingerprint(body);
+    const replay = checkIdempotencyReplay(
+      `habit-tracker:delete:${principal}`,
+      idempotencyKey,
+      fingerprint
+    );
+    if (replay) {
+      replay.headers.set("x-request-id", context.requestId);
+      return replay;
+    }
 
     const trackerCalendarId = await resolveWritableTrackerCalendar(
       calendar,
-      body.trackerCalendarId
+      body.trackerCalendarId || null
     );
 
     if (!trackerCalendarId) {
-      return NextResponse.json(
-        { error: "Please select a writable Google Calendar." },
-        { status: 400 }
+      throw new ApiRouteError(
+        400,
+        "NO_WRITABLE_CALENDAR",
+        "validation",
+        "Please select a writable Google Calendar."
       );
     }
 
     const habitName = normalizeHabitName(body.habitName || "");
     if (!habitName) {
-      return NextResponse.json({ error: "Habit name is required." }, { status: 400 });
+      throw new ApiRouteError(400, "HABIT_NAME_REQUIRED", "validation", "Habit name is required.");
     }
 
     const config = await getHabitConfig(calendar, trackerCalendarId);
@@ -1209,9 +1390,25 @@ export async function DELETE(req: NextRequest) {
       )
     );
 
-    return NextResponse.json({ ok: true });
+    const responseBody = { ok: true };
+    storeIdempotencyResult({
+      scope: `habit-tracker:delete:${principal}`,
+      idempotencyKey,
+      fingerprint,
+      status: 200,
+      body: responseBody,
+    });
+    apiLog("info", context, "habit_deleted", {
+      principal,
+      trackerCalendarId,
+      habitName,
+    });
+    return apiJson(responseBody, context);
   } catch (error: unknown) {
-    console.error("Error deleting habit:", error);
-    return toErrorResponse(error, "Failed to delete habit");
+    return handleApiError(
+      normalizeUnhandledError(error, "HABIT_TRACKER_DELETE_FAILED", "Failed to delete habit."),
+      context,
+      "Failed to delete habit."
+    );
   }
 }

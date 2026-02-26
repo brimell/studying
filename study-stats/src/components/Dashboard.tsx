@@ -7,9 +7,7 @@ import DailyStudyChart from "./DailyStudyChart";
 import SubjectDistribution from "./SubjectDistribution";
 import FirstExamCountdown from "./FirstExamCountdown";
 import HabitTracker from "./HabitTracker";
-import WorkoutFatigueCard from "./WorkoutFatigueCard";
 import AlertsPanel from "./AlertsPanel";
-import { WorkoutDataProvider } from "./WorkoutDataProvider";
 
 const DASHBOARD_LAYOUT_STORAGE_KEY = "study-stats.dashboard.layout.v1";
 const DASHBOARD_SETTINGS_STORAGE_KEY = "study-stats.dashboard.settings.v1";
@@ -17,7 +15,6 @@ const DEFAULT_ORDER = [
   "today-progress",
   "first-exam-countdown",
   "habit-tracker",
-  "workout-fatigue",
   "daily-study-chart",
   "subject-distribution",
 ] as const;
@@ -31,7 +28,6 @@ const DEFAULT_CARD_SIZES: Record<CardId, CardSizePreset> = {
   "today-progress": "standard",
   "first-exam-countdown": "standard",
   "habit-tracker": "full",
-  "workout-fatigue": "large",
   "daily-study-chart": "large",
   "subject-distribution": "standard",
 };
@@ -185,14 +181,6 @@ export default function Dashboard() {
         "habit-tracker": {
           title: "Habit Tracker",
           content: <HabitTracker />,
-        },
-        "workout-fatigue": {
-          title: "Workout Fatigue",
-          content: (
-            <WorkoutDataProvider>
-              <WorkoutFatigueCard />
-            </WorkoutDataProvider>
-          ),
         },
         "daily-study-chart": {
           title: "Daily Study Chart",

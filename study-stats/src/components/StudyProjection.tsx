@@ -7,6 +7,7 @@ const PROJECTION_DATE_STORAGE_KEY = "study-stats.projection.end-date";
 const PROJECTION_HOURS_STORAGE_KEY = "study-stats.projection.hours-per-day";
 const PROJECTION_EXAM_DATE_STORAGE_KEY = "study-stats.projection.exam-date";
 const PROJECTION_SUBJECT_TARGETS_STORAGE_KEY = "study-stats.projection.subject-targets";
+const PROJECTION_SETTINGS_STORAGE_KEY = "study-stats.projection.settings";
 const EXAM_DATE_UPDATED_EVENT = "study-stats:exam-date-updated";
 
 const MONTH_LENGTH_DAYS = 30.4375;
@@ -16,6 +17,13 @@ interface SubjectTarget {
   name: string;
   weeklyTargetHours: number;
   monthlyTargetHours: number;
+}
+
+interface ProjectionSettingsSnapshot {
+  endDate: string;
+  hoursPerDay: number;
+  firstExamDate: string;
+  subjectTargets: SubjectTarget[];
 }
 
 const DEFAULT_SUBJECT_TARGETS: SubjectTarget[] = [
@@ -91,6 +99,39 @@ export default function StudyProjection() {
   const projectionSyncSnapshotRef = useRef<string>("");
 
   useEffect(() => {
+    const consolidated = window.localStorage.getItem(PROJECTION_SETTINGS_STORAGE_KEY);
+    if (consolidated) {
+      try {
+        const parsed = JSON.parse(consolidated) as Partial<ProjectionSettingsSnapshot>;
+        if (typeof parsed.endDate === "string") {
+          setEndDate(parsed.endDate);
+        }
+        if (
+          typeof parsed.hoursPerDay === "number" &&
+          Number.isFinite(parsed.hoursPerDay) &&
+          parsed.hoursPerDay >= 1 &&
+          parsed.hoursPerDay <= 16
+        ) {
+          setHoursPerDay(parsed.hoursPerDay);
+        }
+        if (typeof parsed.firstExamDate === "string") {
+          setFirstExamDate(parsed.firstExamDate);
+        }
+        if (isValidSubjectTargets(parsed.subjectTargets)) {
+          setSubjectTargets(
+            parsed.subjectTargets.map((subject) => ({
+              ...subject,
+              weeklyTargetHours: Math.max(0, Number(subject.weeklyTargetHours) || 0),
+              monthlyTargetHours: Math.max(0, Number(subject.monthlyTargetHours) || 0),
+              name: String(subject.name || "Subject"),
+            }))
+          );
+        }
+      } catch {
+        // Ignore malformed consolidated localStorage value.
+      }
+    }
+
     const storedDate = window.localStorage.getItem(PROJECTION_DATE_STORAGE_KEY);
     if (storedDate) setEndDate(storedDate);
 
@@ -122,6 +163,16 @@ export default function StudyProjection() {
       }
     }
   }, []);
+
+  useEffect(() => {
+    const snapshot: ProjectionSettingsSnapshot = {
+      endDate,
+      hoursPerDay,
+      firstExamDate,
+      subjectTargets,
+    };
+    window.localStorage.setItem(PROJECTION_SETTINGS_STORAGE_KEY, JSON.stringify(snapshot));
+  }, [endDate, firstExamDate, hoursPerDay, subjectTargets]);
 
   useEffect(() => {
     window.localStorage.setItem(PROJECTION_DATE_STORAGE_KEY, endDate);
