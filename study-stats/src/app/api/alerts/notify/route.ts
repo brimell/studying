@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 
+const ALERT_DEDUPE_WINDOW_MS = 6 * 60 * 60 * 1000;
+const alertSendCacheByUser = new Map<string, { summary: string; sentAt: number }>();
+
 interface AlertWarningInput {
   key: string;
   title: string;
@@ -23,6 +26,12 @@ function sanitizeWarnings(input: unknown): AlertWarningInput[] {
     if (warnings.length >= 20) break;
   }
   return warnings;
+}
+
+function summarizeWarnings(warnings: AlertWarningInput[]): string {
+  return JSON.stringify(
+    warnings.map((warning) => `${warning.key}:${warning.severity}:${warning.message}`)
+  );
 }
 
 export async function POST(req: NextRequest) {
@@ -53,9 +62,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, skipped: true, reason: "No warnings" });
   }
 
+  const userEmail = (session as { user?: { email?: string } }).user?.email || "unknown";
+  const warningSummary = summarizeWarnings(warnings);
+  const now = Date.now();
+  for (const [key, value] of alertSendCacheByUser.entries()) {
+    if (now - value.sentAt > ALERT_DEDUPE_WINDOW_MS) {
+      alertSendCacheByUser.delete(key);
+    }
+  }
+  const lastSent = alertSendCacheByUser.get(userEmail);
+  if (lastSent && lastSent.summary === warningSummary && now - lastSent.sentAt < ALERT_DEDUPE_WINDOW_MS) {
+    return NextResponse.json({ ok: true, skipped: true, deduped: true });
+  }
+
   const toEmail =
     process.env.ALERT_TO_EMAIL ||
-    ((session as { user?: { email?: string } }).user?.email as string);
+    userEmail;
 
   const subjectPrefix = warnings.some((item) => item.severity === "critical")
     ? "Critical Study Alerts"
@@ -92,5 +114,9 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  alertSendCacheByUser.set(userEmail, {
+    summary: warningSummary,
+    sentAt: now,
+  });
   return NextResponse.json({ ok: true, id: payload.id || null });
 }

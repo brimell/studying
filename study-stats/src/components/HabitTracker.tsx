@@ -1980,7 +1980,6 @@ export default function HabitTracker() {
                               />
                             ))}
                             <span>More</span>
-                            <span className="ml-2 text-zinc-400">Click a day to set hours</span>
                             {isSelectedStudyHabit && (
                               <>
                                 <div

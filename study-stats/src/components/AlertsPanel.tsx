@@ -6,7 +6,6 @@ import type { HabitTrackerData } from "@/lib/types";
 const PROJECTION_HOURS_STORAGE_KEY = "study-stats.projection.hours-per-day";
 const PROJECTION_SUBJECT_TARGETS_STORAGE_KEY = "study-stats.projection.subject-targets";
 const TRACKER_CALENDAR_STORAGE_KEY = "study-stats.tracker-calendar-id";
-const ALERT_EMAIL_DEDUPE_STORAGE_KEY = "study-stats.alerts.last-email";
 
 interface SubjectTarget {
   id: string;
@@ -55,10 +54,6 @@ function readHoursPerDay(): number {
   const parsed = Number(raw);
   if (!Number.isFinite(parsed) || parsed <= 0) return 5;
   return parsed;
-}
-
-function summarizeForDedupe(warnings: AppWarning[]): string {
-  return JSON.stringify(warnings.map((item) => `${item.key}:${item.message}`));
 }
 
 export default function AlertsPanel() {
@@ -127,39 +122,13 @@ export default function AlertsPanel() {
         setWarnings(limitedWarnings);
 
         if (limitedWarnings.length > 0) {
-          const summary = summarizeForDedupe(limitedWarnings);
-          const now = Date.now();
-          const rawLast = window.localStorage.getItem(ALERT_EMAIL_DEDUPE_STORAGE_KEY);
-          let shouldSendEmail = true;
-
-          if (rawLast) {
-            try {
-              const parsed = JSON.parse(rawLast) as { summary?: string; sentAt?: number };
-              if (
-                parsed.summary === summary &&
-                typeof parsed.sentAt === "number" &&
-                now - parsed.sentAt < 6 * 60 * 60 * 1000
-              ) {
-                shouldSendEmail = false;
-              }
-            } catch {
-              // Ignore malformed localStorage payload.
-            }
-          }
-
-          if (shouldSendEmail) {
-            await fetch("/api/alerts/notify", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({ warnings: limitedWarnings }),
-            });
-            window.localStorage.setItem(
-              ALERT_EMAIL_DEDUPE_STORAGE_KEY,
-              JSON.stringify({ summary, sentAt: now })
-            );
-          }
+          await fetch("/api/alerts/notify", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ warnings: limitedWarnings }),
+          });
         }
       } catch (loadError: unknown) {
         if (cancelled) return;

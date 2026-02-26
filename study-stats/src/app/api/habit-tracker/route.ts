@@ -27,9 +27,10 @@ interface HabitConfigEntry {
 }
 
 function getEventDuration(event: {
-  start: { dateTime?: string; date?: string };
-  end: { dateTime?: string; date?: string };
+  start?: { dateTime?: string | null; date?: string | null } | null;
+  end?: { dateTime?: string | null; date?: string | null } | null;
 }): number {
+  if (!event.start || !event.end) return 0;
   if (event.start.date && !event.start.dateTime) return 0;
   const start = new Date(event.start.dateTime || event.start.date || "");
   const end = new Date(event.end.dateTime || event.end.date || "");
@@ -608,6 +609,7 @@ function buildDurationHoursByDateFromEvents(
   const hoursByDate: Record<string, number> = {};
 
   for (const event of events) {
+    if (!event.start || !event.end) continue;
     if (event.start.date && !event.start.dateTime) continue;
     const summary = (event.summary || "").toLowerCase();
     if (terms.length > 0 && !terms.some((term) => summary.includes(term))) continue;
