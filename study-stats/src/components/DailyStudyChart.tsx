@@ -17,6 +17,19 @@ import { isStale, readCache, writeCache, writeGlobalLastFetched } from "@/lib/cl
 
 const DAILY_DAYS_STORAGE_KEY = "study-stats.daily-study.days";
 const DAILY_SUBJECT_STORAGE_KEY = "study-stats.daily-study.subject";
+const STUDY_CALENDAR_IDS_STORAGE_KEY = "study-stats.study.calendar-ids";
+
+function readStudyCalendarIds(): string[] {
+  const stored = window.localStorage.getItem(STUDY_CALENDAR_IDS_STORAGE_KEY);
+  if (!stored) return [];
+  try {
+    const parsed = JSON.parse(stored) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((value): value is string => typeof value === "string");
+  } catch {
+    return [];
+  }
+}
 
 export default function DailyStudyChart() {
   const [data, setData] = useState<DailyStudyTimeData | null>(null);
@@ -24,6 +37,7 @@ export default function DailyStudyChart() {
   const [error, setError] = useState<string | null>(null);
   const [days, setDays] = useState(30);
   const [subject, setSubject] = useState<string>("");
+  const [calendarIds, setCalendarIds] = useState<string[]>([]);
 
   useEffect(() => {
     const rawDays = window.localStorage.getItem(DAILY_DAYS_STORAGE_KEY);
@@ -34,6 +48,8 @@ export default function DailyStudyChart() {
 
     const rawSubject = window.localStorage.getItem(DAILY_SUBJECT_STORAGE_KEY);
     if (rawSubject !== null) setSubject(rawSubject);
+
+    setCalendarIds(readStudyCalendarIds());
   }, []);
 
   useEffect(() => {
@@ -45,8 +61,9 @@ export default function DailyStudyChart() {
   }, [subject]);
 
   const cacheKey = useMemo(
-    () => `study-stats:daily-study-time:${days}:${subject || "all"}`,
-    [days, subject]
+    () =>
+      `study-stats:daily-study-time:${days}:${subject || "all"}:${calendarIds.join(",") || "default"}`,
+    [calendarIds, days, subject]
   );
 
   const fetchData = useCallback(
@@ -66,6 +83,7 @@ export default function DailyStudyChart() {
 
       const params = new URLSearchParams({ days: String(days) });
       if (subject) params.set("subject", subject);
+      if (calendarIds.length > 0) params.set("calendarIds", calendarIds.join(","));
 
       try {
         const res = await fetch(`/api/daily-study-time?${params}`);
@@ -84,7 +102,7 @@ export default function DailyStudyChart() {
         setLoading(false);
       }
     },
-    [cacheKey, days, subject]
+    [cacheKey, calendarIds, days, subject]
   );
 
   useEffect(() => {
@@ -94,7 +112,15 @@ export default function DailyStudyChart() {
   useEffect(() => {
     const onRefreshAll = () => fetchData(true);
     window.addEventListener("study-stats:refresh-all", onRefreshAll);
-    return () => window.removeEventListener("study-stats:refresh-all", onRefreshAll);
+    const onCalendarsUpdated = () => {
+      setCalendarIds(readStudyCalendarIds());
+      void fetchData(true);
+    };
+    window.addEventListener("study-stats:study-calendars-updated", onCalendarsUpdated);
+    return () => {
+      window.removeEventListener("study-stats:refresh-all", onRefreshAll);
+      window.removeEventListener("study-stats:study-calendars-updated", onCalendarsUpdated);
+    };
   }, [fetchData]);
 
   return (

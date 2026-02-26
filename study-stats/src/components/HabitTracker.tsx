@@ -11,14 +11,6 @@ import type {
 } from "@/lib/types";
 import { isStale, readCache, writeCache, writeGlobalLastFetched } from "@/lib/client-cache";
 
-const STUDY_LEVEL_COLORS = [
-  "bg-zinc-100 dark:bg-zinc-800",
-  "bg-emerald-200 dark:bg-emerald-900",
-  "bg-emerald-400 dark:bg-emerald-700",
-  "bg-emerald-500 dark:bg-emerald-500",
-  "bg-emerald-700 dark:bg-emerald-300",
-];
-
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const TRACKER_CALENDAR_STORAGE_KEY = "study-stats.tracker-calendar-id";
 const HABIT_WEEKS_STORAGE_KEY = "study-stats.habit-tracker.weeks";
@@ -26,6 +18,17 @@ const TRACKER_CALENDARS_CACHE_KEY = "study-stats:habit-tracker:calendars";
 const MILESTONES_STORAGE_KEY = "study-stats.habit-tracker.milestones";
 const HABIT_SOURCE_CALENDARS_STORAGE_KEY = "study-stats.habit-tracker.new-habit.sources";
 const HABIT_MATCH_TERMS_STORAGE_KEY = "study-stats.habit-tracker.new-habit.match-terms";
+const HABIT_COLORS_STORAGE_KEY = "study-stats.habit-tracker.colors";
+const DEFAULT_HABIT_COLORS = [
+  "#10b981",
+  "#0ea5e9",
+  "#f97316",
+  "#a855f7",
+  "#22c55e",
+  "#ef4444",
+  "#14b8a6",
+  "#eab308",
+];
 
 interface TrackerCalendarResponse {
   trackerCalendars: TrackerCalendarOption[];
@@ -45,6 +48,30 @@ interface MilestoneDate {
   type: "exam" | "coursework";
   title: string;
   date: string;
+}
+
+function isHexColor(value: string): boolean {
+  return /^#[0-9a-f]{6}$/i.test(value);
+}
+
+function withAlpha(hexColor: string, alpha: number): string {
+  if (!isHexColor(hexColor)) return `rgba(16, 185, 129, ${alpha})`;
+  const hex = hexColor.slice(1);
+  const r = Number.parseInt(hex.slice(0, 2), 16);
+  const g = Number.parseInt(hex.slice(2, 4), 16);
+  const b = Number.parseInt(hex.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${Math.max(0, Math.min(1, alpha))})`;
+}
+
+function getHeatCellColor(baseColor: string, level: 0 | 1 | 2 | 3 | 4): string {
+  const alphaByLevel: Record<0 | 1 | 2 | 3 | 4, number> = {
+    0: 0.08,
+    1: 0.22,
+    2: 0.4,
+    3: 0.6,
+    4: 0.82,
+  };
+  return withAlpha(baseColor, alphaByLevel[level]);
 }
 
 function formatShortDate(date: string): string {
@@ -228,6 +255,7 @@ export default function HabitTracker() {
   const [habitTermsDrafts, setHabitTermsDrafts] = useState<Record<string, string>>({});
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [habitColors, setHabitColors] = useState<Record<string, string>>({});
   const [milestones, setMilestones] = useState<MilestoneDate[]>([]);
   const [newMilestoneType, setNewMilestoneType] = useState<"exam" | "coursework">("exam");
   const [newMilestoneTitle, setNewMilestoneTitle] = useState("");
@@ -273,6 +301,28 @@ export default function HabitTracker() {
   useEffect(() => {
     window.localStorage.setItem(HABIT_MATCH_TERMS_STORAGE_KEY, newHabitMatchTerms);
   }, [newHabitMatchTerms]);
+
+  useEffect(() => {
+    const raw = window.localStorage.getItem(HABIT_COLORS_STORAGE_KEY);
+    if (!raw) return;
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return;
+      const next: Record<string, string> = {};
+      for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
+        if (typeof key !== "string" || typeof value !== "string") continue;
+        if (!isHexColor(value)) continue;
+        next[key] = value;
+      }
+      setHabitColors(next);
+    } catch {
+      // Ignore malformed localStorage payload.
+    }
+  }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem(HABIT_COLORS_STORAGE_KEY, JSON.stringify(habitColors));
+  }, [habitColors]);
 
   useEffect(() => {
     const raw = window.localStorage.getItem(MILESTONES_STORAGE_KEY);
@@ -504,6 +554,51 @@ export default function HabitTracker() {
     )}`;
   }, [data]);
 
+  const studyHabitSlug = useMemo(() => {
+    if (!data) return null;
+    const explicit =
+      data.habits.find((habit) => habit.name.toLowerCase() === "studying") ||
+      data.habits.find((habit) => habit.mode === "duration");
+    return explicit?.slug || null;
+  }, [data]);
+
+  useEffect(() => {
+    if (!data) return;
+    setHabitColors((previous) => {
+      const next: Record<string, string> = {};
+      let changed = false;
+
+      for (const habit of data.habits) {
+        const existing = previous[habit.slug];
+        if (existing && isHexColor(existing)) {
+          next[habit.slug] = existing;
+          continue;
+        }
+        const defaultColor =
+          habit.name.toLowerCase() === "studying"
+            ? "#10b981"
+            : DEFAULT_HABIT_COLORS[
+                Math.abs(
+                  habit.slug.split("").reduce((acc, character) => acc + character.charCodeAt(0), 0)
+                ) % DEFAULT_HABIT_COLORS.length
+              ];
+        next[habit.slug] = defaultColor;
+        changed = true;
+      }
+
+      for (const key of Object.keys(previous)) {
+        if (!(key in next)) changed = true;
+      }
+
+      return changed ? next : previous;
+    });
+  }, [data]);
+
+  const studyColor = useMemo(() => {
+    if (!studyHabitSlug) return "#10b981";
+    return habitColors[studyHabitSlug] || "#10b981";
+  }, [habitColors, studyHabitSlug]);
+
   const milestonesByDate = useMemo(() => {
     const map = new Map<string, MilestoneDate[]>();
     for (const milestone of milestones) {
@@ -585,6 +680,10 @@ export default function HabitTracker() {
       data.trackerRange.startDate,
       data.trackerRange.endDate
     );
+    optimisticHabit.trackingCalendarId =
+      newHabitMode === "binary"
+        ? newHabitTrackingCalendarId || selectedTrackerCalendarId
+        : null;
     optimisticHabit.sourceCalendarIds = newHabitMode === "duration" ? [...newHabitSourceCalendarIds] : [];
     optimisticHabit.matchTerms =
       newHabitMode === "duration"
@@ -612,6 +711,10 @@ export default function HabitTracker() {
           trackerCalendarId: selectedTrackerCalendarId,
           habitName,
           habitMode: newHabitMode,
+          trackingCalendarId:
+            newHabitMode === "binary"
+              ? newHabitTrackingCalendarId || selectedTrackerCalendarId
+              : null,
           sourceCalendarIds: newHabitMode === "duration" ? newHabitSourceCalendarIds : [],
           matchTerms: newHabitMode === "duration" ? newHabitMatchTerms : "",
         }),
@@ -718,6 +821,32 @@ export default function HabitTracker() {
     }
   };
 
+  const updateBinaryHabitConfig = async (habitName: string, trackingCalendarId: string) => {
+    if (!selectedTrackerCalendarId || !trackingCalendarId) {
+      setActionError("Select a writable calendar for this habit.");
+      return;
+    }
+
+    try {
+      setActionLoading(true);
+      setActionError(null);
+      await runAction({
+        method: "PUT",
+        body: JSON.stringify({
+          trackerCalendarId: selectedTrackerCalendarId,
+          habitName,
+          trackingCalendarId,
+        }),
+      });
+      await refreshData();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to update habit settings";
+      setActionError(message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const removeHabit = async (habitName: string) => {
     if (!selectedTrackerCalendarId || !data) return;
 
@@ -790,13 +919,18 @@ export default function HabitTracker() {
 
   useEffect(() => {
     if (!data) return;
+    const nextTrackingCalendars: Record<string, string | null> = {};
     const nextSources: Record<string, string[]> = {};
     const nextTerms: Record<string, string> = {};
     for (const habit of data.habits) {
-      if (habit.mode !== "duration") continue;
+      if (habit.mode === "binary") {
+        nextTrackingCalendars[habit.slug] = habit.trackingCalendarId;
+        continue;
+      }
       nextSources[habit.slug] = habit.sourceCalendarIds;
       nextTerms[habit.slug] = habit.matchTerms.join(", ");
     }
+    setHabitTrackingCalendarDrafts(nextTrackingCalendars);
     setHabitSourceDrafts(nextSources);
     setHabitTermsDrafts(nextTerms);
   }, [data]);
@@ -889,14 +1023,15 @@ export default function HabitTracker() {
                       <div
                         key={`${weekIndex}-${dayIndex}`}
                         className={`w-[13px] h-[13px] rounded-[2px] transition-colors ${
-                          day ? STUDY_LEVEL_COLORS[day.level] : "bg-transparent"
-                        } ${
                           day && milestoneDateSet.has(day.date)
                             ? "cursor-pointer ring-1 ring-red-500 ring-inset"
                             : day
                               ? "cursor-pointer hover:ring-1 hover:ring-zinc-400"
                               : ""
                         }`}
+                        style={{
+                          backgroundColor: day ? getHeatCellColor(studyColor, day.level) : "transparent",
+                        }}
                         onMouseEnter={(event) => {
                           if (!day) return;
                           const rect = event.currentTarget.getBoundingClientRect();
@@ -949,8 +1084,12 @@ export default function HabitTracker() {
 
             <div className="flex items-center gap-2 mt-4 text-xs text-zinc-500">
               <span>Less</span>
-              {STUDY_LEVEL_COLORS.map((colorClass) => (
-                <div key={colorClass} className={`w-[13px] h-[13px] rounded-[2px] ${colorClass}`} />
+              {[0, 1, 2, 3, 4].map((level) => (
+                <div
+                  key={`study-legend-${level}`}
+                  className="w-[13px] h-[13px] rounded-[2px]"
+                  style={{ backgroundColor: getHeatCellColor(studyColor, level as 0 | 1 | 2 | 3 | 4) }}
+                />
               ))}
               <span>More</span>
               <span className="ml-3 text-zinc-400">0h, &lt;1h, 1-3h, 3-5h, 5h+</span>
@@ -1114,6 +1253,29 @@ export default function HabitTracker() {
               </div>
             )}
 
+            {newHabitMode === "binary" && (
+              <div className="mb-4 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 p-3 space-y-2">
+                <label className="block">
+                  <span className="text-xs text-zinc-500">Tracking calendar for this habit</span>
+                  <select
+                    value={newHabitTrackingCalendarId || ""}
+                    onChange={(event) => setNewHabitTrackingCalendarId(event.target.value || null)}
+                    disabled={!hasWritableCalendars || actionLoading}
+                    className="mt-1 w-full border rounded-lg px-3 py-2 text-sm bg-white dark:bg-zinc-900 dark:border-zinc-700"
+                  >
+                    {!hasWritableCalendars && <option value="">No writable calendars found</option>}
+                    {hasWritableCalendars &&
+                      calendars.map((entry) => (
+                        <option key={`new-habit-binary-${entry.id}`} value={entry.id}>
+                          {entry.summary}
+                          {entry.primary ? " (Primary)" : ""}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+              </div>
+            )}
+
             {actionError && <p className="text-sm text-red-500 mb-3">{actionError}</p>}
 
             {!selectedTrackerCalendarId && (
@@ -1128,6 +1290,7 @@ export default function HabitTracker() {
               {data.habits.map((habit) => {
                 const habitGrid = buildWeeklyGrid(habit.days);
                 const habitMonthLabels = buildGridMonthLabels(habitGrid);
+                const habitColor = habitColors[habit.slug] || DEFAULT_HABIT_COLORS[0];
 
                 return (
                   <div
@@ -1143,17 +1306,80 @@ export default function HabitTracker() {
                             : `✅ Yes/No mode, current streak ${habit.currentStreak}d, longest ${habit.longestStreak}d, completed ${habit.totalCompleted} days`}
                         </p>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => removeHabit(habit.name)}
-                        disabled={actionLoading}
-                        className="px-2 py-1 rounded-md text-xs bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors"
-                      >
-                        Remove
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <label className="flex items-center gap-1 text-xs text-zinc-500">
+                          <span>Color</span>
+                          <input
+                            type="color"
+                            value={habitColor}
+                            onChange={(event) =>
+                              setHabitColors((previous) => ({
+                                ...previous,
+                                [habit.slug]: event.target.value,
+                              }))
+                            }
+                            className="h-7 w-8 rounded border border-zinc-300 dark:border-zinc-700 bg-transparent p-0.5"
+                            aria-label={`Choose color for ${habit.name}`}
+                          />
+                        </label>
+                        <button
+                          type="button"
+                          aria-label={`Remove ${habit.name}`}
+                          onClick={() => {
+                            const confirmed = window.confirm(
+                              `Remove "${habit.name}" from your habit tracker? This will delete its tracked history in the current date range.`
+                            );
+                            if (!confirmed) return;
+                            void removeHabit(habit.name);
+                          }}
+                          disabled={actionLoading}
+                          className="px-2 py-1 rounded-md text-xs bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors"
+                        >
+                          🗑️
+                        </button>
+                      </div>
                     </div>
 
                     <div className="overflow-x-auto pb-2">
+                      {habit.mode === "binary" && (
+                        <div className="mb-3 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-3 space-y-3">
+                          <label className="block">
+                            <span className="text-xs text-zinc-500">Tracking calendar</span>
+                            <select
+                              value={habitTrackingCalendarDrafts[habit.slug] || selectedTrackerCalendarId || ""}
+                              onChange={(event) =>
+                                setHabitTrackingCalendarDrafts((previous) => ({
+                                  ...previous,
+                                  [habit.slug]: event.target.value || null,
+                                }))
+                              }
+                              className="mt-1 w-full border rounded-lg px-3 py-2 text-sm bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
+                              disabled={actionLoading || !hasWritableCalendars}
+                            >
+                              {calendars.map((calendarOption) => (
+                                <option key={`${habit.slug}-${calendarOption.id}`} value={calendarOption.id}>
+                                  {calendarOption.summary}
+                                  {calendarOption.primary ? " (Primary)" : ""}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateBinaryHabitConfig(
+                                habit.name,
+                                habitTrackingCalendarDrafts[habit.slug] || selectedTrackerCalendarId || ""
+                              )
+                            }
+                            disabled={actionLoading || !hasWritableCalendars}
+                            className="px-3 py-1.5 rounded-md text-xs bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors"
+                          >
+                            Save calendar
+                          </button>
+                        </div>
+                      )}
+
                       {habit.mode === "duration" && (
                         <div className="mb-3 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-3 space-y-3">
                           <p className="text-xs text-zinc-500">Time-tracking sources for this habit</p>
@@ -1266,12 +1492,20 @@ export default function HabitTracker() {
                                 className={`w-[13px] h-[13px] rounded-[2px] transition-colors ${
                                   day
                                     ? habit.mode === "duration"
-                                      ? `${STUDY_LEVEL_COLORS[day.level]} hover:ring-1 hover:ring-zinc-400`
+                                      ? "hover:ring-1 hover:ring-zinc-400"
                                       : day.completed
-                                        ? "bg-sky-500 hover:bg-sky-600"
+                                        ? "hover:opacity-90"
                                         : "bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600"
                                     : "bg-transparent"
                                 }`}
+                                style={{
+                                  backgroundColor:
+                                    day && habit.mode === "duration"
+                                      ? getHeatCellColor(habitColor, day.level)
+                                      : day && habit.mode === "binary" && day.completed
+                                        ? habitColor
+                                        : undefined,
+                                }}
                               />
                             ))}
                           </div>
@@ -1282,10 +1516,16 @@ export default function HabitTracker() {
                         {habit.mode === "duration" ? (
                           <>
                             <span>Less</span>
-                            {STUDY_LEVEL_COLORS.map((colorClass) => (
+                            {[0, 1, 2, 3, 4].map((level) => (
                               <div
-                                key={`${habit.slug}-${colorClass}`}
-                                className={`w-[13px] h-[13px] rounded-[2px] ${colorClass}`}
+                                key={`${habit.slug}-legend-${level}`}
+                                className="w-[13px] h-[13px] rounded-[2px]"
+                                style={{
+                                  backgroundColor: getHeatCellColor(
+                                    habitColor,
+                                    level as 0 | 1 | 2 | 3 | 4
+                                  ),
+                                }}
                               />
                             ))}
                             <span>More</span>
@@ -1295,7 +1535,10 @@ export default function HabitTracker() {
                           <>
                             <span>Less</span>
                             <div className="w-[13px] h-[13px] rounded-[2px] bg-zinc-200 dark:bg-zinc-700" />
-                            <div className="w-[13px] h-[13px] rounded-[2px] bg-sky-500" />
+                            <div
+                              className="w-[13px] h-[13px] rounded-[2px]"
+                              style={{ backgroundColor: habitColor }}
+                            />
                             <span>More</span>
                           </>
                         )}

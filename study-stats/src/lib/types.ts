@@ -115,3 +115,50 @@ export interface HabitTrackerData {
   };
   habits: HabitDefinition[];
 }
+
+// ─── Workout Planner Types ───────────────────────────────
+
+export const MUSCLE_GROUPS = [
+  "chest",
+  "back",
+  "shoulders",
+  "biceps",
+  "triceps",
+  "forearms",
+  "core",
+  "glutes",
+  "quads",
+  "hamstrings",
+  "calves",
+] as const;
+
+export type MuscleGroup = (typeof MUSCLE_GROUPS)[number];
+
+export interface WorkoutExercise {
+  id: string;
+  name: string;
+  muscles: MuscleGroup[];
+  sets: number;
+  reps: number;
+  notes?: string;
+}
+
+export interface WorkoutTemplate {
+  id: string;
+  name: string;
+  exercises: WorkoutExercise[];
+  createdAt: string;
+}
+
+export interface WorkoutLogEntry {
+  id: string;
+  workoutId: string;
+  performedOn: string; // YYYY-MM-DD
+  notes?: string;
+}
+
+export interface WorkoutPlannerPayload {
+  workouts: WorkoutTemplate[];
+  logs: WorkoutLogEntry[];
+  updatedAt: string;
+}

@@ -7,6 +7,7 @@ import DailyStudyChart from "./DailyStudyChart";
 import SubjectDistribution from "./SubjectDistribution";
 import StudyProjection from "./StudyProjection";
 import HabitTracker from "./HabitTracker";
+import WorkoutFatigueCard from "./WorkoutFatigueCard";
 
 const DASHBOARD_LAYOUT_STORAGE_KEY = "study-stats.dashboard.layout.v1";
 const DASHBOARD_SETTINGS_STORAGE_KEY = "study-stats.dashboard.settings.v1";
@@ -14,6 +15,7 @@ const DEFAULT_ORDER = [
   "today-progress",
   "study-projection",
   "habit-tracker",
+  "workout-fatigue",
   "daily-study-chart",
   "subject-distribution",
 ] as const;
@@ -27,6 +29,7 @@ const DEFAULT_CARD_SIZES: Record<CardId, CardSizePreset> = {
   "today-progress": "standard",
   "study-projection": "large",
   "habit-tracker": "full",
+  "workout-fatigue": "large",
   "daily-study-chart": "large",
   "subject-distribution": "standard",
 };
@@ -168,6 +171,10 @@ export default function Dashboard() {
         "habit-tracker": {
           title: "Habit Tracker",
           content: <HabitTracker />,
+        },
+        "workout-fatigue": {
+          title: "Workout Fatigue",
+          content: <WorkoutFatigueCard />,
         },
         "daily-study-chart": {
           title: "Daily Study Chart",

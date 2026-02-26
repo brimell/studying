@@ -1,21 +1,43 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { TodayProgressData } from "@/lib/types";
 import { isStale, readCache, writeCache, writeGlobalLastFetched } from "@/lib/client-cache";
 
-const CACHE_KEY = "study-stats:today-progress";
+const STUDY_CALENDAR_IDS_STORAGE_KEY = "study-stats.study.calendar-ids";
+
+function readStudyCalendarIds(): string[] {
+  const stored = window.localStorage.getItem(STUDY_CALENDAR_IDS_STORAGE_KEY);
+  if (!stored) return [];
+  try {
+    const parsed = JSON.parse(stored) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((value): value is string => typeof value === "string");
+  } catch {
+    return [];
+  }
+}
 
 export default function TodayProgress() {
   const [data, setData] = useState<TodayProgressData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [calendarIds, setCalendarIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    setCalendarIds(readStudyCalendarIds());
+  }, []);
+
+  const cacheKey = useMemo(
+    () => `study-stats:today-progress:${calendarIds.join(",") || "default"}`,
+    [calendarIds]
+  );
 
   const fetchData = useCallback(
     async (force = false) => {
       setError(null);
 
-      const cached = readCache<TodayProgressData>(CACHE_KEY);
+      const cached = readCache<TodayProgressData>(cacheKey);
       if (cached) {
         setData(cached.data);
         if (!force && !isStale(cached.fetchedAt)) {
@@ -27,14 +49,17 @@ export default function TodayProgress() {
       setLoading(true);
 
       try {
-        const res = await fetch("/api/today-progress");
+        const params = new URLSearchParams();
+        if (calendarIds.length > 0) params.set("calendarIds", calendarIds.join(","));
+        const query = params.toString();
+        const res = await fetch(`/api/today-progress${query ? `?${query}` : ""}`);
         const payload = (await res.json()) as TodayProgressData | { error?: string };
         if (!res.ok) {
           const message = "error" in payload ? payload.error : "Failed";
           throw new Error(message || "Failed");
         }
         setData(payload as TodayProgressData);
-        const fetchedAt = writeCache(CACHE_KEY, payload as TodayProgressData);
+        const fetchedAt = writeCache(cacheKey, payload as TodayProgressData);
         writeGlobalLastFetched(fetchedAt);
       } catch (e: unknown) {
         const message = e instanceof Error ? e.message : "Failed";
@@ -43,7 +68,7 @@ export default function TodayProgress() {
         setLoading(false);
       }
     },
-    []
+    [cacheKey, calendarIds]
   );
 
   useEffect(() => {
@@ -53,7 +78,15 @@ export default function TodayProgress() {
   useEffect(() => {
     const onRefreshAll = () => fetchData(true);
     window.addEventListener("study-stats:refresh-all", onRefreshAll);
-    return () => window.removeEventListener("study-stats:refresh-all", onRefreshAll);
+    const onCalendarsUpdated = () => {
+      setCalendarIds(readStudyCalendarIds());
+      void fetchData(true);
+    };
+    window.addEventListener("study-stats:study-calendars-updated", onCalendarsUpdated);
+    return () => {
+      window.removeEventListener("study-stats:refresh-all", onRefreshAll);
+      window.removeEventListener("study-stats:study-calendars-updated", onCalendarsUpdated);
+    };
   }, [fetchData]);
 
   if (loading) return <CardSkeleton title="Today's Progress" />;

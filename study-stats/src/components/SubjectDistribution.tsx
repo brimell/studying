@@ -17,6 +17,19 @@ import type { StudyDistributionData } from "@/lib/types";
 import { isStale, readCache, writeCache, writeGlobalLastFetched } from "@/lib/client-cache";
 
 const DISTRIBUTION_DAYS_STORAGE_KEY = "study-stats.distribution.days";
+const STUDY_CALENDAR_IDS_STORAGE_KEY = "study-stats.study.calendar-ids";
+
+function readStudyCalendarIds(): string[] {
+  const stored = window.localStorage.getItem(STUDY_CALENDAR_IDS_STORAGE_KEY);
+  if (!stored) return [];
+  try {
+    const parsed = JSON.parse(stored) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((value): value is string => typeof value === "string");
+  } catch {
+    return [];
+  }
+}
 
 const COLORS = [
   "#38bdf8", "#f472b6", "#a78bfa", "#34d399",
@@ -29,19 +42,25 @@ export default function SubjectDistribution() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [days, setDays] = useState(365);
+  const [calendarIds, setCalendarIds] = useState<string[]>([]);
 
   useEffect(() => {
     const raw = window.localStorage.getItem(DISTRIBUTION_DAYS_STORAGE_KEY);
-    if (!raw) return;
-    const parsed = Number(raw);
-    if ([7, 30, 90, 365].includes(parsed)) setDays(parsed);
+    if (raw) {
+      const parsed = Number(raw);
+      if ([7, 30, 90, 365].includes(parsed)) setDays(parsed);
+    }
+    setCalendarIds(readStudyCalendarIds());
   }, []);
 
   useEffect(() => {
     window.localStorage.setItem(DISTRIBUTION_DAYS_STORAGE_KEY, String(days));
   }, [days]);
 
-  const cacheKey = useMemo(() => `study-stats:distribution:${days}`, [days]);
+  const cacheKey = useMemo(
+    () => `study-stats:distribution:${days}:${calendarIds.join(",") || "default"}`,
+    [calendarIds, days]
+  );
 
   const fetchData = useCallback(
     async (force = false) => {
@@ -59,7 +78,9 @@ export default function SubjectDistribution() {
       setLoading(true);
 
       try {
-        const res = await fetch(`/api/distribution?days=${days}`);
+        const params = new URLSearchParams({ days: String(days) });
+        if (calendarIds.length > 0) params.set("calendarIds", calendarIds.join(","));
+        const res = await fetch(`/api/distribution?${params.toString()}`);
         const payload = (await res.json()) as StudyDistributionData | { error?: string };
         if (!res.ok) {
           const message = "error" in payload ? payload.error : "Failed";
@@ -75,7 +96,7 @@ export default function SubjectDistribution() {
         setLoading(false);
       }
     },
-    [cacheKey, days]
+    [cacheKey, calendarIds, days]
   );
 
   useEffect(() => {
@@ -85,7 +106,15 @@ export default function SubjectDistribution() {
   useEffect(() => {
     const onRefreshAll = () => fetchData(true);
     window.addEventListener("study-stats:refresh-all", onRefreshAll);
-    return () => window.removeEventListener("study-stats:refresh-all", onRefreshAll);
+    const onCalendarsUpdated = () => {
+      setCalendarIds(readStudyCalendarIds());
+      void fetchData(true);
+    };
+    window.addEventListener("study-stats:study-calendars-updated", onCalendarsUpdated);
+    return () => {
+      window.removeEventListener("study-stats:refresh-all", onRefreshAll);
+      window.removeEventListener("study-stats:study-calendars-updated", onCalendarsUpdated);
+    };
   }, [fetchData]);
 
   const filteredSubjects =

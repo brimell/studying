@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import AuthButton from "@/components/AuthButton";
 import Dashboard from "@/components/Dashboard";
 import TopBarDataControls from "@/components/TopBarDataControls";
@@ -31,6 +32,12 @@ export default function Home() {
             Study Stats
           </h1>
           <div className="flex items-center gap-3">
+            <Link
+              href="/workouts"
+              className="px-2.5 py-1 rounded-md text-xs bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 transition-colors"
+            >
+              Workout Planner
+            </Link>
             <button
               type="button"
               aria-pressed={wideScreen}

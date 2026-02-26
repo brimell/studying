@@ -11,7 +11,16 @@ export async function GET(req: NextRequest) {
 
   const accessToken = (session as any).accessToken as string;
   const calendar = getCalendarClient(accessToken);
-  const calendarIds = (process.env.CALENDAR_IDS || "").split(",").filter(Boolean);
+  const defaultCalendarIds = (process.env.CALENDAR_IDS || "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+  const { searchParams } = new URL(req.url);
+  const requestedCalendarIds = (searchParams.get("calendarIds") || "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+  const calendarIds = requestedCalendarIds.length > 0 ? requestedCalendarIds : defaultCalendarIds;
 
   try {
     const data = await calculateTodayProgress(calendar, calendarIds, DEFAULT_SUBJECTS);
