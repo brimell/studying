@@ -183,12 +183,36 @@ function computeTotalHours(days: HabitCompletionDay[]): number {
 }
 
 function parseTermsInput(input: string): string[] {
-  return sanitizeTerms(
-    input
+  const segments = input
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (segments.length === 0) return [];
+
+  const collected: string[] = [];
+  for (const segment of segments) {
+    const separatorIndex = segment.indexOf(":");
+    if (separatorIndex >= 0) {
+      const subject = segment.slice(0, separatorIndex).trim();
+      const rawTerms = segment.slice(separatorIndex + 1);
+      if (subject) collected.push(subject);
+      rawTerms
+        .split(",")
+        .map((term) => term.trim())
+        .filter(Boolean)
+        .forEach((term) => collected.push(term));
+      continue;
+    }
+
+    segment
       .split(",")
       .map((term) => term.trim())
       .filter(Boolean)
-  );
+      .forEach((term) => collected.push(term));
+  }
+
+  return sanitizeTerms(collected);
 }
 
 function getDefaultStudyTerms(): string[] {
@@ -801,11 +825,18 @@ export async function POST(req: NextRequest) {
       habitMode === "binary"
         ? ((body.trackingCalendarId || "").trim() || trackerCalendarId)
         : null;
-    const matchTerms = Array.isArray(body.matchTerms)
+    let matchTerms = Array.isArray(body.matchTerms)
       ? sanitizeTerms(body.matchTerms)
       : typeof body.matchTerms === "string"
         ? parseTermsInput(body.matchTerms)
         : [];
+    if (
+      habitMode === "duration" &&
+      habitName.toLowerCase() === DEFAULT_STUDY_HABIT_NAME.toLowerCase() &&
+      matchTerms.length === 0
+    ) {
+      matchTerms = getDefaultStudyTerms();
+    }
 
     if (habitMode === "duration" && sourceCalendarIds.length === 0) {
       return NextResponse.json(

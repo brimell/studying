@@ -110,7 +110,7 @@ export default function WorkoutFatigueCard() {
 
   return (
     <div className="rounded-2xl bg-white dark:bg-zinc-900 p-6 shadow-sm border border-zinc-200 dark:border-zinc-800">
-      <MuscleModel scores={scores} title="Muscle Fatigue (Last 7 Days)" compact />
+      <MuscleModel scores={scores} title="Muscle Fatigue (Recovery-Weighted)" compact />
     </div>
   );
 }

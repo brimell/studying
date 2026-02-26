@@ -172,6 +172,7 @@ export default function MuscleModel({ scores, title = "Muscle Load Map", compact
         .sort((a, b) => b.score - a.score),
     [scores]
   );
+  const nonZero = useMemo(() => sorted.filter((entry) => entry.score > 0), [sorted]);
 
   return (
     <div className="rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 p-3">
@@ -223,7 +224,10 @@ export default function MuscleModel({ scores, title = "Muscle Load Map", compact
           </div>
         </div>
         <div className="grid sm:grid-cols-2 gap-2 content-start">
-          {sorted.map(({ muscle, score }) => (
+          {nonZero.length === 0 && (
+            <p className="text-xs text-zinc-500">No current muscle fatigue recorded.</p>
+          )}
+          {nonZero.map(({ muscle, score }) => (
             <div
               key={muscle}
               className="rounded-md border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-2 py-1.5"

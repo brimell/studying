@@ -311,10 +311,75 @@ function toUtcDate(date: string): Date {
   return new Date(Date.UTC(year, month - 1, day));
 }
 
-function daysBetween(fromDate: string, toDate: string): number {
-  const from = toUtcDate(fromDate).getTime();
-  const to = toUtcDate(toDate).getTime();
-  return Math.floor((to - from) / (1000 * 60 * 60 * 24));
+type FatigueTier = "light" | "moderate" | "heavy" | "very-heavy";
+
+const BASE_RECOVERY_HOURS: Record<MuscleGroup, number> = {
+  chest: 60,
+  back: 60,
+  shoulders: 36,
+  biceps: 36,
+  triceps: 36,
+  forearms: 36,
+  core: 36,
+  glutes: 84,
+  quads: 84,
+  hamstrings: 84,
+  calves: 48,
+};
+
+const TIER_MULTIPLIER: Record<FatigueTier, number> = {
+  light: 0.35,
+  moderate: 0.75,
+  heavy: 1,
+  "very-heavy": 1.3,
+};
+
+const TIER_PEAK_LOAD: Record<FatigueTier, number> = {
+  light: 0.35,
+  moderate: 0.55,
+  heavy: 0.75,
+  "very-heavy": 0.9,
+};
+
+function classifyFatigueTier(stimulus: number): FatigueTier {
+  if (stimulus < 2.5) return "light";
+  if (stimulus < 5) return "moderate";
+  if (stimulus < 8) return "heavy";
+  return "very-heavy";
+}
+
+function repFactor(reps: number): number {
+  return Math.max(0.7, Math.min(1.6, reps / 10));
+}
+
+function getMuscleStimulusByLog(workout: WorkoutTemplate): Record<MuscleGroup, number> {
+  const byMuscle: Record<MuscleGroup, number> = {
+    chest: 0,
+    back: 0,
+    shoulders: 0,
+    biceps: 0,
+    triceps: 0,
+    forearms: 0,
+    core: 0,
+    glutes: 0,
+    quads: 0,
+    hamstrings: 0,
+    calves: 0,
+  };
+
+  for (const exercise of workout.exercises) {
+    const perExerciseStimulus = Math.max(0.6, exercise.sets * repFactor(exercise.reps));
+    for (const muscle of exercise.muscles) {
+      byMuscle[muscle] += perExerciseStimulus;
+    }
+  }
+
+  return byMuscle;
+}
+
+function getAgeHours(performedOn: string, now: Date): number {
+  const performedAt = toUtcDate(performedOn).getTime() + 12 * 60 * 60 * 1000;
+  return Math.max(0, (now.getTime() - performedAt) / (1000 * 60 * 60));
 }
 
 export function computeMuscleFatigue(
@@ -334,35 +399,48 @@ export function computeMuscleFatigue(
     hamstrings: 0,
     calves: 0,
   };
-  const today = dateKey(now);
   const workoutById = new Map(payload.workouts.map((workout) => [workout.id, workout]));
+  const carryoverLoad: Record<MuscleGroup, number> = {
+    chest: 0,
+    back: 0,
+    shoulders: 0,
+    biceps: 0,
+    triceps: 0,
+    forearms: 0,
+    core: 0,
+    glutes: 0,
+    quads: 0,
+    hamstrings: 0,
+    calves: 0,
+  };
 
   for (const log of payload.logs) {
     const workout = workoutById.get(log.workoutId);
     if (!workout) continue;
 
-    const age = daysBetween(log.performedOn, today);
-    if (age < 0 || age > 7) continue;
+    const ageHours = getAgeHours(log.performedOn, now);
+    if (ageHours < 0 || ageHours > 24 * 14) continue;
 
-    const decay = Math.max(0, 1 - age * 0.18);
-    if (decay <= 0) continue;
+    const stimulusByMuscle = getMuscleStimulusByLog(workout);
 
-    for (const exercise of workout.exercises) {
-      const stimulus = Math.max(0.6, Math.min(3, exercise.sets / 4));
-      for (const muscle of exercise.muscles) {
-        result[muscle] += stimulus * decay;
-      }
+    for (const muscle of MUSCLE_GROUPS) {
+      const stimulus = stimulusByMuscle[muscle];
+      if (stimulus <= 0) continue;
+
+      const tier = classifyFatigueTier(stimulus);
+      const recoveryHours = BASE_RECOVERY_HOURS[muscle] * TIER_MULTIPLIER[tier];
+      if (recoveryHours <= 0) continue;
+
+      const decay = Math.exp((-3 * ageHours) / recoveryHours);
+      const remainingLoad = TIER_PEAK_LOAD[tier] * decay;
+
+      const existing = carryoverLoad[muscle];
+      carryoverLoad[muscle] = 1 - (1 - existing) * (1 - remainingLoad);
     }
   }
 
-  let maxValue = 0;
   for (const muscle of MUSCLE_GROUPS) {
-    if (result[muscle] > maxValue) maxValue = result[muscle];
-  }
-  if (maxValue <= 0) return result;
-
-  for (const muscle of MUSCLE_GROUPS) {
-    result[muscle] = Math.round((result[muscle] / maxValue) * 100);
+    result[muscle] = Math.round(carryoverLoad[muscle] * 100);
   }
 
   return result;

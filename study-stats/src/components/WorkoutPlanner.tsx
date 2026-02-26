@@ -320,6 +320,28 @@ export default function WorkoutPlanner() {
     () => new Map(payload.workouts.map((workout) => [workout.id, workout])),
     [payload.workouts]
   );
+  const workoutScoresById = useMemo(() => {
+    const scoreMap = new Map<string, Record<MuscleGroup, number>>();
+    const today = todayDateKey();
+
+    for (const workout of payload.workouts) {
+      const singleWorkoutPayload: WorkoutPlannerPayload = {
+        workouts: [workout],
+        logs: [
+          {
+            id: `preview-${workout.id}`,
+            workoutId: workout.id,
+            performedOn: today,
+          },
+        ],
+        updatedAt: new Date().toISOString(),
+      };
+
+      scoreMap.set(workout.id, computeMuscleFatigue(singleWorkoutPayload));
+    }
+
+    return scoreMap;
+  }, [payload.workouts]);
 
   if (!supabase) {
     return (
@@ -359,7 +381,7 @@ export default function WorkoutPlanner() {
       {error && <p className="text-sm text-red-500">{error}</p>}
       {message && <p className="text-sm text-emerald-600">{message}</p>}
 
-      <MuscleModel scores={fatigueScores} title="Current Muscle Fatigue (Last 7 Days)" />
+      <MuscleModel scores={fatigueScores} title="Current Muscle Fatigue (Recovery-Weighted)" />
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
         <section className="rounded-2xl bg-white dark:bg-zinc-900 p-5 shadow-sm border border-zinc-200 dark:border-zinc-800">
@@ -486,6 +508,13 @@ export default function WorkoutPlanner() {
                   >
                     🗑️
                   </button>
+                </div>
+                <div className="mt-3">
+                  <MuscleModel
+                    scores={workoutScoresById.get(workout.id) || fatigueScores}
+                    title="Workout Muscle Targets"
+                    compact
+                  />
                 </div>
                 <div className="mt-2 space-y-1">
                   {workout.exercises.map((exercise) => (

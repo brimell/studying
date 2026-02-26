@@ -10,6 +10,13 @@ function getSupabaseAdminClient() {
   return createClient(url, serviceRole, { auth: { persistSession: false } });
 }
 
+function isRecoverableStorageError(error: { code?: string; message?: string } | null | undefined) {
+  if (!error) return false;
+  if (error.code === "42P01") return true;
+  const message = (error.message || "").toLowerCase();
+  return message.includes("does not exist") || message.includes("relation");
+}
+
 function toErrorResponse(status: number, message: string) {
   return NextResponse.json({ error: message }, { status });
 }
@@ -38,7 +45,18 @@ function isDateKey(value: string): boolean {
 
 export async function GET(req: NextRequest) {
   const auth = await getUserFromRequest(req);
-  if ("error" in auth) return auth.error;
+  if ("error" in auth) {
+    const isConfigMissing = auth.error.status === 500;
+    if (isConfigMissing) {
+      return NextResponse.json({
+        examDate: null,
+        countdownStartDate: null,
+        updatedAt: null,
+        cloudDisabled: true,
+      });
+    }
+    return auth.error;
+  }
 
   const { client, userId } = auth;
   const { data, error } = await client
@@ -47,7 +65,17 @@ export async function GET(req: NextRequest) {
     .eq("user_id", userId)
     .maybeSingle();
 
-  if (error) return toErrorResponse(500, error.message || "Failed to read exam countdown.");
+  if (error) {
+    if (isRecoverableStorageError(error)) {
+      return NextResponse.json({
+        examDate: null,
+        countdownStartDate: null,
+        updatedAt: null,
+        cloudDisabled: true,
+      });
+    }
+    return toErrorResponse(500, error.message || "Failed to read exam countdown.");
+  }
 
   return NextResponse.json({
     examDate: data?.exam_date || null,
@@ -58,7 +86,13 @@ export async function GET(req: NextRequest) {
 
 export async function PUT(req: NextRequest) {
   const auth = await getUserFromRequest(req);
-  if ("error" in auth) return auth.error;
+  if ("error" in auth) {
+    const isConfigMissing = auth.error.status === 500;
+    if (isConfigMissing) {
+      return NextResponse.json({ ok: false, cloudDisabled: true });
+    }
+    return auth.error;
+  }
 
   let body: unknown;
   try {
@@ -87,7 +121,18 @@ export async function PUT(req: NextRequest) {
     { onConflict: "user_id" }
   );
 
-  if (error) return toErrorResponse(500, error.message || "Failed to save exam countdown.");
+  if (error) {
+    if (isRecoverableStorageError(error)) {
+      return NextResponse.json({
+        ok: false,
+        examDate,
+        countdownStartDate,
+        updatedAt,
+        cloudDisabled: true,
+      });
+    }
+    return toErrorResponse(500, error.message || "Failed to save exam countdown.");
+  }
 
   return NextResponse.json({
     ok: true,

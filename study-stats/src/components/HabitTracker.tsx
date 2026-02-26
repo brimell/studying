@@ -8,6 +8,7 @@ import type {
   HabitTrackerData,
   TrackerCalendarOption,
 } from "@/lib/types";
+import { DEFAULT_SUBJECTS } from "@/lib/types";
 import { isStale, readCache, writeCache, writeGlobalLastFetched } from "@/lib/client-cache";
 
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -38,6 +39,9 @@ const DEFAULT_HABITS = [
     description: "Can be linked to workout planner logs",
   },
 ] as const;
+const DEFAULT_STUDY_MATCH_TERMS_DICTIONARY = Object.entries(DEFAULT_SUBJECTS)
+  .map(([subject, terms]) => `${subject}: ${terms.join(", ")}`)
+  .join("\n");
 const HABIT_COLOR_PRESETS = [
   "#10b981",
   "#0ea5e9",
@@ -96,6 +100,12 @@ interface QueuedHabitDayUpdate {
   date: string;
   completed: boolean;
   hours: number;
+}
+
+interface MatchTermDraftEntry {
+  id: string;
+  subject: string;
+  terms: string;
 }
 
 function isHexColor(value: string): boolean {
@@ -180,6 +190,48 @@ function normalizeHours(hours: number): number {
 
 function normalizeHabitName(name: string): string {
   return name.trim().toLowerCase();
+}
+
+function createMatchTermDraftEntry(subject = "", terms = ""): MatchTermDraftEntry {
+  return {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    subject,
+    terms,
+  };
+}
+
+function parseMatchTermsText(input: string): MatchTermDraftEntry[] {
+  const lines = input
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  if (lines.length === 0) return [createMatchTermDraftEntry()];
+
+  const entries: MatchTermDraftEntry[] = [];
+  for (const line of lines) {
+    const separatorIndex = line.indexOf(":");
+    if (separatorIndex >= 0) {
+      const subject = line.slice(0, separatorIndex).trim();
+      const terms = line.slice(separatorIndex + 1).trim();
+      entries.push(createMatchTermDraftEntry(subject, terms));
+      continue;
+    }
+    entries.push(createMatchTermDraftEntry("", line));
+  }
+  return entries.length > 0 ? entries : [createMatchTermDraftEntry()];
+}
+
+function serializeMatchTermsEntries(entries: MatchTermDraftEntry[]): string {
+  return entries
+    .map((entry) => {
+      const subject = entry.subject.trim();
+      const terms = entry.terms.trim();
+      if (!subject && !terms) return "";
+      if (subject) return `${subject}: ${terms}`;
+      return terms;
+    })
+    .filter(Boolean)
+    .join("\n");
 }
 
 function computeHabitStats(days: HabitCompletionDay[]) {
@@ -316,12 +368,16 @@ export default function HabitTracker() {
   const [newHabitMode, setNewHabitMode] = useState<HabitMode>("binary");
   const [newHabitTrackingCalendarId, setNewHabitTrackingCalendarId] = useState<string | null>(null);
   const [newHabitSourceCalendarIds, setNewHabitSourceCalendarIds] = useState<string[]>([]);
-  const [newHabitMatchTerms, setNewHabitMatchTerms] = useState("");
+  const [newHabitMatchEntries, setNewHabitMatchEntries] = useState<MatchTermDraftEntry[]>([
+    createMatchTermDraftEntry(),
+  ]);
   const [habitTrackingCalendarDrafts, setHabitTrackingCalendarDrafts] = useState<
     Record<string, string | null>
   >({});
   const [habitSourceDrafts, setHabitSourceDrafts] = useState<Record<string, string[]>>({});
-  const [habitTermsDrafts, setHabitTermsDrafts] = useState<Record<string, string>>({});
+  const [habitTermsDrafts, setHabitTermsDrafts] = useState<
+    Record<string, MatchTermDraftEntry[]>
+  >({});
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [habitColors, setHabitColors] = useState<Record<string, string>>({});
@@ -370,7 +426,7 @@ export default function HabitTracker() {
     }
 
     const rawTerms = window.localStorage.getItem(HABIT_MATCH_TERMS_STORAGE_KEY);
-    if (rawTerms) setNewHabitMatchTerms(rawTerms);
+    if (rawTerms) setNewHabitMatchEntries(parseMatchTermsText(rawTerms));
   }, []);
 
   useEffect(() => {
@@ -381,8 +437,11 @@ export default function HabitTracker() {
   }, [newHabitSourceCalendarIds]);
 
   useEffect(() => {
-    window.localStorage.setItem(HABIT_MATCH_TERMS_STORAGE_KEY, newHabitMatchTerms);
-  }, [newHabitMatchTerms]);
+    window.localStorage.setItem(
+      HABIT_MATCH_TERMS_STORAGE_KEY,
+      serializeMatchTermsEntries(newHabitMatchEntries)
+    );
+  }, [newHabitMatchEntries]);
 
   useEffect(() => {
     const raw = window.localStorage.getItem(HABIT_COLORS_STORAGE_KEY);
@@ -964,7 +1023,7 @@ export default function HabitTracker() {
       habitMode: newHabitMode,
       trackingCalendarId: newHabitTrackingCalendarId,
       sourceCalendarIds: newHabitSourceCalendarIds,
-      matchTerms: newHabitMatchTerms,
+      matchTerms: serializeMatchTermsEntries(newHabitMatchEntries),
       closeModal: true,
     });
 
@@ -992,12 +1051,14 @@ export default function HabitTracker() {
     if (defaultHabit.mode === "duration") {
       const sourceIds = newHabitSourceCalendarIds.length
         ? newHabitSourceCalendarIds
-        : sourceCalendars.slice(0, 1).map((entry) => entry.id);
+        : sourceCalendars.length > 0
+          ? sourceCalendars.slice(0, 1).map((entry) => entry.id)
+          : [selectedTrackerCalendarId];
       const created = await createHabit({
         habitName: defaultHabit.name,
         habitMode: "duration",
         sourceCalendarIds: sourceIds,
-        matchTerms: "",
+        matchTerms: DEFAULT_STUDY_MATCH_TERMS_DICTIONARY,
         closeModal: false,
       });
       if (created && !selectedStudyHabitSlug) {
@@ -1191,7 +1252,7 @@ export default function HabitTracker() {
     if (!data) return;
     const nextTrackingCalendars: Record<string, string | null> = {};
     const nextSources: Record<string, string[]> = {};
-    const nextTerms: Record<string, string> = {};
+    const nextTerms: Record<string, MatchTermDraftEntry[]> = {};
     for (const habit of data.habits) {
       if (habit.mode === "binary") {
         nextTrackingCalendars[habit.slug] = habit.trackingCalendarId;
@@ -1200,7 +1261,9 @@ export default function HabitTracker() {
       const sourceIds = Array.isArray(habit.sourceCalendarIds) ? habit.sourceCalendarIds : [];
       const matchTerms = Array.isArray(habit.matchTerms) ? habit.matchTerms : [];
       nextSources[habit.slug] = sourceIds;
-      nextTerms[habit.slug] = matchTerms.join(", ");
+      nextTerms[habit.slug] = [
+        createMatchTermDraftEntry("", matchTerms.join(", ")),
+      ];
     }
     setHabitTrackingCalendarDrafts(nextTrackingCalendars);
     setHabitSourceDrafts(nextSources);
@@ -1563,19 +1626,90 @@ export default function HabitTracker() {
                             ))}
                           </div>
                           <label className="block">
-                            <span className="text-xs text-zinc-500">Match terms (optional, comma separated)</span>
-                            <input
-                              type="text"
-                              value={habitTermsDrafts[habit.slug] || ""}
-                              onChange={(event) =>
-                                setHabitTermsDrafts((previous) => ({
-                                  ...previous,
-                                  [habit.slug]: event.target.value,
-                                }))
-                              }
-                              placeholder="e.g. maths, revision"
-                              className="mt-1 w-full border rounded-lg px-3 py-2 text-sm bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
-                            />
+                            <span className="text-xs text-zinc-500">
+                              Subject dictionary match terms (optional)
+                            </span>
+                            <div className="mt-2 space-y-2">
+                              {(habitTermsDrafts[habit.slug] || [createMatchTermDraftEntry()]).map(
+                                (entry, index, entries) => (
+                                  <div key={`${habit.slug}-terms-${entry.id}`} className="grid grid-cols-[1fr_2fr_auto] gap-2">
+                                    <input
+                                      type="text"
+                                      value={entry.subject}
+                                      onChange={(event) =>
+                                        setHabitTermsDrafts((previous) => ({
+                                          ...previous,
+                                          [habit.slug]: (
+                                            previous[habit.slug] && previous[habit.slug].length > 0
+                                              ? previous[habit.slug]
+                                              : [entry]
+                                          ).map((row) =>
+                                            row.id === entry.id ? { ...row, subject: event.target.value } : row
+                                          ),
+                                        }))
+                                      }
+                                      placeholder="Subject (e.g. Maths)"
+                                      className="border rounded-lg px-2 py-1.5 text-sm bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
+                                    />
+                                    <input
+                                      type="text"
+                                      value={entry.terms}
+                                      onChange={(event) =>
+                                        setHabitTermsDrafts((previous) => ({
+                                          ...previous,
+                                          [habit.slug]: (
+                                            previous[habit.slug] && previous[habit.slug].length > 0
+                                              ? previous[habit.slug]
+                                              : [entry]
+                                          ).map((row) =>
+                                            row.id === entry.id ? { ...row, terms: event.target.value } : row
+                                          ),
+                                        }))
+                                      }
+                                      placeholder="Terms (e.g. math, maths, mathematics)"
+                                      className="border rounded-lg px-2 py-1.5 text-sm bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        setHabitTermsDrafts((previous) => {
+                                          const rows =
+                                            previous[habit.slug] && previous[habit.slug].length > 0
+                                              ? previous[habit.slug]
+                                              : [entry];
+                                          if (rows.length <= 1) return previous;
+                                          return {
+                                            ...previous,
+                                            [habit.slug]: rows.filter((row) => row.id !== entry.id),
+                                          };
+                                        })
+                                      }
+                                      disabled={entries.length <= 1}
+                                      className="px-2 py-1.5 rounded-md text-xs bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 disabled:opacity-50"
+                                    >
+                                      Remove
+                                    </button>
+                                  </div>
+                                )
+                              )}
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setHabitTermsDrafts((previous) => ({
+                                    ...previous,
+                                    [habit.slug]: [
+                                      ...(previous[habit.slug] && previous[habit.slug].length > 0
+                                        ? previous[habit.slug]
+                                        : [createMatchTermDraftEntry()]),
+                                      createMatchTermDraftEntry(),
+                                    ],
+                                  }))
+                                }
+                                className="px-3 py-1.5 rounded-md text-xs bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors"
+                              >
+                                Add new subject to match
+                              </button>
+                            </div>
                           </label>
                           <button
                             type="button"
@@ -1583,7 +1717,9 @@ export default function HabitTracker() {
                               updateDurationHabitConfig(
                                 habit.name,
                                 habitSourceDrafts[habit.slug] || [],
-                                habitTermsDrafts[habit.slug] || ""
+                                serializeMatchTermsEntries(
+                                  habitTermsDrafts[habit.slug] || [createMatchTermDraftEntry()]
+                                )
                               )
                             }
                             disabled={actionLoading}
@@ -1840,10 +1976,6 @@ export default function HabitTracker() {
                       const alreadyAdded = habitNameSet.has(
                         normalizeHabitName(defaultHabit.name)
                       );
-                      const durationMissingSources =
-                        defaultHabit.mode === "duration" &&
-                        newHabitSourceCalendarIds.length === 0 &&
-                        sourceCalendars.length === 0;
                       return (
                         <div
                           key={`default-habit-${defaultHabit.key}`}
@@ -1859,10 +1991,8 @@ export default function HabitTracker() {
                               void addDefaultHabit(defaultHabit.key);
                             }}
                             disabled={
-                              !selectedTrackerCalendarId ||
                               alreadyAdded ||
-                              actionLoading ||
-                              durationMissingSources
+                              actionLoading
                             }
                             className="px-3 py-1.5 rounded-md text-xs bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 disabled:opacity-50 transition-colors"
                           >
@@ -1914,14 +2044,67 @@ export default function HabitTracker() {
                       )}
                     </div>
                     <label className="block">
-                      <span className="text-xs text-zinc-500">Match terms (optional, comma separated)</span>
-                      <input
-                        type="text"
-                        value={newHabitMatchTerms}
-                        onChange={(event) => setNewHabitMatchTerms(event.target.value)}
-                        placeholder="e.g. maths, revision"
-                        className="mt-1 w-full border rounded-lg px-3 py-2 text-sm bg-white dark:bg-zinc-900 dark:border-zinc-700"
-                      />
+                      <span className="text-xs text-zinc-500">
+                        Subject dictionary match terms (optional)
+                      </span>
+                      <div className="mt-2 space-y-2">
+                        {newHabitMatchEntries.map((entry) => (
+                          <div key={`new-habit-terms-${entry.id}`} className="grid grid-cols-[1fr_2fr_auto] gap-2">
+                            <input
+                              type="text"
+                              value={entry.subject}
+                              onChange={(event) =>
+                                setNewHabitMatchEntries((previous) =>
+                                  previous.map((row) =>
+                                    row.id === entry.id ? { ...row, subject: event.target.value } : row
+                                  )
+                                )
+                              }
+                              placeholder="Subject (e.g. Maths)"
+                              className="border rounded-lg px-2 py-1.5 text-sm bg-white dark:bg-zinc-900 dark:border-zinc-700"
+                            />
+                            <input
+                              type="text"
+                              value={entry.terms}
+                              onChange={(event) =>
+                                setNewHabitMatchEntries((previous) =>
+                                  previous.map((row) =>
+                                    row.id === entry.id ? { ...row, terms: event.target.value } : row
+                                  )
+                                )
+                              }
+                              placeholder="Terms (e.g. math, maths, mathematics)"
+                              className="border rounded-lg px-2 py-1.5 text-sm bg-white dark:bg-zinc-900 dark:border-zinc-700"
+                            />
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setNewHabitMatchEntries((previous) =>
+                                  previous.length <= 1
+                                    ? previous
+                                    : previous.filter((row) => row.id !== entry.id)
+                                )
+                              }
+                              disabled={newHabitMatchEntries.length <= 1}
+                              className="px-2 py-1.5 rounded-md text-xs bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 disabled:opacity-50"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        ))}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setNewHabitMatchEntries((previous) => [
+                              ...previous,
+                              createMatchTermDraftEntry(),
+                            ])
+                          }
+                          className="px-3 py-1.5 rounded-md text-xs bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors"
+                        >
+                          Add new subject to match
+                        </button>
+                      </div>
                     </label>
                   </div>
                 )}
