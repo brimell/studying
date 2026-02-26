@@ -5,6 +5,7 @@ import TodayProgress from "./TodayProgress";
 import DailyStudyChart from "./DailyStudyChart";
 import SubjectDistribution from "./SubjectDistribution";
 import StudyProjection from "./StudyProjection";
+import HabitTracker from "./HabitTracker";
 
 export default function Dashboard() {
   const { data: session, status } = useSession();
@@ -32,6 +33,7 @@ export default function Dashboard() {
   return (
     <div className="space-y-6">
       <TodayProgress />
+      <HabitTracker />
       <StudyProjection />
       <DailyStudyChart />
       <SubjectDistribution />
