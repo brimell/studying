@@ -4,12 +4,12 @@ import { fetchTrackerCalendars, getCalendarClient } from "@/lib/calendar";
 
 export async function GET() {
   const session = await auth();
-  if (!session || !(session as { accessToken?: string }).accessToken) {
+  const accessToken = (session as unknown as { accessToken?: string } | null)?.accessToken;
+  if (!accessToken) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
-    const accessToken = (session as { accessToken: string }).accessToken;
     const calendar = getCalendarClient(accessToken);
     const calendars = await fetchTrackerCalendars(calendar);
 

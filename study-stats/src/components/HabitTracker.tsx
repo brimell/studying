@@ -2,10 +2,13 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import type {
+  HabitCompletionDay,
   HabitDay,
+  HabitDefinition,
   HabitTrackerData,
   TrackerCalendarOption,
 } from "@/lib/types";
+import { formatTimeSince, isStale, readCache, writeCache } from "@/lib/client-cache";
 
 const STUDY_LEVEL_COLORS = [
   "bg-zinc-100 dark:bg-zinc-800",
@@ -17,6 +20,7 @@ const STUDY_LEVEL_COLORS = [
 
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const TRACKER_CALENDAR_STORAGE_KEY = "study-stats.tracker-calendar-id";
+const TRACKER_CALENDARS_CACHE_KEY = "study-stats:habit-tracker:calendars";
 
 interface TrackerCalendarResponse {
   calendars: TrackerCalendarOption[];
@@ -36,6 +40,126 @@ function formatShortDate(date: string): string {
   });
 }
 
+function slugifyHabitName(name: string): string {
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "habit";
+}
+
+function addDays(dateKey: string, amount: number): string {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  date.setUTCDate(date.getUTCDate() + amount);
+  return date.toISOString().slice(0, 10);
+}
+
+function computeHabitStats(days: HabitCompletionDay[]) {
+  let currentStreak = 0;
+  let longestStreak = 0;
+  let runningStreak = 0;
+  let totalCompleted = 0;
+
+  for (const day of days) {
+    if (day.completed) {
+      runningStreak += 1;
+      totalCompleted += 1;
+      if (runningStreak > longestStreak) longestStreak = runningStreak;
+    } else {
+      runningStreak = 0;
+    }
+  }
+
+  for (let i = days.length - 1; i >= 0; i -= 1) {
+    if (!days[i].completed) break;
+    currentStreak += 1;
+  }
+
+  return { currentStreak, longestStreak, totalCompleted };
+}
+
+function buildEmptyHabit(
+  name: string,
+  startDate: string,
+  endDate: string
+): HabitDefinition {
+  const days: HabitCompletionDay[] = [];
+  for (let date = startDate; date <= endDate; date = addDays(date, 1)) {
+    days.push({ date, completed: false });
+  }
+
+  const stats = computeHabitStats(days);
+
+  return {
+    name,
+    slug: slugifyHabitName(name),
+    days,
+    currentStreak: stats.currentStreak,
+    longestStreak: stats.longestStreak,
+    totalCompleted: stats.totalCompleted,
+  };
+}
+
+function buildWeeklyGrid<T extends { date: string }>(days: T[]): (T | null)[][] {
+  if (days.length === 0) return [];
+
+  const firstDate = new Date(`${days[0].date}T12:00:00`);
+  const firstDayOfWeek = (firstDate.getDay() + 6) % 7;
+
+  const paddedDays: (T | null)[] = [...Array(firstDayOfWeek).fill(null), ...days];
+
+  const columns: (T | null)[][] = [];
+  for (let i = 0; i < paddedDays.length; i += 7) {
+    columns.push(paddedDays.slice(i, i + 7));
+  }
+
+  if (columns.length > 0) {
+    const lastColumn = columns[columns.length - 1];
+    while (lastColumn.length < 7) lastColumn.push(null);
+  }
+
+  return columns;
+}
+
+function buildGridMonthLabels<T extends { date: string }>(
+  grid: (T | null)[][]
+): { label: string; colIndex: number }[] {
+  const labels: { label: string; colIndex: number }[] = [];
+  let lastMonth = "";
+
+  for (let col = 0; col < grid.length; col += 1) {
+    const day = grid[col].find((entry) => entry !== null);
+    if (!day) continue;
+
+    const month = new Date(`${day.date}T12:00:00`).toLocaleDateString("en-GB", {
+      month: "short",
+    });
+
+    if (month !== lastMonth) {
+      labels.push({ label: month, colIndex: col });
+      lastMonth = month;
+    }
+  }
+
+  return labels;
+}
+
+function updateHabitInData(
+  previous: HabitTrackerData,
+  habitName: string,
+  updater: (habit: HabitDefinition) => HabitDefinition
+): HabitTrackerData {
+  const habits = previous.habits.map((habit) =>
+    habit.name.toLowerCase() === habitName.toLowerCase() ? updater(habit) : habit
+  );
+
+  return {
+    ...previous,
+    habits,
+  };
+}
+
 export default function HabitTracker() {
   const [data, setData] = useState<HabitTrackerData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -50,8 +174,14 @@ export default function HabitTracker() {
   const [newHabitName, setNewHabitName] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [refreshingData, setRefreshingData] = useState(false);
+  const [lastFetchedAt, setLastFetchedAt] = useState<number | null>(null);
+  const [now, setNow] = useState(Date.now());
 
-  const [refreshToken, setRefreshToken] = useState(0);
+  const dataCacheKey = useMemo(
+    () => `study-stats:habit-tracker:${weeks}:${selectedTrackerCalendarId || "auto"}`,
+    [weeks, selectedTrackerCalendarId]
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -59,6 +189,27 @@ export default function HabitTracker() {
     const loadCalendars = async () => {
       try {
         setCalendarsLoading(true);
+
+        const cached = readCache<TrackerCalendarResponse>(TRACKER_CALENDARS_CACHE_KEY);
+        if (cached) {
+          const calendarData = cached.data.calendars;
+          setCalendars(calendarData);
+
+          const storedCalendarId = window.localStorage.getItem(TRACKER_CALENDAR_STORAGE_KEY);
+          const storedIsValid =
+            storedCalendarId && calendarData.some((entry) => entry.id === storedCalendarId);
+
+          const nextSelectedId =
+            (storedIsValid ? storedCalendarId : cached.data.defaultCalendarId) || null;
+
+          setSelectedTrackerCalendarId(nextSelectedId);
+
+          if (!isStale(cached.fetchedAt)) {
+            setCalendarsLoading(false);
+            return;
+          }
+        }
+
         const response = await fetch("/api/habit-tracker/calendars");
         const payload = (await response.json()) as TrackerCalendarResponse | { error?: string };
 
@@ -69,8 +220,10 @@ export default function HabitTracker() {
 
         if (cancelled) return;
 
-        const calendarData = (payload as TrackerCalendarResponse).calendars;
+        const typedPayload = payload as TrackerCalendarResponse;
+        const calendarData = typedPayload.calendars;
         setCalendars(calendarData);
+        writeCache(TRACKER_CALENDARS_CACHE_KEY, typedPayload);
 
         const storedCalendarId = window.localStorage.getItem(TRACKER_CALENDAR_STORAGE_KEY);
         const storedIsValid =
@@ -79,7 +232,7 @@ export default function HabitTracker() {
         const nextSelectedId =
           (storedIsValid
             ? storedCalendarId
-            : (payload as TrackerCalendarResponse).defaultCalendarId) || null;
+            : typedPayload.defaultCalendarId) || null;
 
         setSelectedTrackerCalendarId(nextSelectedId);
       } catch (err: unknown) {
@@ -108,10 +261,25 @@ export default function HabitTracker() {
 
     let cancelled = false;
 
-    const loadData = async () => {
+    const loadData = async (force = false) => {
       try {
-        setLoading(true);
         setError(null);
+
+        const cached = readCache<HabitTrackerData>(dataCacheKey);
+        if (cached) {
+          setData(cached.data);
+          setLastFetchedAt(cached.fetchedAt);
+          if (!force && !isStale(cached.fetchedAt)) {
+            setLoading(false);
+            return;
+          }
+        }
+
+        if (cached) {
+          setRefreshingData(true);
+        } else {
+          setLoading(true);
+        }
 
         const params = new URLSearchParams({ weeks: String(weeks) });
         if (selectedTrackerCalendarId) {
@@ -130,6 +298,7 @@ export default function HabitTracker() {
 
         const typedPayload = payload as HabitTrackerData;
         setData(typedPayload);
+        setLastFetchedAt(writeCache(dataCacheKey, typedPayload));
 
         if (
           typedPayload.trackerCalendarId &&
@@ -142,62 +311,33 @@ export default function HabitTracker() {
         const message = err instanceof Error ? err.message : "Failed to fetch habit tracker";
         setError(message);
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+          setRefreshingData(false);
+        }
       }
     };
 
-    loadData();
+    loadData(false);
 
     return () => {
       cancelled = true;
     };
-  }, [weeks, selectedTrackerCalendarId, refreshToken, calendarsLoading]);
+  }, [weeks, selectedTrackerCalendarId, calendarsLoading, dataCacheKey]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const studyGrid = useMemo(() => {
     if (!data || data.days.length === 0) return [] as (HabitDay | null)[][];
-
-    const firstDate = new Date(`${data.days[0].date}T12:00:00`);
-    const firstDayOfWeek = (firstDate.getDay() + 6) % 7;
-
-    const paddedDays: (HabitDay | null)[] = [
-      ...Array(firstDayOfWeek).fill(null),
-      ...data.days,
-    ];
-
-    const columns: (HabitDay | null)[][] = [];
-    for (let i = 0; i < paddedDays.length; i += 7) {
-      columns.push(paddedDays.slice(i, i + 7));
-    }
-
-    if (columns.length > 0) {
-      const lastColumn = columns[columns.length - 1];
-      while (lastColumn.length < 7) lastColumn.push(null);
-    }
-
-    return columns;
+    return buildWeeklyGrid(data.days);
   }, [data]);
 
   const monthLabels = useMemo(() => {
     if (!data || studyGrid.length === 0) return [] as { label: string; colIndex: number }[];
-
-    const labels: { label: string; colIndex: number }[] = [];
-    let lastMonth = "";
-
-    for (let col = 0; col < studyGrid.length; col += 1) {
-      const day = studyGrid[col].find((entry) => entry !== null);
-      if (!day) continue;
-
-      const month = new Date(`${day.date}T12:00:00`).toLocaleDateString("en-GB", {
-        month: "short",
-      });
-
-      if (month !== lastMonth) {
-        labels.push({ label: month, colIndex: col });
-        lastMonth = month;
-      }
-    }
-
-    return labels;
+    return buildGridMonthLabels(studyGrid);
   }, [data, studyGrid]);
 
   const trackerRangeLabel = useMemo(() => {
@@ -208,8 +348,6 @@ export default function HabitTracker() {
   }, [data]);
 
   const hasWritableCalendars = calendars.length > 0;
-
-  const refresh = () => setRefreshToken((value) => value + 1);
 
   const runAction = async (input: RequestInit) => {
     const response = await fetch("/api/habit-tracker", {
@@ -228,10 +366,30 @@ export default function HabitTracker() {
 
   const handleAddHabit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!selectedTrackerCalendarId) return;
+    if (!selectedTrackerCalendarId || !data) return;
 
     const habitName = newHabitName.trim();
     if (!habitName) return;
+
+    if (data.habits.some((habit) => habit.name.toLowerCase() === habitName.toLowerCase())) {
+      setActionError("Habit already exists.");
+      return;
+    }
+
+    const previousData = data;
+    const optimisticHabit = buildEmptyHabit(
+      habitName,
+      data.trackerRange.startDate,
+      data.trackerRange.endDate
+    );
+    const nextData = {
+      ...data,
+      habits: [...data.habits, optimisticHabit],
+    };
+
+    setData(nextData);
+    setLastFetchedAt(writeCache(dataCacheKey, nextData));
+    setNewHabitName("");
 
     try {
       setActionLoading(true);
@@ -244,19 +402,38 @@ export default function HabitTracker() {
           habitName,
         }),
       });
-
-      setNewHabitName("");
-      refresh();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Failed to add habit";
       setActionError(message);
+      setData(previousData);
+      setLastFetchedAt(writeCache(dataCacheKey, previousData));
+      setNewHabitName(habitName);
     } finally {
       setActionLoading(false);
     }
   };
 
   const toggleHabit = async (habitName: string, date: string, completed: boolean) => {
-    if (!selectedTrackerCalendarId) return;
+    if (!selectedTrackerCalendarId || !data) return;
+
+    const previousData = data;
+
+    const nextData = updateHabitInData(data, habitName, (habit) => {
+        const days = habit.days.map((day) =>
+          day.date === date ? { ...day, completed } : day
+        );
+        const stats = computeHabitStats(days);
+
+        return {
+          ...habit,
+          days,
+          currentStreak: stats.currentStreak,
+          longestStreak: stats.longestStreak,
+          totalCompleted: stats.totalCompleted,
+        };
+      });
+    setData(nextData);
+    setLastFetchedAt(writeCache(dataCacheKey, nextData));
 
     try {
       setActionLoading(true);
@@ -271,18 +448,29 @@ export default function HabitTracker() {
           completed,
         }),
       });
-
-      refresh();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Failed to update habit";
       setActionError(message);
+      setData(previousData);
+      setLastFetchedAt(writeCache(dataCacheKey, previousData));
     } finally {
       setActionLoading(false);
     }
   };
 
   const removeHabit = async (habitName: string) => {
-    if (!selectedTrackerCalendarId) return;
+    if (!selectedTrackerCalendarId || !data) return;
+
+    const previousData = data;
+
+    const nextData = {
+      ...data,
+      habits: data.habits.filter(
+        (habit) => habit.name.toLowerCase() !== habitName.toLowerCase()
+      ),
+    };
+    setData(nextData);
+    setLastFetchedAt(writeCache(dataCacheKey, nextData));
 
     try {
       setActionLoading(true);
@@ -295,13 +483,44 @@ export default function HabitTracker() {
           habitName,
         }),
       });
-
-      refresh();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Failed to delete habit";
       setActionError(message);
+      setData(previousData);
+      setLastFetchedAt(writeCache(dataCacheKey, previousData));
     } finally {
       setActionLoading(false);
+    }
+  };
+
+  const refreshData = async () => {
+    if (calendarsLoading) return;
+
+    try {
+      setRefreshingData(true);
+      setError(null);
+
+      const params = new URLSearchParams({ weeks: String(weeks) });
+      if (selectedTrackerCalendarId) {
+        params.set("trackerCalendarId", selectedTrackerCalendarId);
+      }
+
+      const response = await fetch(`/api/habit-tracker?${params.toString()}`);
+      const payload = (await response.json()) as HabitTrackerData | { error?: string };
+
+      if (!response.ok) {
+        const message = "error" in payload ? payload.error : "Failed to fetch habit tracker";
+        throw new Error(message || "Failed to fetch habit tracker");
+      }
+
+      const typedPayload = payload as HabitTrackerData;
+      setData(typedPayload);
+      setLastFetchedAt(writeCache(dataCacheKey, typedPayload));
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to fetch habit tracker";
+      setError(message);
+    } finally {
+      setRefreshingData(false);
     }
   };
 
@@ -312,6 +531,9 @@ export default function HabitTracker() {
           <h2 className="text-lg font-semibold">Habit Tracker</h2>
           <p className="text-xs text-zinc-500 mt-1">
             Study consistency plus custom habits stored in Google Calendar.
+          </p>
+          <p className="text-[11px] text-zinc-500 mt-1">
+            Last fetched {formatTimeSince(lastFetchedAt, now)}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -331,6 +553,7 @@ export default function HabitTracker() {
             onChange={(event) => setSelectedTrackerCalendarId(event.target.value || null)}
             disabled={calendarsLoading || !hasWritableCalendars}
             className="text-sm border rounded-lg px-2 py-1 bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700 min-w-56"
+            aria-label="Select tracker calendar"
           >
             {!hasWritableCalendars && <option value="">No writable calendars found</option>}
             {hasWritableCalendars &&
@@ -341,6 +564,13 @@ export default function HabitTracker() {
                 </option>
               ))}
           </select>
+          <button
+            onClick={refreshData}
+            disabled={refreshingData}
+            className="px-2 py-1 rounded-md text-xs bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 disabled:opacity-50 transition-colors"
+          >
+            {refreshingData ? "Refreshing..." : "Refresh"}
+          </button>
         </div>
       </div>
 
@@ -478,50 +708,102 @@ export default function HabitTracker() {
               <p className="text-sm text-zinc-500">No habits yet. Add one above to start tracking.</p>
             )}
 
-            <div className="space-y-3">
-              {data.habits.map((habit) => (
-                <div
-                  key={habit.slug}
-                  className="rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 p-3"
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-                    <div>
-                      <p className="font-medium text-sm">{habit.name}</p>
-                      <p className="text-xs text-zinc-500">
-                        Current streak {habit.currentStreak}d, longest {habit.longestStreak}d, completed {habit.totalCompleted} days
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => removeHabit(habit.name)}
-                      disabled={actionLoading}
-                      className="px-2 py-1 rounded-md text-xs bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors"
-                    >
-                      Remove
-                    </button>
-                  </div>
+            <div className="space-y-4">
+              {data.habits.map((habit) => {
+                const habitGrid = buildWeeklyGrid(habit.days);
+                const habitMonthLabels = buildGridMonthLabels(habitGrid);
 
-                  <div className="overflow-x-auto">
-                    <div className="flex gap-[4px] min-w-max">
-                      {habit.days.map((day) => (
-                        <button
-                          key={`${habit.slug}-${day.date}`}
-                          type="button"
-                          aria-label={`${habit.name} ${day.date} ${day.completed ? "complete" : "incomplete"}`}
-                          title={`${formatShortDate(day.date)} - ${day.completed ? "Complete" : "Not done"}`}
-                          onClick={() => toggleHabit(habit.name, day.date, !day.completed)}
-                          disabled={actionLoading}
-                          className={`w-[14px] h-[14px] rounded-[3px] transition-colors ${
-                            day.completed
-                              ? "bg-sky-500 hover:bg-sky-600"
-                              : "bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600"
-                          }`}
-                        />
-                      ))}
+                return (
+                  <div
+                    key={habit.slug}
+                    className="rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 p-3"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                      <div>
+                        <p className="font-medium text-sm">{habit.name}</p>
+                        <p className="text-xs text-zinc-500">
+                          Current streak {habit.currentStreak}d, longest {habit.longestStreak}d, completed {habit.totalCompleted} days
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeHabit(habit.name)}
+                        disabled={actionLoading}
+                        className="px-2 py-1 rounded-md text-xs bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors"
+                      >
+                        Remove
+                      </button>
+                    </div>
+
+                    <div className="overflow-x-auto pb-2">
+                      <div className="flex ml-8 mb-1 relative" style={{ gap: 0 }}>
+                        {habitMonthLabels.map((monthLabel) => (
+                          <span
+                            key={`${habit.slug}-${monthLabel.label}-${monthLabel.colIndex}`}
+                            className="text-[10px] text-zinc-400 absolute"
+                            style={{ left: `${monthLabel.colIndex * 16 + 32}px` }}
+                          >
+                            {monthLabel.label}
+                          </span>
+                        ))}
+                      </div>
+
+                      <div className="flex gap-[3px] mt-5">
+                        <div className="flex flex-col gap-[3px] pr-1">
+                          {DAY_LABELS.map((label, index) => (
+                            <div
+                              key={`${habit.slug}-${label}`}
+                              className="h-[13px] text-[10px] text-zinc-400 leading-[13px] w-6 text-right"
+                            >
+                              {index % 2 === 0 ? label : ""}
+                            </div>
+                          ))}
+                        </div>
+
+                        {habitGrid.map((week, weekIndex) => (
+                          <div key={`${habit.slug}-${weekIndex}`} className="flex flex-col gap-[3px]">
+                            {week.map((day, dayIndex) => (
+                              <button
+                                key={`${habit.slug}-${weekIndex}-${dayIndex}`}
+                                type="button"
+                                disabled={actionLoading || !day}
+                                aria-label={
+                                  day
+                                    ? `${habit.name} ${day.date} ${day.completed ? "complete" : "incomplete"}`
+                                    : `${habit.name} empty`
+                                }
+                                title={
+                                  day
+                                    ? `${formatShortDate(day.date)} - ${day.completed ? "Complete" : "Not done"}`
+                                    : ""
+                                }
+                                onClick={() => {
+                                  if (!day) return;
+                                  toggleHabit(habit.name, day.date, !day.completed);
+                                }}
+                                className={`w-[13px] h-[13px] rounded-[2px] transition-colors ${
+                                  day
+                                    ? day.completed
+                                      ? "bg-sky-500 hover:bg-sky-600"
+                                      : "bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600"
+                                    : "bg-transparent"
+                                }`}
+                              />
+                            ))}
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="flex items-center gap-2 mt-3 text-xs text-zinc-500">
+                        <span>Less</span>
+                        <div className="w-[13px] h-[13px] rounded-[2px] bg-zinc-200 dark:bg-zinc-700" />
+                        <div className="w-[13px] h-[13px] rounded-[2px] bg-sky-500" />
+                        <span>More</span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>

@@ -128,11 +128,10 @@ function toErrorResponse(error: unknown, fallback: string): NextResponse {
 
 async function ensureAuthenticatedCalendar() {
   const session = await auth();
-  if (!session || !(session as { accessToken?: string }).accessToken) {
+  const accessToken = (session as unknown as { accessToken?: string } | null)?.accessToken;
+  if (!accessToken) {
     return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
   }
-
-  const accessToken = (session as { accessToken: string }).accessToken;
   return { calendar: getCalendarClient(accessToken) };
 }
 

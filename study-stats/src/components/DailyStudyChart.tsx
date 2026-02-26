@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   BarChart,
   Bar,
@@ -13,6 +13,7 @@ import {
 } from "recharts";
 import type { DailyStudyTimeData } from "@/lib/types";
 import { DEFAULT_SUBJECTS } from "@/lib/types";
+import { formatTimeSince, isStale, readCache, writeCache } from "@/lib/client-cache";
 
 export default function DailyStudyChart() {
   const [data, setData] = useState<DailyStudyTimeData | null>(null);
@@ -20,21 +21,66 @@ export default function DailyStudyChart() {
   const [error, setError] = useState<string | null>(null);
   const [days, setDays] = useState(30);
   const [subject, setSubject] = useState<string>("");
+  const [lastFetchedAt, setLastFetchedAt] = useState<number | null>(null);
+  const [now, setNow] = useState(Date.now());
+  const [refreshing, setRefreshing] = useState(false);
+
+  const cacheKey = useMemo(
+    () => `study-stats:daily-study-time:${days}:${subject || "all"}`,
+    [days, subject]
+  );
+
+  const fetchData = useCallback(
+    async (force = false) => {
+      setError(null);
+
+      const cached = readCache<DailyStudyTimeData>(cacheKey);
+      if (cached) {
+        setData(cached.data);
+        setLastFetchedAt(cached.fetchedAt);
+        if (!force && !isStale(cached.fetchedAt)) {
+          setLoading(false);
+          return;
+        }
+      }
+
+      if (cached) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
+
+      const params = new URLSearchParams({ days: String(days) });
+      if (subject) params.set("subject", subject);
+
+      try {
+        const res = await fetch(`/api/daily-study-time?${params}`);
+        const payload = (await res.json()) as DailyStudyTimeData | { error?: string };
+        if (!res.ok) {
+          const message = "error" in payload ? payload.error : "Failed";
+          throw new Error(message || "Failed");
+        }
+        setData(payload as DailyStudyTimeData);
+        setLastFetchedAt(writeCache(cacheKey, payload as DailyStudyTimeData));
+      } catch (e: unknown) {
+        const message = e instanceof Error ? e.message : "Failed";
+        setError(message);
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [cacheKey, days, subject]
+  );
 
   useEffect(() => {
-    setLoading(true);
-    const params = new URLSearchParams({ days: String(days) });
-    if (subject) params.set("subject", subject);
+    fetchData(false);
+  }, [fetchData]);
 
-    fetch(`/api/daily-study-time?${params}`)
-      .then(async (res) => {
-        if (!res.ok) throw new Error((await res.json()).error || "Failed");
-        return res.json();
-      })
-      .then(setData)
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
-  }, [days, subject]);
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   return (
     <div className="rounded-2xl bg-white dark:bg-zinc-900 p-6 shadow-sm border border-zinc-200 dark:border-zinc-800">
@@ -67,6 +113,18 @@ export default function DailyStudyChart() {
             ))}
           </select>
         </div>
+      </div>
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-[11px] text-zinc-500">
+          Last fetched {formatTimeSince(lastFetchedAt, now)}
+        </p>
+        <button
+          onClick={() => fetchData(true)}
+          disabled={refreshing}
+          className="px-2 py-1 rounded-md text-xs bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 disabled:opacity-50 transition-colors"
+        >
+          {refreshing ? "Refreshing..." : "Refresh"}
+        </button>
       </div>
       {loading && (
         <div className="h-64 flex items-center justify-center text-zinc-400 animate-pulse">

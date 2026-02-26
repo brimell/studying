@@ -1,22 +1,66 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { TodayProgressData } from "@/lib/types";
+import { formatTimeSince, isStale, readCache, writeCache } from "@/lib/client-cache";
+
+const CACHE_KEY = "study-stats:today-progress";
 
 export default function TodayProgress() {
   const [data, setData] = useState<TodayProgressData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [lastFetchedAt, setLastFetchedAt] = useState<number | null>(null);
+  const [now, setNow] = useState(Date.now());
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchData = useCallback(
+    async (force = false) => {
+      setError(null);
+
+      const cached = readCache<TodayProgressData>(CACHE_KEY);
+      if (cached) {
+        setData(cached.data);
+        setLastFetchedAt(cached.fetchedAt);
+        if (!force && !isStale(cached.fetchedAt)) {
+          setLoading(false);
+          return;
+        }
+      }
+
+      if (cached) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
+
+      try {
+        const res = await fetch("/api/today-progress");
+        const payload = (await res.json()) as TodayProgressData | { error?: string };
+        if (!res.ok) {
+          const message = "error" in payload ? payload.error : "Failed";
+          throw new Error(message || "Failed");
+        }
+        setData(payload as TodayProgressData);
+        setLastFetchedAt(writeCache(CACHE_KEY, payload as TodayProgressData));
+      } catch (e: unknown) {
+        const message = e instanceof Error ? e.message : "Failed";
+        setError(message);
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    []
+  );
 
   useEffect(() => {
-    fetch("/api/today-progress")
-      .then(async (res) => {
-        if (!res.ok) throw new Error((await res.json()).error || "Failed");
-        return res.json();
-      })
-      .then(setData)
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
+    fetchData(false);
+  }, [fetchData]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
   }, []);
 
   if (loading) return <CardSkeleton title="Today's Progress" />;
@@ -28,7 +72,21 @@ export default function TodayProgress() {
 
   return (
     <div className="rounded-2xl bg-white dark:bg-zinc-900 p-6 shadow-sm border border-zinc-200 dark:border-zinc-800">
-      <h2 className="text-lg font-semibold mb-4">Today&apos;s Study Progress</h2>
+      <div className="flex items-start justify-between gap-3 mb-4">
+        <h2 className="text-lg font-semibold">Today&apos;s Study Progress</h2>
+        <div className="text-right">
+          <p className="text-[11px] text-zinc-500">
+            Last fetched {formatTimeSince(lastFetchedAt, now)}
+          </p>
+          <button
+            onClick={() => fetchData(true)}
+            disabled={refreshing}
+            className="mt-1 px-2 py-1 rounded-md text-xs bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 disabled:opacity-50 transition-colors"
+          >
+            {refreshing ? "Refreshing..." : "Refresh"}
+          </button>
+        </div>
+      </div>
       <div className="flex items-center justify-between mb-2">
         <span className="text-sm text-zinc-500">
           {data.totalCompleted.toFixed(1)}h / {data.totalPlanned.toFixed(1)}h
