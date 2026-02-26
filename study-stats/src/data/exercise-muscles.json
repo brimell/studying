@@ -1,0 +1,144 @@
+[
+  {
+    "exerciseId": "st-1",
+    "exerciseName": "Arm circles",
+    "muscles": [
+      { "id": "deltoid-anterior", "percent": 30 },
+      { "id": "deltoid-medial-lateral", "percent": 30 },
+      { "id": "deltoid-posterior", "percent": 20 },
+      { "id": "supraspinatus", "percent": 20 }
+    ]
+  },
+  {
+    "exerciseId": "st-2",
+    "exerciseName": "Band pull-aparts",
+    "muscles": [
+      { "id": "rhomboids", "percent": 40 },
+      { "id": "trapezius-middle", "percent": 30 },
+      { "id": "deltoid-posterior", "percent": 20 },
+      { "id": "infraspinatus-teres-minor", "percent": 10 }
+    ]
+  },
+  {
+    "exerciseId": "d1-1",
+    "exerciseName": "Incline Dumbbell Bench",
+    "muscles": [
+      { "id": "pectoralis-major", "percent": 50 },
+      { "id": "deltoid-anterior", "percent": 30 },
+      { "id": "triceps-brachii", "percent": 20 }
+    ]
+  },
+  {
+    "exerciseId": "d1-2",
+    "exerciseName": "Flat Dumbbell Bench",
+    "muscles": [
+      { "id": "pectoralis-major", "percent": 55 },
+      { "id": "deltoid-anterior", "percent": 25 },
+      { "id": "triceps-brachii", "percent": 20 }
+    ]
+  },
+  {
+    "exerciseId": "d1-3",
+    "exerciseName": "Seated Dumbbell Shoulder Press",
+    "muscles": [
+      { "id": "deltoid-anterior", "percent": 45 },
+      { "id": "deltoid-medial-lateral", "percent": 30 },
+      { "id": "triceps-brachii", "percent": 25 }
+    ]
+  },
+  {
+    "exerciseId": "d1-4",
+    "exerciseName": "Skull Crushers",
+    "muscles": [
+      { "id": "triceps-brachii", "percent": 85 },
+      { "id": "forearms", "percent": 15 }
+    ]
+  },
+  {
+    "exerciseId": "d1-5",
+    "exerciseName": "Lateral Raises",
+    "muscles": [
+      { "id": "deltoid-medial-lateral", "percent": 70 },
+      { "id": "supraspinatus", "percent": 20 },
+      { "id": "trapezius-upper", "percent": 10 }
+    ]
+  },
+  {
+    "exerciseId": "d2-1",
+    "exerciseName": "Chest-Supported Dumbbell Row",
+    "muscles": [
+      { "id": "latissimus-dorsi-teres-major", "percent": 40 },
+      { "id": "rhomboids", "percent": 25 },
+      { "id": "biceps-brachii", "percent": 20 },
+      { "id": "brachioradialis", "percent": 15 }
+    ]
+  },
+  {
+    "exerciseId": "d2-2",
+    "exerciseName": "Rear Delt Fly",
+    "muscles": [
+      { "id": "deltoid-posterior", "percent": 50 },
+      { "id": "rhomboids", "percent": 25 },
+      { "id": "trapezius-middle", "percent": 25 }
+    ]
+  },
+  {
+    "exerciseId": "d3-1",
+    "exerciseName": "DB Front Squat",
+    "muscles": [
+      { "id": "quadriceps", "percent": 45 },
+      { "id": "gluteus-maximus", "percent": 30 },
+      { "id": "core", "percent": 15 },
+      { "id": "erector-spinae", "percent": 10 }
+    ]
+  },
+  {
+    "exerciseId": "d3-2",
+    "exerciseName": "Bulgarian Split Squats",
+    "muscles": [
+      { "id": "quadriceps", "percent": 40 },
+      { "id": "gluteus-maximus", "percent": 35 },
+      { "id": "hamstrings", "percent": 15 },
+      { "id": "hip-adductors", "percent": 10 }
+    ]
+  },
+  {
+    "exerciseId": "d3-3",
+    "exerciseName": "Dumbbell RDL",
+    "muscles": [
+      { "id": "hamstrings", "percent": 45 },
+      { "id": "gluteus-maximus", "percent": 35 },
+      { "id": "erector-spinae", "percent": 20 }
+    ]
+  },
+  {
+    "exerciseId": "d3-4",
+    "exerciseName": "Leg Raises",
+    "muscles": [
+      { "id": "rectus-abdominis", "percent": 50 },
+      { "id": "hip-flexors", "percent": 30 },
+      { "id": "core", "percent": 20 }
+    ]
+  },
+  {
+    "exerciseId": "d4-2",
+    "exerciseName": "Push-Ups (slow stretch)",
+    "muscles": [
+      { "id": "pectoralis-major", "percent": 45 },
+      { "id": "deltoid-anterior", "percent": 25 },
+      { "id": "triceps-brachii", "percent": 20 },
+      { "id": "serratus-anterior", "percent": 10 }
+    ]
+  },
+  {
+    "exerciseId": "d6-1",
+    "exerciseName": "5K Run",
+    "muscles": [
+      { "id": "quadriceps", "percent": 30 },
+      { "id": "hamstrings", "percent": 25 },
+      { "id": "gastrocnemius", "percent": 20 },
+      { "id": "soleus", "percent": 15 },
+      { "id": "core", "percent": 10 }
+    ]
+  }
+]

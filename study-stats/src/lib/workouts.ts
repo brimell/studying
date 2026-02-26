@@ -8,66 +8,34 @@ import type {
   WorkoutTemplate,
 } from "@/lib/types";
 import { MUSCLE_GROUPS, WORKOUT_WEEK_DAYS } from "@/lib/types";
+import musclesData from "@/data/muscles.json";
+import exerciseMusclesData from "@/data/exercise-muscles.json";
 
-export const MUSCLE_LABELS: Record<MuscleGroup, string> = {
-  abductors: "Abductors",
-  chest: "Chest",
-  back: "Back",
-  shoulders: "Shoulders",
-  biceps: "Biceps",
-  "biceps-brachii": "Biceps Brachii",
-  brachialis: "Brachialis",
-  brachioradialis: "Brachioradialis",
-  triceps: "Triceps",
-  "triceps-brachii": "Triceps Brachii",
-  "upper-arms": "Upper Arms",
-  forearms: "Forearms",
-  "wrist-extensors": "Wrist Extensors",
-  "wrist-flexors": "Wrist Flexors",
-  pronators: "Pronators",
-  supinators: "Supinators",
-  core: "Core",
-  obliques: "Obliques",
-  "rectus-abdominis": "Rectus Abdominis",
-  waist: "Waist",
-  glutes: "Glutes",
-  "gluteus-maximus": "Gluteus Maximus",
-  hips: "Hips",
-  "hip-flexors": "Hip Flexors",
-  "hip-adductors": "Hip Adductors",
-  "deep-external-rotators": "Deep External Rotators",
-  quads: "Quads",
-  quadriceps: "Quadriceps",
-  thighs: "Thighs",
-  sartorius: "Sartorius",
-  hamstrings: "Hamstrings",
-  calves: "Calves",
-  gastrocnemius: "Gastrocnemius",
-  soleus: "Soleus",
-  "tibialis-anterior": "Tibialis Anterior",
-  feet: "Feet",
-  hands: "Hands",
-  neck: "Neck",
-  "deltoid-anterior": "Deltoid Anterior",
-  "deltoid-medial-lateral": "Deltoid Medial/Lateral",
-  "deltoid-posterior": "Deltoid Posterior",
-  "erector-spinae": "Erector Spinae",
-  "infraspinatus-teres-minor": "Infraspinatus & Teres Minor",
-  "latissimus-dorsi-teres-major": "Latissimus Dorsi & Teres Major",
-  "levator-scapulae": "Levator Scapulae",
-  "pectoralis-major": "Pectoralis Major",
-  "pectoralis-minor": "Pectoralis Minor",
-  "quadratus-lumborum": "Quadratus Lumborum",
-  rhomboids: "Rhomboids",
-  "serratus-anterior": "Serratus Anterior",
-  splenius: "Splenius",
-  sternocleidomastoid: "Sternocleidomastoid",
-  subscapularis: "Subscapularis",
-  supraspinatus: "Supraspinatus",
-  "trapezius-lower": "Trapezius Lower",
-  "trapezius-middle": "Trapezius Middle",
-  "trapezius-upper": "Trapezius Upper",
-};
+const MUSCLE_DEFINITIONS = musclesData as Array<{ id: MuscleGroup; name: string }>;
+
+const MUSCLE_LABELS_FROM_JSON = MUSCLE_DEFINITIONS.reduce(
+  (accumulator, entry) => {
+    accumulator[entry.id] = entry.name;
+    return accumulator;
+  },
+  {} as Partial<Record<MuscleGroup, string>>
+);
+
+export const MUSCLE_LABELS: Record<MuscleGroup, string> = MUSCLE_GROUPS.reduce(
+  (accumulator, muscle) => {
+    accumulator[muscle] = MUSCLE_LABELS_FROM_JSON[muscle] || muscle;
+    return accumulator;
+  },
+  {} as Record<MuscleGroup, string>
+);
+
+export const EXERCISE_MUSCLE_MAP = new Map(
+  (exerciseMusclesData as Array<{
+    exerciseId: string;
+    exerciseName: string;
+    muscles: MuscleGroup[];
+  }>).map((entry) => [entry.exerciseId, entry])
+);
 
 const MAX_WORKOUTS = 100;
 const MAX_EXERCISES_PER_WORKOUT = 60;

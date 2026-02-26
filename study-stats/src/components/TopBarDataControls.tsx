@@ -53,8 +53,8 @@ export default function TopBarDataControls() {
       </button>
 
       {showStudyProjection && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/45 p-4">
-          <div className="w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-4">
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-zinc-900/55 p-4 overflow-y-auto">
+          <div className="w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-4 my-auto shadow-2xl">
             <div className="flex items-center justify-between mb-3">
               <h4 className="text-sm font-semibold">Project Studying</h4>
               <button
