@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type {
   HabitCompletionDay,
   HabitDefinition,
@@ -11,6 +12,7 @@ import type {
 import { DEFAULT_SUBJECTS } from "@/lib/types";
 import { isStale, readCache, writeCache, writeGlobalLastFetched } from "@/lib/client-cache";
 import { lockBodyScroll, unlockBodyScroll } from "@/lib/scroll-lock";
+import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const TRACKER_CALENDAR_STORAGE_KEY = "study-stats.tracker-calendar-id";
@@ -137,7 +139,7 @@ function getHeatCellColor(baseColor: string, level: 0 | 1 | 2 | 3 | 4): string {
 
 function getFutureCellColor(): string {
   // Darker than the "no activity" color so future days are clearly distinct.
-  return "rgba(39, 39, 42, 0.9)";
+  return "rgba(50, 50, 56, 0.92)";
 }
 
 function resolveDefaultHabitColor(slug: string, preferred = "#10b981"): string {
@@ -413,6 +415,7 @@ function updateHabitInData(
 }
 
 export default function HabitTracker() {
+  const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const [data, setData] = useState<HabitTrackerData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -440,6 +443,7 @@ export default function HabitTracker() {
   >({});
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [actionSuccess, setActionSuccess] = useState<string | null>(null);
   const [habitColors, setHabitColors] = useState<Record<string, string>>({});
   const [habitWorkoutLinks, setHabitWorkoutLinks] = useState<Record<string, WorkoutLinkEntry>>({});
   const [habitShowFutureDays, setHabitShowFutureDays] = useState<Record<string, boolean>>({});
@@ -453,6 +457,9 @@ export default function HabitTracker() {
   const [editingDurationHabitSlug, setEditingDurationHabitSlug] = useState<string | null>(null);
   const habitDayQueueRef = useRef<QueuedHabitDayUpdate[]>([]);
   const habitDayQueueRunningRef = useRef(false);
+  const milestoneSyncTimeoutRef = useRef<number | null>(null);
+  const lastMilestoneSnapshotRef = useRef("");
+  const milestonesHydratedRef = useRef(false);
   const hasOpenModal =
     showAddMilestoneModal ||
     showAddHabitModal ||
@@ -589,12 +596,81 @@ export default function HabitTracker() {
   }, [habitShowFutureDays]);
 
   useEffect(() => {
-    setMilestones(readMilestonesFromStorage());
+    const initialMilestones = readMilestonesFromStorage();
+    setMilestones(initialMilestones);
+    lastMilestoneSnapshotRef.current = JSON.stringify(initialMilestones);
+    milestonesHydratedRef.current = true;
   }, []);
 
   useEffect(() => {
-    window.localStorage.setItem(MILESTONES_STORAGE_KEY, JSON.stringify(milestones));
-  }, [milestones]);
+    const serialized = JSON.stringify(milestones);
+    const previousSerialized = window.localStorage.getItem(MILESTONES_STORAGE_KEY);
+    const changed = previousSerialized !== serialized;
+
+    if (changed) {
+      window.localStorage.setItem(MILESTONES_STORAGE_KEY, serialized);
+      window.dispatchEvent(new CustomEvent("study-stats:milestones-updated"));
+    }
+
+    if (!supabase) return;
+    if (!milestonesHydratedRef.current) return;
+    if (serialized === lastMilestoneSnapshotRef.current) return;
+
+    if (milestoneSyncTimeoutRef.current) {
+      window.clearTimeout(milestoneSyncTimeoutRef.current);
+    }
+
+    milestoneSyncTimeoutRef.current = window.setTimeout(() => {
+      void (async () => {
+        try {
+          const { data } = await supabase.auth.getSession();
+          const token = data.session?.access_token;
+          if (!token) return;
+
+          const readResponse = await fetch("/api/account-sync", {
+            method: "GET",
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          });
+          if (!readResponse.ok) return;
+
+          const readJson = (await readResponse.json()) as { payload?: Record<string, string> };
+          const existing = readJson.payload || {};
+          if (existing[MILESTONES_STORAGE_KEY] === serialized) {
+            lastMilestoneSnapshotRef.current = serialized;
+            return;
+          }
+
+          const writeResponse = await fetch("/api/account-sync", {
+            method: "PUT",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              payload: {
+                ...existing,
+                [MILESTONES_STORAGE_KEY]: serialized,
+              },
+            }),
+          });
+
+          if (!writeResponse.ok) return;
+          lastMilestoneSnapshotRef.current = serialized;
+        } catch {
+          // Keep localStorage as source of truth if cloud sync fails.
+        }
+      })();
+    }, 600);
+
+    return () => {
+      if (milestoneSyncTimeoutRef.current) {
+        window.clearTimeout(milestoneSyncTimeoutRef.current);
+        milestoneSyncTimeoutRef.current = null;
+      }
+    };
+  }, [milestones, supabase]);
 
   const dataCacheKey = useMemo(
     () => `study-stats:habit-tracker:${weeks}:${selectedTrackerCalendarId || "auto"}`,
@@ -1240,12 +1316,14 @@ export default function HabitTracker() {
   ): Promise<boolean> => {
     if (!selectedTrackerCalendarId || sourceIds.length === 0) {
       setActionError("Select at least one calendar for time tracking habits.");
+      setActionSuccess(null);
       return false;
     }
 
     try {
       setActionLoading(true);
       setActionError(null);
+      setActionSuccess(null);
       await runAction({
         method: "PUT",
         body: JSON.stringify({
@@ -1256,25 +1334,32 @@ export default function HabitTracker() {
         }),
       });
       await refreshData();
+      setActionSuccess("Tracking source saved and confirmed.");
       return true;
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Failed to update habit settings";
       setActionError(message);
+      setActionSuccess(null);
       return false;
     } finally {
       setActionLoading(false);
     }
   };
 
-  const updateBinaryHabitConfig = async (habitName: string, trackingCalendarId: string) => {
+  const updateBinaryHabitConfig = async (
+    habitName: string,
+    trackingCalendarId: string
+  ): Promise<boolean> => {
     if (!selectedTrackerCalendarId || !trackingCalendarId) {
       setActionError("Select a writable calendar for this habit.");
-      return;
+      setActionSuccess(null);
+      return false;
     }
 
     try {
       setActionLoading(true);
       setActionError(null);
+      setActionSuccess(null);
       await runAction({
         method: "PUT",
         body: JSON.stringify({
@@ -1284,9 +1369,13 @@ export default function HabitTracker() {
         }),
       });
       await refreshData();
+      setActionSuccess("Tracking source saved and confirmed.");
+      return true;
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Failed to update habit settings";
       setActionError(message);
+      setActionSuccess(null);
+      return false;
     } finally {
       setActionLoading(false);
     }
@@ -1363,7 +1452,11 @@ export default function HabitTracker() {
   }, [refreshData]);
 
   useEffect(() => {
-    const onMilestonesUpdated = () => setMilestones(readMilestonesFromStorage());
+    const onMilestonesUpdated = () =>
+      setMilestones((previous) => {
+        const next = readMilestonesFromStorage();
+        return JSON.stringify(previous) === JSON.stringify(next) ? previous : next;
+      });
     window.addEventListener("study-stats:milestones-updated", onMilestonesUpdated);
     return () => window.removeEventListener("study-stats:milestones-updated", onMilestonesUpdated);
   }, []);
@@ -1398,6 +1491,9 @@ export default function HabitTracker() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <span className="text-xs text-zinc-500 self-center">
+            Number of previous days: {weeks * 7}
+          </span>
           <select
             value={weeks}
             onChange={(event) => setWeeks(Number(event.target.value))}
@@ -1488,6 +1584,7 @@ export default function HabitTracker() {
             </div>
 
             {actionError && <p className="text-sm text-red-500 mb-3">{actionError}</p>}
+            {actionSuccess && <p className="text-sm text-emerald-600 mb-3">{actionSuccess}</p>}
 
             {!selectedTrackerCalendarId && (
               <p className="text-sm text-zinc-500">
@@ -1740,7 +1837,7 @@ export default function HabitTracker() {
                                       : day.completed
                                         ? `${getBinaryCompletedColorClass(habitColor)} hover:opacity-90 ring-1 ring-zinc-400/30 dark:ring-zinc-300/30`
                                         : isFutureDay
-                                          ? "bg-zinc-500 dark:bg-zinc-900"
+                                          ? "bg-zinc-600 dark:bg-zinc-900"
                                           : "bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600"
                                     : "bg-transparent"
                                 }`}
@@ -1807,17 +1904,19 @@ export default function HabitTracker() {
             </div>
           </div>
 
-          {editingDurationHabit && (
-            <div
-              className="fixed inset-0 z-[120] flex items-center justify-center bg-zinc-900/55 p-4 overflow-y-auto"
-              onMouseDown={(event) => {
-                if (event.target === event.currentTarget) setEditingDurationHabitSlug(null);
-              }}
-            >
+          {editingDurationHabit &&
+            typeof document !== "undefined" &&
+            createPortal(
               <div
-                className="w-full max-w-2xl rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-4 my-auto shadow-2xl"
-                onMouseDown={(event) => event.stopPropagation()}
+                className="fixed inset-0 z-[120] flex items-center justify-center bg-zinc-900/55 p-4 overflow-y-auto"
+                onMouseDown={(event) => {
+                  if (event.target === event.currentTarget) setEditingDurationHabitSlug(null);
+                }}
               >
+                <div
+                  className="w-full max-w-2xl rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-4 my-auto shadow-2xl"
+                  onMouseDown={(event) => event.stopPropagation()}
+                >
                 <div className="flex items-center justify-between mb-3">
                   <h4 className="text-sm font-semibold">
                     Edit Time Tracking Sources: {editingDurationHabit.name}
@@ -2008,123 +2107,131 @@ export default function HabitTracker() {
                   </button>
                 </div>
               </div>
-            </div>
-          )}
+              </div>,
+              document.body
+            )}
 
-          {editingBinaryHabit && (
-            <div
-              className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/45 p-4"
-              onMouseDown={(event) => {
-                if (event.target === event.currentTarget) setEditingBinaryHabitSlug(null);
-              }}
-            >
+          {editingBinaryHabit &&
+            typeof document !== "undefined" &&
+            createPortal(
               <div
-                className="w-full max-w-xl rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-4"
-                onMouseDown={(event) => event.stopPropagation()}
+                className="fixed inset-0 z-[120] flex items-center justify-center bg-zinc-900/55 p-4 overflow-y-auto"
+                onMouseDown={(event) => {
+                  if (event.target === event.currentTarget) setEditingBinaryHabitSlug(null);
+                }}
               >
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="text-sm font-semibold">
-                    Edit Tracking Source: {editingBinaryHabit.name}
-                  </h4>
-                  <button
-                    type="button"
-                    onClick={() => setEditingBinaryHabitSlug(null)}
-                    className="px-2 py-1 rounded-md text-xs bg-zinc-200 dark:bg-zinc-700"
-                  >
-                    Close
-                  </button>
-                </div>
-
-                <div className="space-y-3">
-                  <label className="block">
-                    <span className="text-xs text-zinc-500">Tracking calendar</span>
-                    <select
-                      value={
-                        habitTrackingCalendarDrafts[editingBinaryHabit.slug] ||
-                        selectedTrackerCalendarId ||
-                        ""
-                      }
-                      onChange={(event) =>
-                        setHabitTrackingCalendarDrafts((previous) => ({
-                          ...previous,
-                          [editingBinaryHabit.slug]: event.target.value || null,
-                        }))
-                      }
-                      className="mt-1 w-full border rounded-lg px-3 py-2 text-sm bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
-                      disabled={actionLoading || !hasWritableCalendars}
+                <div
+                  className="w-full max-w-xl rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-4 my-auto shadow-2xl"
+                  onMouseDown={(event) => event.stopPropagation()}
+                >
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-sm font-semibold">
+                      Edit Tracking Source: {editingBinaryHabit.name}
+                    </h4>
+                    <button
+                      type="button"
+                      onClick={() => setEditingBinaryHabitSlug(null)}
+                      className="px-2 py-1 rounded-md text-xs bg-zinc-200 dark:bg-zinc-700"
                     >
-                      {calendars.map((calendarOption) => (
-                        <option
-                          key={`${editingBinaryHabit.slug}-${calendarOption.id}`}
-                          value={calendarOption.id}
-                        >
-                          {calendarOption.summary}
-                          {calendarOption.primary ? " (Primary)" : ""}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                      Close
+                    </button>
+                  </div>
 
-                  <label className="flex items-center gap-2 text-xs">
-                    <input
-                      type="checkbox"
-                      checked={Boolean(habitWorkoutLinks[editingBinaryHabit.slug]?.enabled)}
-                      onChange={(event) =>
-                        setHabitWorkoutLinks((previous) => ({
-                          ...previous,
-                          [editingBinaryHabit.slug]: {
-                            name: editingBinaryHabit.name,
-                            enabled: event.target.checked,
-                          },
-                        }))
-                      }
-                    />
-                    <span className="text-zinc-600 dark:text-zinc-300">
-                      Link to workout planner logs
-                    </span>
-                  </label>
-                </div>
-
-                <div className="flex justify-end gap-2 mt-4">
-                  <button
-                    type="button"
-                    onClick={() => setEditingBinaryHabitSlug(null)}
-                    className="px-3 py-1.5 rounded-md text-xs bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      await updateBinaryHabitConfig(
-                        editingBinaryHabit.name,
-                        habitTrackingCalendarDrafts[editingBinaryHabit.slug] ||
+                  <div className="space-y-3">
+                    <label className="block">
+                      <span className="text-xs text-zinc-500">Tracking calendar</span>
+                      <select
+                        value={
+                          habitTrackingCalendarDrafts[editingBinaryHabit.slug] ||
                           selectedTrackerCalendarId ||
                           ""
-                      );
-                      setEditingBinaryHabitSlug(null);
-                    }}
-                    disabled={actionLoading || !hasWritableCalendars}
-                    className="px-3 py-1.5 rounded-md text-xs bg-sky-500 hover:bg-sky-600 text-white disabled:opacity-50 transition-colors"
-                  >
-                    Save tracking source
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
+                        }
+                        onChange={(event) =>
+                          setHabitTrackingCalendarDrafts((previous) => ({
+                            ...previous,
+                            [editingBinaryHabit.slug]: event.target.value || null,
+                          }))
+                        }
+                        className="mt-1 w-full border rounded-lg px-3 py-2 text-sm bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
+                        disabled={actionLoading || !hasWritableCalendars}
+                      >
+                        {calendars.map((calendarOption) => (
+                          <option
+                            key={`${editingBinaryHabit.slug}-${calendarOption.id}`}
+                            value={calendarOption.id}
+                          >
+                            {calendarOption.summary}
+                            {calendarOption.primary ? " (Primary)" : ""}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
 
-          {showAddMilestoneModal && (
-            <div
-              className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/45 p-4"
-              onMouseDown={(event) => {
-                if (event.target === event.currentTarget) setShowAddMilestoneModal(false);
-              }}
-            >
+                    <label className="flex items-center gap-2 text-xs">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(habitWorkoutLinks[editingBinaryHabit.slug]?.enabled)}
+                        onChange={(event) =>
+                          setHabitWorkoutLinks((previous) => ({
+                            ...previous,
+                            [editingBinaryHabit.slug]: {
+                              name: editingBinaryHabit.name,
+                              enabled: event.target.checked,
+                            },
+                          }))
+                        }
+                      />
+                      <span className="text-zinc-600 dark:text-zinc-300">
+                        Link to workout planner logs
+                      </span>
+                    </label>
+                  </div>
+
+                  <div className="flex justify-end gap-2 mt-4">
+                    <button
+                      type="button"
+                      onClick={() => setEditingBinaryHabitSlug(null)}
+                      className="px-3 py-1.5 rounded-md text-xs bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const saved = await updateBinaryHabitConfig(
+                          editingBinaryHabit.name,
+                          habitTrackingCalendarDrafts[editingBinaryHabit.slug] ||
+                            selectedTrackerCalendarId ||
+                            ""
+                        );
+                        if (saved) {
+                          setEditingBinaryHabitSlug(null);
+                        }
+                      }}
+                      disabled={actionLoading || !hasWritableCalendars}
+                      className="px-3 py-1.5 rounded-md text-xs bg-sky-500 hover:bg-sky-600 text-white disabled:opacity-50 transition-colors"
+                    >
+                      Save tracking source
+                    </button>
+                  </div>
+                </div>
+              </div>,
+              document.body
+            )}
+
+          {showAddMilestoneModal &&
+            typeof document !== "undefined" &&
+            createPortal(
               <div
-                className="w-full max-w-xl rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-4"
-                onMouseDown={(event) => event.stopPropagation()}
+                className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/45 p-4"
+                onMouseDown={(event) => {
+                  if (event.target === event.currentTarget) setShowAddMilestoneModal(false);
+                }}
               >
+                <div
+                  className="w-full max-w-xl rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-4"
+                  onMouseDown={(event) => event.stopPropagation()}
+                >
                 <div className="flex items-center justify-between mb-3">
                   <h4 className="text-sm font-semibold">Add Exam/Coursework Date</h4>
                   <button
@@ -2169,20 +2276,23 @@ export default function HabitTracker() {
                   </button>
                 </form>
               </div>
-            </div>
-          )}
+              </div>,
+              document.body
+            )}
 
-          {showAddHabitModal && (
-            <div
-              className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/45 p-4"
-              onMouseDown={(event) => {
-                if (event.target === event.currentTarget) setShowAddHabitModal(false);
-              }}
-            >
+          {showAddHabitModal &&
+            typeof document !== "undefined" &&
+            createPortal(
               <div
-                className="w-full max-w-2xl rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-4"
-                onMouseDown={(event) => event.stopPropagation()}
+                className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/45 p-4"
+                onMouseDown={(event) => {
+                  if (event.target === event.currentTarget) setShowAddHabitModal(false);
+                }}
               >
+                <div
+                  className="w-full max-w-2xl rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-4"
+                  onMouseDown={(event) => event.stopPropagation()}
+                >
                 <div className="flex items-center justify-between mb-3">
                   <h4 className="text-sm font-semibold">Add Habit</h4>
                   <button
@@ -2278,6 +2388,7 @@ export default function HabitTracker() {
                 </div>
 
                 {actionError && <p className="text-sm text-red-500 mb-3">{actionError}</p>}
+                {actionSuccess && <p className="text-sm text-emerald-600 mb-3">{actionSuccess}</p>}
 
                 {newHabitMode === "duration" && (
                   <div className="rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 p-3 space-y-3">
@@ -2395,8 +2506,9 @@ export default function HabitTracker() {
                   </div>
                 )}
               </div>
-            </div>
-          )}
+              </div>,
+              document.body
+            )}
         </div>
       )}
     </div>

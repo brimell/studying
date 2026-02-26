@@ -342,7 +342,13 @@ async function resolveWritableTrackerCalendar(
   if (requestedCalendarId) {
     const match = calendars.find((entry) => entry.id === requestedCalendarId);
     if (match) return match.id;
-    return null;
+    // If a previously-selected calendar is no longer writable/available,
+    // fall back to a valid writable calendar instead of returning empty data.
+    const defaultCalendarId = process.env.HABIT_TRACKER_CALENDAR_ID;
+    if (defaultCalendarId && calendars.some((entry) => entry.id === defaultCalendarId)) {
+      return defaultCalendarId;
+    }
+    return calendars[0].id;
   }
 
   const defaultCalendarId = process.env.HABIT_TRACKER_CALENDAR_ID;

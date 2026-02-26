@@ -9,9 +9,18 @@ interface MuscleDiagramFiles {
   posterior: string;
 }
 
-const BASE_DIAGRAM: MuscleDiagramFiles = {
-  anterior: "View=Anterior, Dissection=Outer Muscles, Color=No.svg",
-  posterior: "View=Posterior, Dissection=Outer Muscles, Color=No.svg",
+type DissectionLayer = "Outer Muscles" | "Inner Muscles";
+type DiagramView = keyof MuscleDiagramFiles;
+
+const BASE_DIAGRAM: Record<DissectionLayer, MuscleDiagramFiles> = {
+  "Outer Muscles": {
+    anterior: "View=Anterior, Dissection=Outer Muscles, Color=No.svg",
+    posterior: "View=Posterior, Dissection=Outer Muscles, Color=No.svg",
+  },
+  "Inner Muscles": {
+    anterior: "View=Anterior, Dissection=Inner Muscles, Color=No.svg",
+    posterior: "View=Posterior, Dissection=Inner Muscles, Color=No.svg",
+  },
 };
 
 const CORE_DIAGRAM_FILES: Record<
@@ -199,120 +208,194 @@ function getMuscleLabel(muscle: MuscleGroup, simplified: boolean): string {
   return COMMON_LABELS[alias] || MUSCLE_LABELS[muscle];
 }
 
-function resolveDiagramFiles(muscle: MuscleGroup, simplified: boolean): MuscleDiagramFiles {
+function applyDissection(fileName: string, dissection: DissectionLayer): string {
+  return fileName.replace("Dissection=Outer Muscles", `Dissection=${dissection}`);
+}
+
+function resolveDiagramFiles(
+  muscle: MuscleGroup,
+  simplified: boolean,
+  dissection: DissectionLayer
+): MuscleDiagramFiles {
   if (!simplified) {
     const specific = SPECIFIC_DIAGRAM_FILES[muscle];
-    if (specific) return specific;
+    if (specific) {
+      return {
+        anterior: applyDissection(specific.anterior, dissection),
+        posterior: applyDissection(specific.posterior, dissection),
+      };
+    }
   }
   const alias = getCommonGroupKey(muscle);
-  return CORE_DIAGRAM_FILES[alias] || CORE_DIAGRAM_FILES.back;
+  const base = CORE_DIAGRAM_FILES[alias] || CORE_DIAGRAM_FILES.back;
+  return {
+    anterior: applyDissection(base.anterior, dissection),
+    posterior: applyDissection(base.posterior, dissection),
+  };
 }
+
+const DIAGRAM_ASSET_VERSION = "mask-v2";
 
 function toDiagramPath(fileName: string): string {
-  return `/diagrams/muscular_system/${encodeURIComponent(fileName)}`;
+  return `/diagrams/muscular_system/${encodeURIComponent(fileName)}?v=${DIAGRAM_ASSET_VERSION}`;
 }
 
-function fatigueToOpacity(score: number): number {
+function fatigueToOpacity(score: number, minimumOpacity = 0.16): number {
   if (score <= 0) return 0;
-  // Keep fill visibility mostly stable; fatigue intensity is encoded via color.
-  return 0.82;
+  return Math.max(minimumOpacity, Math.min(0.95, score / 100));
 }
 
-function fatigueToColorFilter(score: number): string {
-  const normalized = Math.max(0, Math.min(1, score / 100));
-  // 120deg (green) at low fatigue -> 0deg (red) at high fatigue.
-  const hue = Math.round((1 - normalized) * 120);
-  return `hue-rotate(${hue}deg) saturate(1.25) brightness(1.02)`;
+const overlayImageCache = new Map<string, string>();
+const overlayImagePromiseCache = new Map<string, Promise<string>>();
+const TRANSPARENT_PIXEL_DATA_URL = "data:image/gif;base64,R0lGODlhAQABAAAAACw=";
+const DEFAULT_NEUTRAL_FILL_COLORS = new Set([
+  "#bdbdbd",
+  "#e0e0e0",
+  "#f5f5f5",
+  "#d9d9d9",
+  "#616161",
+]);
+
+function getOverlayCacheKey(src: string, baseSrc: string): string {
+  return `${src}::${baseSrc}`;
 }
 
-function toRedOnlyDataUrl(src: string): Promise<string> {
-  return new Promise((resolve) => {
-    const image = new Image();
-    image.crossOrigin = "anonymous";
+function normalizeSvgColor(color: string | null): string | null {
+  if (!color) return null;
+  const normalized = color.trim().toLowerCase();
+  if (!normalized || normalized === "none" || normalized === "transparent") return null;
+  return normalized;
+}
 
-    image.onload = () => {
-      try {
-        const canvas = document.createElement("canvas");
-        canvas.width = image.naturalWidth;
-        canvas.height = image.naturalHeight;
+function loadSvgText(src: string): Promise<string> {
+  return fetch(src)
+    .then((response) => {
+      if (!response.ok) throw new Error(`Failed to load SVG: ${src}`);
+      return response.text();
+    })
+    .then((text) => text || "");
+}
 
-        const context = canvas.getContext("2d");
-        if (!context) {
-          resolve(src);
-          return;
-        }
+function collectFillColors(svgText: string): Set<string> {
+  const parser = new DOMParser();
+  const svgDocument = parser.parseFromString(svgText, "image/svg+xml");
+  const colors = new Set<string>();
 
-        context.drawImage(image, 0, 0);
-        const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-        const pixels = imageData.data;
-
-        for (let i = 0; i < pixels.length; i += 4) {
-          const red = pixels[i];
-          const green = pixels[i + 1];
-          const blue = pixels[i + 2];
-          const alpha = pixels[i + 3];
-
-          if (alpha === 0) continue;
-
-          const maxOther = Math.max(green, blue);
-          const isRed = red > 90 && red > maxOther * 1.2 && red - maxOther > 24;
-
-          if (!isRed) {
-            pixels[i + 3] = 0;
-            continue;
-          }
-
-          pixels[i + 1] = 0;
-          pixels[i + 2] = 0;
-        }
-
-        context.putImageData(imageData, 0, 0);
-        resolve(canvas.toDataURL("image/png"));
-      } catch {
-        resolve(src);
-      }
-    };
-
-    image.onerror = () => resolve(src);
-    image.src = src;
+  svgDocument.querySelectorAll("[fill]").forEach((node) => {
+    const color = normalizeSvgColor(node.getAttribute("fill"));
+    if (!color) return;
+    colors.add(color);
   });
+
+  return colors;
+}
+
+function createRedMaskSvgDataUrl(overlaySvgText: string, neutralFillColors: Set<string>): string {
+  const parser = new DOMParser();
+  const overlayDocument = parser.parseFromString(overlaySvgText, "image/svg+xml");
+  const overlaySvg = overlayDocument.documentElement;
+  if (!overlaySvg || overlaySvg.tagName.toLowerCase() !== "svg") return TRANSPARENT_PIXEL_DATA_URL;
+
+  const outputDocument = document.implementation.createDocument("http://www.w3.org/2000/svg", "svg", null);
+  const outputSvg = outputDocument.documentElement;
+
+  for (const attribute of Array.from(overlaySvg.attributes)) {
+    outputSvg.setAttribute(attribute.name, attribute.value);
+  }
+
+  let keptElements = 0;
+  overlayDocument.querySelectorAll("[fill]").forEach((node) => {
+    const fillColor = normalizeSvgColor(node.getAttribute("fill"));
+    if (!fillColor || neutralFillColors.has(fillColor)) return;
+
+    const cloned = outputDocument.importNode(node, true) as Element;
+    cloned.setAttribute("fill", "#ff0000");
+    cloned.removeAttribute("stroke");
+    cloned.removeAttribute("style");
+    outputSvg.appendChild(cloned);
+    keptElements += 1;
+  });
+
+  if (keptElements === 0) return TRANSPARENT_PIXEL_DATA_URL;
+
+  const serialized = new XMLSerializer().serializeToString(outputSvg);
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(serialized)}`;
+}
+
+function toRedOnlyDataUrl(src: string, baseSrc: string): Promise<string> {
+  const cacheKey = getOverlayCacheKey(src, baseSrc);
+  const cached = overlayImageCache.get(cacheKey);
+  if (cached) return Promise.resolve(cached);
+
+  const pending = overlayImagePromiseCache.get(cacheKey);
+  if (pending) return pending;
+
+  const promise = new Promise<string>((resolve) => {
+    Promise.all([loadSvgText(src), loadSvgText(baseSrc)])
+      .then(([overlaySvgText, baseSvgText]) => {
+        try {
+          const baseColors = collectFillColors(baseSvgText);
+          const neutralColors = baseColors.size > 0 ? baseColors : DEFAULT_NEUTRAL_FILL_COLORS;
+          const dataUrl = createRedMaskSvgDataUrl(overlaySvgText, neutralColors);
+          overlayImageCache.set(cacheKey, dataUrl);
+          overlayImagePromiseCache.delete(cacheKey);
+          resolve(dataUrl);
+        } catch {
+          overlayImageCache.set(cacheKey, TRANSPARENT_PIXEL_DATA_URL);
+          overlayImagePromiseCache.delete(cacheKey);
+          resolve(TRANSPARENT_PIXEL_DATA_URL);
+        }
+      })
+      .catch(() => {
+        overlayImageCache.set(cacheKey, TRANSPARENT_PIXEL_DATA_URL);
+        overlayImagePromiseCache.delete(cacheKey);
+        resolve(TRANSPARENT_PIXEL_DATA_URL);
+      });
+  });
+
+  overlayImagePromiseCache.set(cacheKey, promise);
+  return promise;
 }
 
 function RedOnlyOverlay({
   src,
+  baseSrc,
   opacity,
-  fatigueScore,
   delayMs = 0,
   highlighted = false,
   dimmed = false,
 }: {
   src: string;
+  baseSrc: string;
   opacity: number;
-  fatigueScore: number;
   delayMs?: number;
   highlighted?: boolean;
   dimmed?: boolean;
 }) {
-  const [processedSrc, setProcessedSrc] = useState<string>(src);
-  const [visible, setVisible] = useState(false);
+  const cacheKey = getOverlayCacheKey(src, baseSrc);
+  const [processedSrc, setProcessedSrc] = useState<string>(
+    () => overlayImageCache.get(cacheKey) || TRANSPARENT_PIXEL_DATA_URL
+  );
 
   useEffect(() => {
     let cancelled = false;
-    setVisible(false);
-    setProcessedSrc(src);
+    const cached = overlayImageCache.get(cacheKey);
+    if (cached) {
+      setProcessedSrc((previous) => (previous === cached ? previous : cached));
+      return () => {
+        cancelled = true;
+      };
+    }
 
-    toRedOnlyDataUrl(src).then((nextSrc) => {
+    toRedOnlyDataUrl(src, baseSrc).then((nextSrc) => {
       if (cancelled) return;
-      setProcessedSrc(nextSrc);
-      requestAnimationFrame(() => {
-        if (!cancelled) setVisible(true);
-      });
+      setProcessedSrc((previous) => (previous === nextSrc ? previous : nextSrc));
     });
 
     return () => {
       cancelled = true;
     };
-  }, [src]);
+  }, [baseSrc, cacheKey, src]);
 
   return (
     <img
@@ -322,18 +405,13 @@ function RedOnlyOverlay({
       className="absolute inset-0 w-full h-full object-contain"
       loading="lazy"
       style={{
-        opacity: visible ? opacity : 0,
-        transform: visible ? (highlighted ? "scale(1.01)" : "scale(1)") : "scale(0.98)",
-        filter: (() => {
-          const fatigueFilter = fatigueToColorFilter(fatigueScore);
-          if (highlighted) {
-            return `${fatigueFilter} saturate(1.35) brightness(1.12) drop-shadow(0 0 8px rgba(239, 68, 68, 0.45))`;
-          }
-          if (dimmed) {
-            return `${fatigueFilter} brightness(0.75) saturate(0.9)`;
-          }
-          return fatigueFilter;
-        })(),
+        opacity,
+        transform: highlighted ? "scale(1.01)" : "scale(1)",
+        filter: highlighted
+          ? "saturate(1.3) brightness(1.15) drop-shadow(0 0 8px rgba(239, 68, 68, 0.45))"
+          : dimmed
+            ? "brightness(0.7) saturate(0.85)"
+            : "none",
         transitionProperty: "opacity, transform, filter",
         transitionDuration: "380ms, 380ms",
         transitionTimingFunction: "ease-out, ease-out",
@@ -345,6 +423,7 @@ function RedOnlyOverlay({
 
 interface MuscleModelProps {
   scores: Record<MuscleGroup, number>;
+  loadPoints?: Partial<Record<MuscleGroup, number>>;
   title?: string;
   compact?: boolean;
 }
@@ -356,7 +435,12 @@ interface DisplayMuscleEntry {
   muscles: MuscleGroup[];
 }
 
-export default function MuscleModel({ scores, title = "Muscle Load Map", compact = false }: MuscleModelProps) {
+export default function MuscleModel({
+  scores,
+  loadPoints,
+  title = "Muscle Load Map",
+  compact = false,
+}: MuscleModelProps) {
   const [simplifyLabels, setSimplifyLabels] = useState(false);
   const [hoveredEntryKey, setHoveredEntryKey] = useState<string | null>(null);
   const sorted = useMemo(
@@ -396,7 +480,96 @@ export default function MuscleModel({ scores, title = "Muscle Load Map", compact
 
     return [...grouped.values()].sort((a, b) => b.score - a.score);
   }, [nonZero, simplifyLabels]);
+  const simplifiedGroupScoreByKey = useMemo(() => {
+    const map = new Map<keyof typeof CORE_DIAGRAM_FILES, number>();
+    for (const { muscle, score } of nonZero) {
+      const groupKey = getCommonGroupKey(muscle);
+      const existing = map.get(groupKey) || 0;
+      map.set(groupKey, Math.max(existing, score));
+    }
+    return map;
+  }, [nonZero]);
+  const normalizedLoadByMuscle = useMemo(() => {
+    const map = new Map<MuscleGroup, number>();
+    if (!loadPoints) return map;
+
+    let maxLoad = 0;
+    for (const muscle of UI_MUSCLE_GROUPS) {
+      const load = Math.max(0, loadPoints[muscle] || 0);
+      if (load > maxLoad) maxLoad = load;
+    }
+    if (maxLoad <= 0) return map;
+
+    for (const muscle of UI_MUSCLE_GROUPS) {
+      const load = Math.max(0, loadPoints[muscle] || 0);
+      map.set(muscle, (load / maxLoad) * 100);
+    }
+    return map;
+  }, [loadPoints]);
+  const simplifiedGroupLoadByKey = useMemo(() => {
+    const map = new Map<keyof typeof CORE_DIAGRAM_FILES, number>();
+    if (normalizedLoadByMuscle.size === 0) return map;
+
+    for (const muscle of UI_MUSCLE_GROUPS) {
+      const value = normalizedLoadByMuscle.get(muscle) || 0;
+      if (value <= 0) continue;
+      const groupKey = getCommonGroupKey(muscle);
+      const existing = map.get(groupKey) || 0;
+      map.set(groupKey, Math.max(existing, value));
+    }
+    return map;
+  }, [normalizedLoadByMuscle]);
   const hasHover = hoveredEntryKey !== null;
+  const renderOverlayPanel = (view: DiagramView, dissection: DissectionLayer) => (
+    <div className="rounded-md border border-zinc-200 dark:border-zinc-700 overflow-hidden bg-white relative aspect-[3/4] isolate">
+      {(() => {
+        const baseSrc = toDiagramPath(BASE_DIAGRAM[dissection][view]);
+        return (
+          <>
+      <img
+        src={baseSrc}
+        alt={`${view === "anterior" ? "Anterior" : "Posterior"} ${dissection.toLowerCase()} muscle model`}
+        className="absolute inset-0 w-full h-full object-contain"
+        loading="lazy"
+        style={{ opacity: 1 }}
+      />
+      {sorted.map(({ muscle, score }, index) => {
+        if (score <= 0) return null;
+        const groupKey = getCommonGroupKey(muscle);
+        const effectiveScore = simplifiedGroupScoreByKey.get(groupKey) ?? score;
+        const normalizedLoad = normalizedLoadByMuscle.get(muscle) ?? 0;
+        const effectiveNormalizedLoad = simplifyLabels
+          ? (simplifiedGroupLoadByKey.get(groupKey) ?? normalizedLoad)
+          : normalizedLoad;
+        // Load points drive relative intensity, but soreness score caps maximum opacity.
+        const opacitySource =
+          effectiveNormalizedLoad > 0
+            ? (effectiveNormalizedLoad * effectiveScore) / 100
+            : effectiveScore;
+        const usesLoadDrivenOpacity = effectiveNormalizedLoad > 0;
+        const highlighted = simplifyLabels ? hoveredEntryKey === groupKey : hoveredEntryKey === muscle;
+        const dimmed = hasHover && !highlighted;
+        return (
+          <RedOnlyOverlay
+            key={`${dissection}-${view}-${muscle}`}
+            src={toDiagramPath(resolveDiagramFiles(muscle, simplifyLabels, dissection)[view])}
+            baseSrc={baseSrc}
+            opacity={
+              hasHover
+                ? (highlighted ? 0.98 : 0.02)
+                : fatigueToOpacity(opacitySource, usesLoadDrivenOpacity ? 0 : 0.16)
+            }
+            delayMs={index * 28}
+            highlighted={highlighted}
+            dimmed={dimmed}
+          />
+        );
+      })}
+          </>
+        );
+      })()}
+    </div>
+  );
 
   return (
     <div className="rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 p-3">
@@ -413,62 +586,16 @@ export default function MuscleModel({ scores, title = "Muscle Load Map", compact
       <div className={`grid ${compact ? "grid-cols-1" : "md:grid-cols-[240px,1fr]"} gap-3`}>
         <div className="mx-auto w-full max-w-[360px]">
           <div className="rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-2">
-            <p className="text-xs font-medium mb-2">Overlay view (all muscle groups)</p>
+            <p className="text-xs font-medium mb-2">Overlay view (outer + inner muscle groups)</p>
+            <div className="grid grid-cols-2 gap-2 text-[10px] text-zinc-500 dark:text-zinc-400 mb-1 px-1">
+              <span>Anterior</span>
+              <span>Posterior</span>
+            </div>
             <div className="grid grid-cols-2 gap-2">
-              <div className="rounded-md border border-zinc-200 dark:border-zinc-700 overflow-hidden bg-white relative aspect-[3/4] isolate">
-                <img
-                  src={toDiagramPath(BASE_DIAGRAM.anterior)}
-                  alt="Anterior muscle model"
-                  className="absolute inset-0 w-full h-full object-contain"
-                  loading="lazy"
-                  style={{ opacity: 1 }}
-                />
-                {sorted.map(({ muscle, score }, index) => {
-                  if (score <= 0) return null;
-                  const highlighted = simplifyLabels
-                    ? hoveredEntryKey === getCommonGroupKey(muscle)
-                    : hoveredEntryKey === muscle;
-                  const dimmed = hasHover && !highlighted;
-                  return (
-                    <RedOnlyOverlay
-                      key={`anterior-${muscle}`}
-                      src={toDiagramPath(resolveDiagramFiles(muscle, simplifyLabels).anterior)}
-                      opacity={hasHover ? (highlighted ? 0.98 : 0.02) : fatigueToOpacity(score)}
-                      fatigueScore={score}
-                      delayMs={index * 28}
-                      highlighted={highlighted}
-                      dimmed={dimmed}
-                    />
-                  );
-                })}
-              </div>
-              <div className="rounded-md border border-zinc-200 dark:border-zinc-700 overflow-hidden bg-white relative aspect-[3/4] isolate">
-                <img
-                  src={toDiagramPath(BASE_DIAGRAM.posterior)}
-                  alt="Posterior muscle model"
-                  className="absolute inset-0 w-full h-full object-contain"
-                  loading="lazy"
-                  style={{ opacity: 1 }}
-                />
-                {sorted.map(({ muscle, score }, index) => {
-                  if (score <= 0) return null;
-                  const highlighted = simplifyLabels
-                    ? hoveredEntryKey === getCommonGroupKey(muscle)
-                    : hoveredEntryKey === muscle;
-                  const dimmed = hasHover && !highlighted;
-                  return (
-                    <RedOnlyOverlay
-                      key={`posterior-${muscle}`}
-                      src={toDiagramPath(resolveDiagramFiles(muscle, simplifyLabels).posterior)}
-                      opacity={hasHover ? (highlighted ? 0.98 : 0.02) : fatigueToOpacity(score)}
-                      fatigueScore={score}
-                      delayMs={index * 28}
-                      highlighted={highlighted}
-                      dimmed={dimmed}
-                    />
-                  );
-                })}
-              </div>
+              {renderOverlayPanel("anterior", "Outer Muscles")}
+              {renderOverlayPanel("posterior", "Outer Muscles")}
+              {renderOverlayPanel("anterior", "Inner Muscles")}
+              {renderOverlayPanel("posterior", "Inner Muscles")}
             </div>
           </div>
         </div>

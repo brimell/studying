@@ -2,6 +2,7 @@
 
 import { FormEvent, useDeferredValue, useEffect, useMemo, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
+import { createPortal } from "react-dom";
 import MuscleModel from "@/components/MuscleModel";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { lockBodyScroll, unlockBodyScroll } from "@/lib/scroll-lock";
@@ -64,6 +65,17 @@ function createMuscleNumberMap(initialValue = 0): Record<MuscleGroup, number> {
     MuscleGroup,
     number
   >;
+}
+
+function computeWorkoutLoadPoints(workout: WorkoutTemplate): Record<MuscleGroup, number> {
+  const byMuscle = createMuscleNumberMap(0);
+  for (const exercise of workout.exercises) {
+    const load = Math.max(1, exercise.sets * exercise.reps);
+    for (const muscle of exercise.muscles) {
+      byMuscle[muscle] += load;
+    }
+  }
+  return byMuscle;
 }
 
 interface KnownExerciseOption {
@@ -546,6 +558,24 @@ export default function WorkoutPlanner() {
   };
 
   const fatigueScores = useMemo(() => computeMuscleFatigue(payload), [payload]);
+  const workoutLoadById = useMemo(() => {
+    const loadMap = new Map<string, Record<MuscleGroup, number>>();
+    for (const workout of payload.workouts) {
+      loadMap.set(workout.id, computeWorkoutLoadPoints(workout));
+    }
+    return loadMap;
+  }, [payload.workouts]);
+  const currentLoadPoints = useMemo(() => {
+    const byMuscle = createMuscleNumberMap(0);
+    for (const log of payload.logs) {
+      const workoutLoad = workoutLoadById.get(log.workoutId);
+      if (!workoutLoad) continue;
+      for (const muscle of MUSCLE_GROUPS) {
+        byMuscle[muscle] += workoutLoad[muscle];
+      }
+    }
+    return byMuscle;
+  }, [payload.logs, workoutLoadById]);
   const draftMuscleScores = useMemo(() => {
     const workout: WorkoutTemplate = {
       id: "draft",
@@ -567,6 +597,16 @@ export default function WorkoutPlanner() {
     };
     return computeMuscleFatigue(draftPayload);
   }, [draftExercises]);
+  const draftLoadPoints = useMemo(
+    () =>
+      computeWorkoutLoadPoints({
+        id: "draft",
+        name: "Draft",
+        createdAt: new Date().toISOString(),
+        exercises: draftExercises,
+      }),
+    [draftExercises]
+  );
   const workoutById = useMemo(
     () => new Map(payload.workouts.map((workout) => [workout.id, workout])),
     [payload.workouts]
@@ -698,7 +738,11 @@ export default function WorkoutPlanner() {
       {error && <p className="text-sm text-red-500">{error}</p>}
       {message && <p className="text-sm text-emerald-600">{message}</p>}
 
-      <MuscleModel scores={fatigueScores} title="Current Muscle Fatigue (Recovery-Weighted)" />
+      <MuscleModel
+        scores={fatigueScores}
+        loadPoints={currentLoadPoints}
+        title="Current Muscle Fatigue (Recovery-Weighted)"
+      />
 
       <div className="grid grid-cols-1 gap-5">
         <section className="rounded-2xl bg-white dark:bg-zinc-900 p-5 shadow-sm border border-zinc-200 dark:border-zinc-800">
@@ -722,6 +766,7 @@ export default function WorkoutPlanner() {
                 <div className="mt-3">
                   <MuscleModel
                     scores={workoutScoresById.get(workout.id) || fatigueScores}
+                    loadPoints={workoutLoadById.get(workout.id)}
                     title="Workout Muscle Targets"
                     compact
                   />
@@ -882,6 +927,7 @@ export default function WorkoutPlanner() {
                   <div className="mt-3">
                     <MuscleModel
                       scores={summary?.scores || fatigueScores}
+                      loadPoints={summary?.totalByMuscle}
                       title="Weekly Muscle Groups Hit"
                       compact
                     />
@@ -923,198 +969,206 @@ export default function WorkoutPlanner() {
         </section>
       </div>
 
-      {showCreateWorkoutModal && (
-        <div
-          className="fixed inset-0 z-[90] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) setShowCreateWorkoutModal(false);
-          }}
-        >
+      {showCreateWorkoutModal &&
+        typeof document !== "undefined" &&
+        createPortal(
           <div
-            className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white dark:bg-zinc-900 p-5 shadow-xl border border-zinc-200 dark:border-zinc-800"
-            onMouseDown={(event) => event.stopPropagation()}
+            className="fixed inset-0 z-[90] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) setShowCreateWorkoutModal(false);
+            }}
           >
-            <div className="flex items-center justify-between gap-3 mb-3">
-              <h2 className="text-lg font-semibold">Create Workout</h2>
-              <button
-                type="button"
-                onClick={() => setShowCreateWorkoutModal(false)}
-                className="px-2 py-1 rounded-md text-xs bg-zinc-200 dark:bg-zinc-700"
-              >
-                Close
-              </button>
-            </div>
+            <div
+              className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white dark:bg-zinc-900 p-5 shadow-xl border border-zinc-200 dark:border-zinc-800"
+              onMouseDown={(event) => event.stopPropagation()}
+            >
+              <div className="flex items-center justify-between gap-3 mb-3">
+                <h2 className="text-lg font-semibold">Create Workout</h2>
+                <button
+                  type="button"
+                  onClick={() => setShowCreateWorkoutModal(false)}
+                  className="px-2 py-1 rounded-md text-xs bg-zinc-200 dark:bg-zinc-700"
+                >
+                  Close
+                </button>
+              </div>
 
-            <div className="mb-3">
-              <MuscleModel scores={draftMuscleScores} title="Draft Workout Muscle Targets" compact />
-            </div>
+              <div className="mb-3">
+                <MuscleModel
+                  scores={draftMuscleScores}
+                  loadPoints={draftLoadPoints}
+                  title="Draft Workout Muscle Targets"
+                  compact
+                />
+              </div>
 
-            <form onSubmit={saveWorkout} className="space-y-3">
-              <input
-                type="text"
-                value={newWorkoutName}
-                onChange={(event) => setNewWorkoutName(event.target.value)}
-                placeholder="Workout name (e.g. Push Day)"
-                className="w-full border rounded-lg px-3 py-2 text-sm bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
-              />
-
-              <div className="rounded-lg border border-zinc-200 dark:border-zinc-700 p-3 space-y-2">
-                <p className="text-sm font-medium">Add Exercise</p>
+              <form onSubmit={saveWorkout} className="space-y-3">
                 <input
                   type="text"
-                  value={exerciseSearch}
-                  onChange={(event) => setExerciseSearch(event.target.value)}
-                  placeholder="Search known exercises (from library)"
+                  value={newWorkoutName}
+                  onChange={(event) => setNewWorkoutName(event.target.value)}
+                  placeholder="Workout name (e.g. Push Day)"
                   className="w-full border rounded-lg px-3 py-2 text-sm bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
                 />
-                <div className="grid grid-cols-2 gap-2">
+
+                <div className="rounded-lg border border-zinc-200 dark:border-zinc-700 p-3 space-y-2">
+                  <p className="text-sm font-medium">Add Exercise</p>
                   <input
-                    type="number"
-                    value={exerciseSets}
-                    min={1}
-                    max={30}
-                    onChange={(event) => setExerciseSets(Number(event.target.value))}
-                    placeholder="Sets"
-                    className="border rounded-lg px-3 py-2 text-sm bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
+                    type="text"
+                    value={exerciseSearch}
+                    onChange={(event) => setExerciseSearch(event.target.value)}
+                    placeholder="Search known exercises (from library)"
+                    className="w-full border rounded-lg px-3 py-2 text-sm bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
                   />
-                  <input
-                    type="number"
-                    value={exerciseReps}
-                    min={1}
-                    max={100}
-                  onChange={(event) => setExerciseReps(Number(event.target.value))}
-                  placeholder="Reps"
-                  className="border rounded-lg px-3 py-2 text-sm bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
-                />
-                </div>
-                <div className="rounded-md border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 h-44 overflow-y-auto">
-                  {filteredKnownExercises.length === 0 && (
-                    <p className="px-3 py-2 text-xs text-zinc-500">No matching known exercises.</p>
-                  )}
-                  {filteredKnownExercises.map((exercise) => (
-                    <div
-                      key={exercise.id}
-                      className="flex items-center justify-between gap-2 px-3 py-2 border-b border-zinc-200 dark:border-zinc-700 last:border-b-0"
-                    >
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium truncate">{exercise.name}</p>
-                        <p className="text-[11px] text-zinc-500 truncate">
-                          {exercise.muscles.map((muscle) => MUSCLE_LABELS[muscle]).join(", ")}
-                        </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="number"
+                      value={exerciseSets}
+                      min={1}
+                      max={30}
+                      onChange={(event) => setExerciseSets(Number(event.target.value))}
+                      placeholder="Sets"
+                      className="border rounded-lg px-3 py-2 text-sm bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
+                    />
+                    <input
+                      type="number"
+                      value={exerciseReps}
+                      min={1}
+                      max={100}
+                      onChange={(event) => setExerciseReps(Number(event.target.value))}
+                      placeholder="Reps"
+                      className="border rounded-lg px-3 py-2 text-sm bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
+                    />
+                  </div>
+                  <div className="rounded-md border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 h-44 overflow-y-auto">
+                    {filteredKnownExercises.length === 0 && (
+                      <p className="px-3 py-2 text-xs text-zinc-500">No matching known exercises.</p>
+                    )}
+                    {filteredKnownExercises.map((exercise) => (
+                      <div
+                        key={exercise.id}
+                        className="flex items-center justify-between gap-2 px-3 py-2 border-b border-zinc-200 dark:border-zinc-700 last:border-b-0"
+                      >
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium truncate">{exercise.name}</p>
+                          <p className="text-[11px] text-zinc-500 truncate">
+                            {exercise.muscles.map((muscle) => MUSCLE_LABELS[muscle]).join(", ")}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => addKnownExerciseToDraft(exercise)}
+                          className="px-2 py-1 rounded-md text-xs bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors shrink-0"
+                        >
+                          Add
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowCustomExerciseForm((current) => !current)}
+                    className="px-3 py-1.5 rounded-md text-xs bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors"
+                  >
+                    {showCustomExerciseForm ? "Hide Custom Exercise" : "Add Custom Exercise"}
+                  </button>
+                  {showCustomExerciseForm && (
+                    <div className="rounded-lg border border-zinc-200 dark:border-zinc-700 p-3 space-y-2 bg-white dark:bg-zinc-900">
+                      <input
+                        type="text"
+                        value={exerciseName}
+                        onChange={(event) => setExerciseName(event.target.value)}
+                        placeholder="Custom exercise name"
+                        className="w-full border rounded-lg px-3 py-2 text-sm bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
+                      />
+                      <div className="grid grid-cols-2 gap-2">
+                        <input
+                          type="number"
+                          value={exerciseSets}
+                          min={1}
+                          max={30}
+                          onChange={(event) => setExerciseSets(Number(event.target.value))}
+                          placeholder="Sets"
+                          className="border rounded-lg px-3 py-2 text-sm bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
+                        />
+                        <input
+                          type="number"
+                          value={exerciseReps}
+                          min={1}
+                          max={100}
+                          onChange={(event) => setExerciseReps(Number(event.target.value))}
+                          placeholder="Reps"
+                          className="border rounded-lg px-3 py-2 text-sm bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-1">
+                        {UI_MUSCLE_GROUPS.map((muscle) => (
+                          <label key={muscle} className="text-xs flex items-center gap-1">
+                            <input
+                              type="checkbox"
+                              checked={exerciseMuscles.includes(muscle)}
+                              onChange={(event) => {
+                                setExerciseMuscles((previous) =>
+                                  event.target.checked
+                                    ? [...previous, muscle]
+                                    : previous.filter((entry) => entry !== muscle)
+                                );
+                              }}
+                            />
+                            <span>{MUSCLE_LABELS[muscle]}</span>
+                          </label>
+                        ))}
                       </div>
                       <button
                         type="button"
-                        onClick={() => addKnownExerciseToDraft(exercise)}
-                        className="px-2 py-1 rounded-md text-xs bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors shrink-0"
+                        onClick={addExerciseToDraft}
+                        className="px-3 py-1.5 rounded-md text-xs bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors"
                       >
-                        Add
+                        Add Custom Exercise
                       </button>
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  {draftExercises.length === 0 && (
+                    <p className="text-xs text-zinc-500">No exercises added yet.</p>
+                  )}
+                  {draftExercises.map((exercise) => (
+                    <div
+                      key={exercise.id}
+                      className="rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 p-2 text-xs"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="font-medium">{exercise.name}</p>
+                        <button
+                          type="button"
+                          onClick={() => removeDraftExercise(exercise.id)}
+                          className="px-1.5 py-0.5 rounded bg-zinc-200 dark:bg-zinc-700"
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                      <p className="text-zinc-500">
+                        {exercise.sets} sets x {exercise.reps} reps •{" "}
+                        {exercise.muscles.map((muscle) => MUSCLE_LABELS[muscle]).join(", ")}
+                      </p>
                     </div>
                   ))}
                 </div>
+
                 <button
-                  type="button"
-                  onClick={() => setShowCustomExerciseForm((current) => !current)}
-                  className="px-3 py-1.5 rounded-md text-xs bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors"
+                  type="submit"
+                  disabled={!newWorkoutName.trim() || draftExercises.length === 0 || saving}
+                  className="px-4 py-2 rounded-lg bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white text-sm font-medium transition-colors"
                 >
-                  {showCustomExerciseForm ? "Hide Custom Exercise" : "Add Custom Exercise"}
+                  Save Workout
                 </button>
-                {showCustomExerciseForm && (
-                  <div className="rounded-lg border border-zinc-200 dark:border-zinc-700 p-3 space-y-2 bg-white dark:bg-zinc-900">
-                    <input
-                      type="text"
-                      value={exerciseName}
-                      onChange={(event) => setExerciseName(event.target.value)}
-                      placeholder="Custom exercise name"
-                      className="w-full border rounded-lg px-3 py-2 text-sm bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
-                    />
-                    <div className="grid grid-cols-2 gap-2">
-                      <input
-                        type="number"
-                        value={exerciseSets}
-                        min={1}
-                        max={30}
-                        onChange={(event) => setExerciseSets(Number(event.target.value))}
-                        placeholder="Sets"
-                        className="border rounded-lg px-3 py-2 text-sm bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
-                      />
-                      <input
-                        type="number"
-                        value={exerciseReps}
-                        min={1}
-                        max={100}
-                        onChange={(event) => setExerciseReps(Number(event.target.value))}
-                        placeholder="Reps"
-                        className="border rounded-lg px-3 py-2 text-sm bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-1">
-                      {UI_MUSCLE_GROUPS.map((muscle) => (
-                        <label key={muscle} className="text-xs flex items-center gap-1">
-                          <input
-                            type="checkbox"
-                            checked={exerciseMuscles.includes(muscle)}
-                            onChange={(event) => {
-                              setExerciseMuscles((previous) =>
-                                event.target.checked
-                                  ? [...previous, muscle]
-                                  : previous.filter((entry) => entry !== muscle)
-                              );
-                            }}
-                          />
-                          <span>{MUSCLE_LABELS[muscle]}</span>
-                        </label>
-                      ))}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={addExerciseToDraft}
-                      className="px-3 py-1.5 rounded-md text-xs bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors"
-                    >
-                      Add Custom Exercise
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                {draftExercises.length === 0 && (
-                  <p className="text-xs text-zinc-500">No exercises added yet.</p>
-                )}
-                {draftExercises.map((exercise) => (
-                  <div
-                    key={exercise.id}
-                    className="rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 p-2 text-xs"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="font-medium">{exercise.name}</p>
-                      <button
-                        type="button"
-                        onClick={() => removeDraftExercise(exercise.id)}
-                        className="px-1.5 py-0.5 rounded bg-zinc-200 dark:bg-zinc-700"
-                      >
-                        🗑️
-                      </button>
-                    </div>
-                    <p className="text-zinc-500">
-                      {exercise.sets} sets x {exercise.reps} reps •{" "}
-                      {exercise.muscles.map((muscle) => MUSCLE_LABELS[muscle]).join(", ")}
-                    </p>
-                  </div>
-                ))}
-              </div>
-
-              <button
-                type="submit"
-                disabled={!newWorkoutName.trim() || draftExercises.length === 0 || saving}
-                className="px-4 py-2 rounded-lg bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white text-sm font-medium transition-colors"
-              >
-                Save Workout
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
+              </form>
+            </div>
+          </div>,
+          document.body
+        )}
 
       <section className="rounded-2xl bg-white dark:bg-zinc-900 p-5 shadow-sm border border-zinc-200 dark:border-zinc-800">
         <h2 className="text-lg font-semibold mb-3">Workout History</h2>
