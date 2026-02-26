@@ -1,4 +1,5 @@
 export const CACHE_STALE_MS = 4 * 60 * 60 * 1000;
+export const GLOBAL_LAST_FETCHED_KEY = "study-stats:global-last-fetched";
 
 interface CacheEntry<T> {
   data: T;
@@ -52,4 +53,38 @@ export function formatTimeSince(fetchedAt: number | null, now: number): string {
 
   const days = Math.floor(hours / 24);
   return `${days}d ago`;
+}
+
+export function writeGlobalLastFetched(fetchedAt: number = Date.now()): void {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(GLOBAL_LAST_FETCHED_KEY, String(fetchedAt));
+  window.dispatchEvent(new CustomEvent("study-stats:last-fetched-updated"));
+}
+
+export function readGlobalLastFetched(): number | null {
+  if (typeof window === "undefined") return null;
+
+  const raw = window.localStorage.getItem(GLOBAL_LAST_FETCHED_KEY);
+  if (raw) {
+    const parsed = Number(raw);
+    if (!Number.isNaN(parsed) && parsed > 0) return parsed;
+  }
+
+  let latest: number | null = null;
+  for (let i = 0; i < window.localStorage.length; i += 1) {
+    const key = window.localStorage.key(i);
+    if (!key || !key.startsWith("study-stats:")) continue;
+    const value = window.localStorage.getItem(key);
+    if (!value) continue;
+    try {
+      const parsed = JSON.parse(value) as { fetchedAt?: unknown };
+      if (typeof parsed.fetchedAt === "number") {
+        latest = latest === null ? parsed.fetchedAt : Math.max(latest, parsed.fetchedAt);
+      }
+    } catch {
+      // Ignore non-JSON settings values.
+    }
+  }
+
+  return latest;
 }

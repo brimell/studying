@@ -1,5 +1,6 @@
 import AuthButton from "@/components/AuthButton";
 import Dashboard from "@/components/Dashboard";
+import TopBarDataControls from "@/components/TopBarDataControls";
 
 export default function Home() {
   return (
@@ -10,7 +11,10 @@ export default function Home() {
           <h1 className="text-xl font-bold tracking-tight">
             Study Stats
           </h1>
-          <AuthButton />
+          <div className="flex items-center gap-3">
+            <TopBarDataControls />
+            <AuthButton />
+          </div>
         </div>
       </header>
 

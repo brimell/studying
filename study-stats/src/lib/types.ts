@@ -75,15 +75,21 @@ export interface HabitDay {
 export interface HabitCompletionDay {
   date: string;
   completed: boolean;
+  hours: number;
+  level: 0 | 1 | 2 | 3 | 4;
 }
+
+export type HabitMode = "binary" | "duration";
 
 export interface HabitDefinition {
   name: string;
   slug: string;
+  mode: HabitMode;
   days: HabitCompletionDay[];
   currentStreak: number;
   longestStreak: number;
   totalCompleted: number;
+  totalHours: number;
 }
 
 export interface TrackerCalendarOption {

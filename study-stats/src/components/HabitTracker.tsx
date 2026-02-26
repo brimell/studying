@@ -1,14 +1,15 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import type {
   HabitCompletionDay,
   HabitDay,
   HabitDefinition,
+  HabitMode,
   HabitTrackerData,
   TrackerCalendarOption,
 } from "@/lib/types";
-import { formatTimeSince, isStale, readCache, writeCache } from "@/lib/client-cache";
+import { isStale, readCache, writeCache, writeGlobalLastFetched } from "@/lib/client-cache";
 
 const STUDY_LEVEL_COLORS = [
   "bg-zinc-100 dark:bg-zinc-800",
@@ -20,7 +21,9 @@ const STUDY_LEVEL_COLORS = [
 
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const TRACKER_CALENDAR_STORAGE_KEY = "study-stats.tracker-calendar-id";
+const HABIT_WEEKS_STORAGE_KEY = "study-stats.habit-tracker.weeks";
 const TRACKER_CALENDARS_CACHE_KEY = "study-stats:habit-tracker:calendars";
+const MILESTONES_STORAGE_KEY = "study-stats.habit-tracker.milestones";
 
 interface TrackerCalendarResponse {
   calendars: TrackerCalendarOption[];
@@ -31,6 +34,13 @@ interface TooltipState {
   day: HabitDay;
   x: number;
   y: number;
+}
+
+interface MilestoneDate {
+  id: string;
+  type: "exam" | "coursework";
+  title: string;
+  date: string;
 }
 
 function formatShortDate(date: string): string {
@@ -55,13 +65,32 @@ function addDays(dateKey: string, amount: number): string {
   return date.toISOString().slice(0, 10);
 }
 
+function isValidDateInput(value: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
+function toHabitLevel(hours: number): 0 | 1 | 2 | 3 | 4 {
+  if (hours <= 0) return 0;
+  if (hours < 1) return 1;
+  if (hours < 3) return 2;
+  if (hours < 5) return 3;
+  return 4;
+}
+
+function normalizeHours(hours: number): number {
+  if (!Number.isFinite(hours) || hours <= 0) return 0;
+  return Math.round(Math.min(24, hours) * 100) / 100;
+}
+
 function computeHabitStats(days: HabitCompletionDay[]) {
   let currentStreak = 0;
   let longestStreak = 0;
   let runningStreak = 0;
   let totalCompleted = 0;
+  let totalHours = 0;
 
   for (const day of days) {
+    totalHours += day.hours;
     if (day.completed) {
       runningStreak += 1;
       totalCompleted += 1;
@@ -76,17 +105,23 @@ function computeHabitStats(days: HabitCompletionDay[]) {
     currentStreak += 1;
   }
 
-  return { currentStreak, longestStreak, totalCompleted };
+  return {
+    currentStreak,
+    longestStreak,
+    totalCompleted,
+    totalHours: Math.round(totalHours * 100) / 100,
+  };
 }
 
 function buildEmptyHabit(
   name: string,
+  mode: HabitMode,
   startDate: string,
   endDate: string
 ): HabitDefinition {
   const days: HabitCompletionDay[] = [];
   for (let date = startDate; date <= endDate; date = addDays(date, 1)) {
-    days.push({ date, completed: false });
+    days.push({ date, completed: false, hours: 0, level: 0 });
   }
 
   const stats = computeHabitStats(days);
@@ -94,10 +129,12 @@ function buildEmptyHabit(
   return {
     name,
     slug: slugifyHabitName(name),
+    mode,
     days,
     currentStreak: stats.currentStreak,
     longestStreak: stats.longestStreak,
     totalCompleted: stats.totalCompleted,
+    totalHours: stats.totalHours,
   };
 }
 
@@ -172,11 +209,55 @@ export default function HabitTracker() {
   const [selectedTrackerCalendarId, setSelectedTrackerCalendarId] = useState<string | null>(null);
 
   const [newHabitName, setNewHabitName] = useState("");
+  const [newHabitMode, setNewHabitMode] = useState<HabitMode>("binary");
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [refreshingData, setRefreshingData] = useState(false);
-  const [lastFetchedAt, setLastFetchedAt] = useState<number | null>(null);
-  const [now, setNow] = useState(Date.now());
+  const [milestones, setMilestones] = useState<MilestoneDate[]>([]);
+  const [newMilestoneType, setNewMilestoneType] = useState<"exam" | "coursework">("exam");
+  const [newMilestoneTitle, setNewMilestoneTitle] = useState("");
+  const [newMilestoneDate, setNewMilestoneDate] = useState("");
+
+  useEffect(() => {
+    const raw = window.localStorage.getItem(HABIT_WEEKS_STORAGE_KEY);
+    if (!raw) return;
+    const parsed = Number(raw);
+    if ([12, 20, 26, 52].includes(parsed)) setWeeks(parsed);
+  }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem(HABIT_WEEKS_STORAGE_KEY, String(weeks));
+  }, [weeks]);
+
+  useEffect(() => {
+    const raw = window.localStorage.getItem(MILESTONES_STORAGE_KEY);
+    if (!raw) return;
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      if (!Array.isArray(parsed)) return;
+      const valid = parsed.filter((item): item is MilestoneDate => {
+        return (
+          typeof item === "object" &&
+          item !== null &&
+          "id" in item &&
+          "type" in item &&
+          "title" in item &&
+          "date" in item &&
+          typeof item.id === "string" &&
+          (item.type === "exam" || item.type === "coursework") &&
+          typeof item.title === "string" &&
+          typeof item.date === "string" &&
+          isValidDateInput(item.date)
+        );
+      });
+      setMilestones(valid.sort((a, b) => a.date.localeCompare(b.date)));
+    } catch {
+      // Ignore malformed localStorage payload.
+    }
+  }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem(MILESTONES_STORAGE_KEY, JSON.stringify(milestones));
+  }, [milestones]);
 
   const dataCacheKey = useMemo(
     () => `study-stats:habit-tracker:${weeks}:${selectedTrackerCalendarId || "auto"}`,
@@ -268,18 +349,13 @@ export default function HabitTracker() {
         const cached = readCache<HabitTrackerData>(dataCacheKey);
         if (cached) {
           setData(cached.data);
-          setLastFetchedAt(cached.fetchedAt);
           if (!force && !isStale(cached.fetchedAt)) {
             setLoading(false);
             return;
           }
         }
 
-        if (cached) {
-          setRefreshingData(true);
-        } else {
-          setLoading(true);
-        }
+        setLoading(true);
 
         const params = new URLSearchParams({ weeks: String(weeks) });
         if (selectedTrackerCalendarId) {
@@ -298,7 +374,8 @@ export default function HabitTracker() {
 
         const typedPayload = payload as HabitTrackerData;
         setData(typedPayload);
-        setLastFetchedAt(writeCache(dataCacheKey, typedPayload));
+        const fetchedAt = writeCache(dataCacheKey, typedPayload);
+        writeGlobalLastFetched(fetchedAt);
 
         if (
           typedPayload.trackerCalendarId &&
@@ -313,7 +390,6 @@ export default function HabitTracker() {
       } finally {
         if (!cancelled) {
           setLoading(false);
-          setRefreshingData(false);
         }
       }
     };
@@ -324,11 +400,6 @@ export default function HabitTracker() {
       cancelled = true;
     };
   }, [weeks, selectedTrackerCalendarId, calendarsLoading, dataCacheKey]);
-
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 60_000);
-    return () => window.clearInterval(timer);
-  }, []);
 
   const studyGrid = useMemo(() => {
     if (!data || data.days.length === 0) return [] as (HabitDay | null)[][];
@@ -347,7 +418,47 @@ export default function HabitTracker() {
     )}`;
   }, [data]);
 
+  const milestonesByDate = useMemo(() => {
+    const map = new Map<string, MilestoneDate[]>();
+    for (const milestone of milestones) {
+      const existing = map.get(milestone.date) || [];
+      existing.push(milestone);
+      map.set(milestone.date, existing);
+    }
+    return map;
+  }, [milestones]);
+
+  const milestoneDateSet = useMemo(() => {
+    return new Set(milestones.map((milestone) => milestone.date));
+  }, [milestones]);
+
   const hasWritableCalendars = calendars.length > 0;
+
+  const addMilestone = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!isValidDateInput(newMilestoneDate)) return;
+
+    const title = newMilestoneTitle.trim();
+    const milestone: MilestoneDate = {
+      id:
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      type: newMilestoneType,
+      title: title || (newMilestoneType === "exam" ? "Exam" : "Coursework"),
+      date: newMilestoneDate,
+    };
+
+    setMilestones((previous) =>
+      [...previous, milestone].sort((a, b) => a.date.localeCompare(b.date))
+    );
+    setNewMilestoneTitle("");
+    setNewMilestoneDate("");
+  };
+
+  const removeMilestone = (id: string) => {
+    setMilestones((previous) => previous.filter((milestone) => milestone.id !== id));
+  };
 
   const runAction = async (input: RequestInit) => {
     const response = await fetch("/api/habit-tracker", {
@@ -379,6 +490,7 @@ export default function HabitTracker() {
     const previousData = data;
     const optimisticHabit = buildEmptyHabit(
       habitName,
+      newHabitMode,
       data.trackerRange.startDate,
       data.trackerRange.endDate
     );
@@ -388,7 +500,7 @@ export default function HabitTracker() {
     };
 
     setData(nextData);
-    setLastFetchedAt(writeCache(dataCacheKey, nextData));
+    writeCache(dataCacheKey, nextData);
     setNewHabitName("");
 
     try {
@@ -400,40 +512,54 @@ export default function HabitTracker() {
         body: JSON.stringify({
           trackerCalendarId: selectedTrackerCalendarId,
           habitName,
+          habitMode: newHabitMode,
         }),
       });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Failed to add habit";
       setActionError(message);
       setData(previousData);
-      setLastFetchedAt(writeCache(dataCacheKey, previousData));
+      writeCache(dataCacheKey, previousData);
       setNewHabitName(habitName);
     } finally {
       setActionLoading(false);
     }
   };
 
-  const toggleHabit = async (habitName: string, date: string, completed: boolean) => {
+  const updateHabitDay = async (
+    habitName: string,
+    habitMode: HabitMode,
+    date: string,
+    nextValue: { completed?: boolean; hours?: number }
+  ) => {
     if (!selectedTrackerCalendarId || !data) return;
 
     const previousData = data;
+    const hours =
+      habitMode === "duration"
+        ? normalizeHours(nextValue.hours || 0)
+        : nextValue.completed
+          ? 1
+          : 0;
+    const completed = habitMode === "duration" ? hours > 0 : Boolean(nextValue.completed);
 
     const nextData = updateHabitInData(data, habitName, (habit) => {
-        const days = habit.days.map((day) =>
-          day.date === date ? { ...day, completed } : day
-        );
-        const stats = computeHabitStats(days);
+      const days = habit.days.map((day) =>
+        day.date === date ? { ...day, completed, hours, level: toHabitLevel(hours) } : day
+      );
+      const stats = computeHabitStats(days);
 
-        return {
-          ...habit,
-          days,
-          currentStreak: stats.currentStreak,
-          longestStreak: stats.longestStreak,
-          totalCompleted: stats.totalCompleted,
-        };
-      });
+      return {
+        ...habit,
+        days,
+        currentStreak: stats.currentStreak,
+        longestStreak: stats.longestStreak,
+        totalCompleted: stats.totalCompleted,
+        totalHours: stats.totalHours,
+      };
+    });
     setData(nextData);
-    setLastFetchedAt(writeCache(dataCacheKey, nextData));
+    writeCache(dataCacheKey, nextData);
 
     try {
       setActionLoading(true);
@@ -444,18 +570,28 @@ export default function HabitTracker() {
         body: JSON.stringify({
           trackerCalendarId: selectedTrackerCalendarId,
           habitName,
+          habitMode,
           date,
           completed,
+          hours,
         }),
       });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Failed to update habit";
       setActionError(message);
       setData(previousData);
-      setLastFetchedAt(writeCache(dataCacheKey, previousData));
+      writeCache(dataCacheKey, previousData);
     } finally {
       setActionLoading(false);
     }
+  };
+
+  const toggleHabit = async (habitName: string, date: string, completed: boolean) => {
+    await updateHabitDay(habitName, "binary", date, { completed });
+  };
+
+  const setHabitDuration = async (habitName: string, date: string, hours: number) => {
+    await updateHabitDay(habitName, "duration", date, { hours });
   };
 
   const removeHabit = async (habitName: string) => {
@@ -470,7 +606,7 @@ export default function HabitTracker() {
       ),
     };
     setData(nextData);
-    setLastFetchedAt(writeCache(dataCacheKey, nextData));
+    writeCache(dataCacheKey, nextData);
 
     try {
       setActionLoading(true);
@@ -487,17 +623,16 @@ export default function HabitTracker() {
       const message = err instanceof Error ? err.message : "Failed to delete habit";
       setActionError(message);
       setData(previousData);
-      setLastFetchedAt(writeCache(dataCacheKey, previousData));
+      writeCache(dataCacheKey, previousData);
     } finally {
       setActionLoading(false);
     }
   };
 
-  const refreshData = async () => {
+  const refreshData = useCallback(async () => {
     if (calendarsLoading) return;
 
     try {
-      setRefreshingData(true);
       setError(null);
 
       const params = new URLSearchParams({ weeks: String(weeks) });
@@ -515,14 +650,19 @@ export default function HabitTracker() {
 
       const typedPayload = payload as HabitTrackerData;
       setData(typedPayload);
-      setLastFetchedAt(writeCache(dataCacheKey, typedPayload));
+      const fetchedAt = writeCache(dataCacheKey, typedPayload);
+      writeGlobalLastFetched(fetchedAt);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Failed to fetch habit tracker";
       setError(message);
-    } finally {
-      setRefreshingData(false);
     }
-  };
+  }, [calendarsLoading, dataCacheKey, selectedTrackerCalendarId, weeks]);
+
+  useEffect(() => {
+    const onRefreshAll = () => refreshData();
+    window.addEventListener("study-stats:refresh-all", onRefreshAll);
+    return () => window.removeEventListener("study-stats:refresh-all", onRefreshAll);
+  }, [refreshData]);
 
   return (
     <div className="rounded-2xl bg-white dark:bg-zinc-900 p-6 shadow-sm border border-zinc-200 dark:border-zinc-800">
@@ -531,9 +671,6 @@ export default function HabitTracker() {
           <h2 className="text-lg font-semibold">Habit Tracker</h2>
           <p className="text-xs text-zinc-500 mt-1">
             Study consistency plus custom habits stored in Google Calendar.
-          </p>
-          <p className="text-[11px] text-zinc-500 mt-1">
-            Last fetched {formatTimeSince(lastFetchedAt, now)}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -564,13 +701,6 @@ export default function HabitTracker() {
                 </option>
               ))}
           </select>
-          <button
-            onClick={refreshData}
-            disabled={refreshingData}
-            className="px-2 py-1 rounded-md text-xs bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 disabled:opacity-50 transition-colors"
-          >
-            {refreshingData ? "Refreshing..." : "Refresh"}
-          </button>
         </div>
       </div>
 
@@ -623,7 +753,13 @@ export default function HabitTracker() {
                         key={`${weekIndex}-${dayIndex}`}
                         className={`w-[13px] h-[13px] rounded-[2px] transition-colors ${
                           day ? STUDY_LEVEL_COLORS[day.level] : "bg-transparent"
-                        } ${day ? "cursor-pointer hover:ring-1 hover:ring-zinc-400" : ""}`}
+                        } ${
+                          day && milestoneDateSet.has(day.date)
+                            ? "cursor-pointer ring-1 ring-red-500 ring-inset"
+                            : day
+                              ? "cursor-pointer hover:ring-1 hover:ring-zinc-400"
+                              : ""
+                        }`}
                         onMouseEnter={(event) => {
                           if (!day) return;
                           const rect = event.currentTarget.getBoundingClientRect();
@@ -645,21 +781,31 @@ export default function HabitTracker() {
                   className="fixed z-50 bg-zinc-800 text-white text-xs rounded-lg px-3 py-2 pointer-events-none shadow-lg"
                   style={{
                     left: tooltip.x,
-                    top: tooltip.y - 40,
-                    transform: "translateX(-50%)",
+                    top: tooltip.y - 8,
+                    transform: "translate(-50%, -100%)",
                   }}
                 >
-                  <span className="font-medium">
+                  <span className="font-medium block">
                     {new Date(`${tooltip.day.date}T12:00:00`).toLocaleDateString("en-GB", {
                       weekday: "short",
                       month: "short",
                       day: "numeric",
                     })}
                   </span>
-                  {" - "}
-                  {tooltip.day.hours > 0
-                    ? `${tooltip.day.hours.toFixed(1)}h studied`
-                    : "No study"}
+                  <span>
+                    {tooltip.day.hours > 0
+                      ? `${tooltip.day.hours.toFixed(1)}h studied`
+                      : "No study"}
+                  </span>
+                  {(milestonesByDate.get(tooltip.day.date) || []).length > 0 && (
+                    <div className="mt-1.5 pt-1.5 border-t border-zinc-600">
+                      {(milestonesByDate.get(tooltip.day.date) || []).map((milestone) => (
+                        <div key={milestone.id} className="text-[11px] text-red-200">
+                          {milestone.type === "exam" ? "Exam" : "Coursework"}: {milestone.title}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -671,7 +817,85 @@ export default function HabitTracker() {
               ))}
               <span>More</span>
               <span className="ml-3 text-zinc-400">0h, &lt;1h, 1-3h, 3-5h, 5h+</span>
+              <div className="w-[13px] h-[13px] rounded-[2px] ring-1 ring-red-500 ring-inset ml-3" />
+              <span className="text-zinc-400">Exam/coursework date</span>
             </div>
+          </div>
+
+          <div className="border-t border-zinc-200 dark:border-zinc-800 pt-6">
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+              <h3 className="text-base font-semibold">Exam and Coursework Dates</h3>
+              <span className="text-xs text-zinc-500">Outlined in red on the study calendar</span>
+            </div>
+
+            <form onSubmit={addMilestone} className="flex flex-wrap gap-2 mb-4">
+              <select
+                value={newMilestoneType}
+                onChange={(event) =>
+                  setNewMilestoneType(event.target.value as "exam" | "coursework")
+                }
+                className="text-sm border rounded-lg px-3 py-2 bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
+              >
+                <option value="exam">Exam</option>
+                <option value="coursework">Coursework</option>
+              </select>
+              <input
+                type="text"
+                value={newMilestoneTitle}
+                onChange={(event) => setNewMilestoneTitle(event.target.value)}
+                placeholder="Title (optional)"
+                className="flex-1 min-w-48 border rounded-lg px-3 py-2 text-sm bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
+              />
+              <input
+                type="date"
+                value={newMilestoneDate}
+                onChange={(event) => setNewMilestoneDate(event.target.value)}
+                className="text-sm border rounded-lg px-3 py-2 bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
+                required
+              />
+              <button
+                type="submit"
+                disabled={!newMilestoneDate}
+                className="px-4 py-2 rounded-lg bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white text-sm font-medium transition-colors"
+              >
+                Add
+              </button>
+            </form>
+
+            {milestones.length === 0 && (
+              <p className="text-sm text-zinc-500">No exam or coursework dates added yet.</p>
+            )}
+
+            {milestones.length > 0 && (
+              <div className="space-y-2">
+                {milestones.map((milestone) => (
+                  <div
+                    key={milestone.id}
+                    className="flex items-center justify-between gap-3 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 px-3 py-2"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">{milestone.title}</p>
+                      <p className="text-xs text-zinc-500">
+                        {milestone.type === "exam" ? "Exam" : "Coursework"} on{" "}
+                        {new Date(`${milestone.date}T12:00:00`).toLocaleDateString("en-GB", {
+                          weekday: "short",
+                          day: "numeric",
+                          month: "short",
+                          year: "numeric",
+                        })}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removeMilestone(milestone.id)}
+                      className="px-2 py-1 rounded-md text-xs bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors shrink-0"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="border-t border-zinc-200 dark:border-zinc-800 pt-6">
