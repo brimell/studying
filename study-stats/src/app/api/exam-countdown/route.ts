@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
 const EXAM_TABLE = process.env.SUPABASE_EXAM_COUNTDOWN_TABLE || "study_stats_exam_countdown";
+type SupabaseAdminClient = NonNullable<ReturnType<typeof getSupabaseAdminClient>>;
+type AuthResult =
+  | { error: NextResponse<{ error: string }> }
+  | { client: SupabaseAdminClient; userId: string };
 
 function getSupabaseAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -21,7 +25,7 @@ function toErrorResponse(status: number, message: string) {
   return NextResponse.json({ error: message }, { status });
 }
 
-async function getUserFromRequest(req: NextRequest) {
+async function getUserFromRequest(req: NextRequest): Promise<AuthResult> {
   const client = getSupabaseAdminClient();
   if (!client) return { error: toErrorResponse(500, "Supabase is not configured.") };
 
@@ -46,7 +50,8 @@ function isDateKey(value: string): boolean {
 export async function GET(req: NextRequest) {
   const auth = await getUserFromRequest(req);
   if ("error" in auth) {
-    const isConfigMissing = auth.error.status === 500;
+    const errorResponse = auth.error;
+    const isConfigMissing = errorResponse.status === 500;
     if (isConfigMissing) {
       return NextResponse.json({
         examDate: null,
@@ -55,7 +60,7 @@ export async function GET(req: NextRequest) {
         cloudDisabled: true,
       });
     }
-    return auth.error;
+    return errorResponse;
   }
 
   const { client, userId } = auth;
@@ -87,11 +92,12 @@ export async function GET(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   const auth = await getUserFromRequest(req);
   if ("error" in auth) {
-    const isConfigMissing = auth.error.status === 500;
+    const errorResponse = auth.error;
+    const isConfigMissing = errorResponse.status === 500;
     if (isConfigMissing) {
       return NextResponse.json({ ok: false, cloudDisabled: true });
     }
-    return auth.error;
+    return errorResponse;
   }
 
   let body: unknown;

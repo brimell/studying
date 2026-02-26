@@ -10,8 +10,8 @@ interface MuscleDiagramFiles {
 }
 
 const BASE_DIAGRAM: MuscleDiagramFiles = {
-  anterior: "Muscle Group=Back, View=Anterior, Dissection=Outer Muscles.svg",
-  posterior: "Muscle Group=Back, View=Posterior, Dissection=Outer Muscles.svg",
+  anterior: "View=Anterior, Dissection=Outer Muscles, Color=No.svg",
+  posterior: "View=Posterior, Dissection=Outer Muscles, Color=No.svg",
 };
 
 const CORE_DIAGRAM_FILES: Record<
@@ -214,7 +214,15 @@ function toDiagramPath(fileName: string): string {
 
 function fatigueToOpacity(score: number): number {
   if (score <= 0) return 0;
-  return Math.max(0.16, Math.min(0.95, score / 100));
+  // Keep fill visibility mostly stable; fatigue intensity is encoded via color.
+  return 0.82;
+}
+
+function fatigueToColorFilter(score: number): string {
+  const normalized = Math.max(0, Math.min(1, score / 100));
+  // 120deg (green) at low fatigue -> 0deg (red) at high fatigue.
+  const hue = Math.round((1 - normalized) * 120);
+  return `hue-rotate(${hue}deg) saturate(1.25) brightness(1.02)`;
 }
 
 function toRedOnlyDataUrl(src: string): Promise<string> {
@@ -273,12 +281,14 @@ function toRedOnlyDataUrl(src: string): Promise<string> {
 function RedOnlyOverlay({
   src,
   opacity,
+  fatigueScore,
   delayMs = 0,
   highlighted = false,
   dimmed = false,
 }: {
   src: string;
   opacity: number;
+  fatigueScore: number;
   delayMs?: number;
   highlighted?: boolean;
   dimmed?: boolean;
@@ -314,11 +324,16 @@ function RedOnlyOverlay({
       style={{
         opacity: visible ? opacity : 0,
         transform: visible ? (highlighted ? "scale(1.01)" : "scale(1)") : "scale(0.98)",
-        filter: highlighted
-          ? "saturate(1.3) brightness(1.15) drop-shadow(0 0 8px rgba(239, 68, 68, 0.45))"
-          : dimmed
-            ? "brightness(0.7) saturate(0.85)"
-            : "none",
+        filter: (() => {
+          const fatigueFilter = fatigueToColorFilter(fatigueScore);
+          if (highlighted) {
+            return `${fatigueFilter} saturate(1.35) brightness(1.12) drop-shadow(0 0 8px rgba(239, 68, 68, 0.45))`;
+          }
+          if (dimmed) {
+            return `${fatigueFilter} brightness(0.75) saturate(0.9)`;
+          }
+          return fatigueFilter;
+        })(),
         transitionProperty: "opacity, transform, filter",
         transitionDuration: "380ms, 380ms",
         transitionTimingFunction: "ease-out, ease-out",
@@ -418,7 +433,8 @@ export default function MuscleModel({ scores, title = "Muscle Load Map", compact
                     <RedOnlyOverlay
                       key={`anterior-${muscle}`}
                       src={toDiagramPath(resolveDiagramFiles(muscle, simplifyLabels).anterior)}
-                      opacity={hasHover ? (highlighted ? 0.98 : fatigueToOpacity(score) * 0.2) : fatigueToOpacity(score)}
+                      opacity={hasHover ? (highlighted ? 0.98 : 0.02) : fatigueToOpacity(score)}
+                      fatigueScore={score}
                       delayMs={index * 28}
                       highlighted={highlighted}
                       dimmed={dimmed}
@@ -444,7 +460,8 @@ export default function MuscleModel({ scores, title = "Muscle Load Map", compact
                     <RedOnlyOverlay
                       key={`posterior-${muscle}`}
                       src={toDiagramPath(resolveDiagramFiles(muscle, simplifyLabels).posterior)}
-                      opacity={hasHover ? (highlighted ? 0.98 : fatigueToOpacity(score) * 0.2) : fatigueToOpacity(score)}
+                      opacity={hasHover ? (highlighted ? 0.98 : 0.02) : fatigueToOpacity(score)}
+                      fatigueScore={score}
                       delayMs={index * 28}
                       highlighted={highlighted}
                       dimmed={dimmed}
