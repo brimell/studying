@@ -23,6 +23,9 @@ function todayDateKey(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+const TRACKER_CALENDAR_STORAGE_KEY = "study-stats.tracker-calendar-id";
+const HABIT_WORKOUT_LINKS_STORAGE_KEY = "study-stats.habit-tracker.workout-links";
+
 const DEFAULT_EXERCISE_MUSCLES: MuscleGroup[] = ["chest"];
 
 export default function WorkoutPlanner() {
@@ -86,6 +89,78 @@ export default function WorkoutPlanner() {
 
     if (!response.ok) throw new Error(json.error || "Request failed.");
     return json.payload || emptyWorkoutPayload();
+  };
+
+  const getTrackerCalendarId = async (): Promise<string | null> => {
+    const stored = window.localStorage.getItem(TRACKER_CALENDAR_STORAGE_KEY);
+    if (stored) return stored;
+
+    try {
+      const response = await fetch("/api/habit-tracker/calendars");
+      const payload = (await response.json()) as {
+        defaultTrackerCalendarId?: string | null;
+        trackerCalendars?: { id: string }[];
+      };
+      if (!response.ok) return null;
+      const resolvedId =
+        payload.defaultTrackerCalendarId || payload.trackerCalendars?.[0]?.id || null;
+      if (resolvedId) window.localStorage.setItem(TRACKER_CALENDAR_STORAGE_KEY, resolvedId);
+      return resolvedId;
+    } catch {
+      return null;
+    }
+  };
+
+  const syncWorkoutLogToGymHabit = async (date: string) => {
+    const linkedHabitNames = (() => {
+      const raw = window.localStorage.getItem(HABIT_WORKOUT_LINKS_STORAGE_KEY);
+      if (!raw) return ["Gym"];
+      try {
+        const parsed = JSON.parse(raw) as unknown;
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return ["Gym"];
+        const names = Object.values(parsed as Record<string, unknown>)
+          .map((entry) => {
+            if (!entry || typeof entry !== "object" || Array.isArray(entry)) return null;
+            const value = entry as { name?: unknown; enabled?: unknown };
+            if (typeof value.name !== "string") return null;
+            if (value.enabled !== true) return null;
+            const normalized = value.name.trim();
+            return normalized || null;
+          })
+          .filter((name): name is string => Boolean(name));
+        return names.length > 0 ? [...new Set(names)] : [];
+      } catch {
+        return ["Gym"];
+      }
+    })();
+
+    if (linkedHabitNames.length === 0) return;
+
+    const trackerCalendarId = await getTrackerCalendarId();
+    if (!trackerCalendarId) return;
+
+    try {
+      await Promise.all(
+        linkedHabitNames.map((habitName) =>
+          fetch("/api/habit-tracker", {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              trackerCalendarId,
+              habitName,
+              habitMode: "binary",
+              date,
+              completed: true,
+              hours: 1,
+            }),
+          })
+        )
+      );
+    } catch {
+      // Do not block workout logging if habit sync fails.
+    }
   };
 
   useEffect(() => {
@@ -208,6 +283,7 @@ export default function WorkoutPlanner() {
       updatedAt: new Date().toISOString(),
     };
     await persist(nextPayload, `Logged "${workout.name}" on ${date}.`);
+    void syncWorkoutLogToGymHabit(date);
   };
 
   const removeLog = async (logId: string) => {

@@ -1,18 +1,31 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 
 const STORAGE_KEY_PREFIX = "study-stats";
+const EXCLUDED_CACHE_KEY_PREFIXES = [
+  "study-stats:today-progress",
+  "study-stats:daily-study-time:",
+  "study-stats:distribution:",
+  "study-stats:habit-tracker:",
+  "study-stats:global-last-fetched",
+];
 
 type SyncPayload = Record<string, string>;
+
+function shouldSyncKey(key: string): boolean {
+  if (!key.startsWith(STORAGE_KEY_PREFIX)) return false;
+  // Keep all app settings, exclude only transient cache blobs.
+  return !EXCLUDED_CACHE_KEY_PREFIXES.some((prefix) => key.startsWith(prefix));
+}
 
 function collectLocalSettings(): SyncPayload {
   const payload: SyncPayload = {};
   for (let i = 0; i < window.localStorage.length; i += 1) {
     const key = window.localStorage.key(i);
-    if (!key || !key.startsWith(STORAGE_KEY_PREFIX)) continue;
+    if (!key || !shouldSyncKey(key)) continue;
     const value = window.localStorage.getItem(key);
     if (value === null) continue;
     payload[key] = value;
@@ -23,7 +36,7 @@ function collectLocalSettings(): SyncPayload {
 function applyCloudSettings(payload: SyncPayload): void {
   for (let i = window.localStorage.length - 1; i >= 0; i -= 1) {
     const key = window.localStorage.key(i);
-    if (!key || !key.startsWith(STORAGE_KEY_PREFIX)) continue;
+    if (!key || !shouldSyncKey(key)) continue;
     window.localStorage.removeItem(key);
   }
 
@@ -50,6 +63,9 @@ export default function SupabaseAccountSync() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [cloudUpdatedAt, setCloudUpdatedAt] = useState<string | null>(null);
+  const [autoSyncing, setAutoSyncing] = useState(false);
+  const lastSyncedSnapshotRef = useRef<string>("");
+  const autoSyncInitializedRef = useRef(false);
 
   useEffect(() => {
     if (!supabase) return;
@@ -100,6 +116,11 @@ export default function SupabaseAccountSync() {
     }
 
     return json;
+  };
+
+  const autoBackupToCloud = async (payload: SyncPayload) => {
+    const result = await callSyncApi("PUT", payload);
+    setCloudUpdatedAt(result.updatedAt || null);
   };
 
   const handleSignIn = async () => {
@@ -159,8 +180,8 @@ export default function SupabaseAccountSync() {
     setMessage(null);
     try {
       const payload = collectLocalSettings();
-      const result = await callSyncApi("PUT", payload);
-      setCloudUpdatedAt(result.updatedAt || null);
+      await autoBackupToCloud(payload);
+      lastSyncedSnapshotRef.current = JSON.stringify(payload);
       setMessage(`Backed up ${Object.keys(payload).length} settings to cloud.`);
     } catch (backupError: unknown) {
       setError(backupError instanceof Error ? backupError.message : "Backup failed.");
@@ -190,6 +211,7 @@ export default function SupabaseAccountSync() {
 
       applyCloudSettings(payload);
       setCloudUpdatedAt(result.updatedAt || null);
+      lastSyncedSnapshotRef.current = JSON.stringify(payload);
       window.location.reload();
     } catch (restoreError: unknown) {
       setError(restoreError instanceof Error ? restoreError.message : "Restore failed.");
@@ -197,6 +219,76 @@ export default function SupabaseAccountSync() {
       setBusy(false);
     }
   };
+
+  useEffect(() => {
+    if (!session) {
+      autoSyncInitializedRef.current = false;
+      lastSyncedSnapshotRef.current = "";
+      return;
+    }
+
+    let cancelled = false;
+
+    const initializeAndSync = async () => {
+      try {
+        setAutoSyncing(true);
+        const cloud = await callSyncApi("GET");
+        if (cancelled) return;
+
+        const cloudPayload = cloud.payload || {};
+        const localPayload = collectLocalSettings();
+        const hasLocalData = Object.keys(localPayload).length > 0;
+        const hasCloudData = Object.keys(cloudPayload).length > 0;
+
+        if (!hasLocalData && hasCloudData) {
+          applyCloudSettings(cloudPayload);
+          lastSyncedSnapshotRef.current = JSON.stringify(cloudPayload);
+          setMessage("Auto-sync restored cloud data to this device.");
+          setCloudUpdatedAt(cloud.updatedAt || null);
+          autoSyncInitializedRef.current = true;
+          return;
+        }
+
+        const snapshot = JSON.stringify(localPayload);
+        await autoBackupToCloud(localPayload);
+        if (cancelled) return;
+        lastSyncedSnapshotRef.current = snapshot;
+        autoSyncInitializedRef.current = true;
+      } catch (syncError: unknown) {
+        if (!cancelled) {
+          setError(syncError instanceof Error ? syncError.message : "Auto-sync failed.");
+        }
+      } finally {
+        if (!cancelled) setAutoSyncing(false);
+      }
+    };
+
+    void initializeAndSync();
+
+    const interval = window.setInterval(() => {
+      if (!autoSyncInitializedRef.current) return;
+      const localPayload = collectLocalSettings();
+      const snapshot = JSON.stringify(localPayload);
+      if (snapshot === lastSyncedSnapshotRef.current) return;
+
+      setAutoSyncing(true);
+      void autoBackupToCloud(localPayload)
+        .then(() => {
+          lastSyncedSnapshotRef.current = snapshot;
+        })
+        .catch((syncError: unknown) => {
+          setError(syncError instanceof Error ? syncError.message : "Auto-sync failed.");
+        })
+        .finally(() => {
+          if (!cancelled) setAutoSyncing(false);
+        });
+    }, 15_000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [session]);
 
   if (!supabase) {
     return null;
@@ -277,6 +369,9 @@ export default function SupabaseAccountSync() {
               </div>
               <div className="text-[11px] text-zinc-500">
                 Cloud updated: {formatDate(cloudUpdatedAt)}
+              </div>
+              <div className="text-[11px] text-zinc-500">
+                Auto-sync: {autoSyncing ? "syncing..." : "on"}
               </div>
               <button
                 type="button"

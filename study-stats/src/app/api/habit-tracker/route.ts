@@ -15,6 +15,7 @@ const HABIT_CONFIG_DATE = "2099-01-01";
 const MAX_HABITS = 20;
 const MAX_HOURS_PER_DAY = 24;
 const DEFAULT_STUDY_HABIT_NAME = "Studying";
+const DEFAULT_GYM_HABIT_NAME = "Gym";
 
 interface HabitConfigEntry {
   name: string;
@@ -206,6 +207,13 @@ function getDefaultHabitConfigs(): HabitConfigEntry[] {
       trackingCalendarId: null,
       sourceCalendarIds: getDefaultSourceCalendarIds(),
       matchTerms: getDefaultStudyTerms(),
+    },
+    {
+      name: DEFAULT_GYM_HABIT_NAME,
+      mode: "binary",
+      trackingCalendarId: null,
+      sourceCalendarIds: [],
+      matchTerms: [],
     },
   ];
 }

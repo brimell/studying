@@ -1,29 +1,161 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
 import type { MuscleGroup } from "@/lib/types";
 import { MUSCLE_GROUPS } from "@/lib/types";
 import { MUSCLE_LABELS } from "@/lib/workouts";
 
-const POSITIONS: Record<MuscleGroup, { x: number; y: number }> = {
-  shoulders: { x: 110, y: 42 },
-  chest: { x: 110, y: 72 },
-  back: { x: 110, y: 92 },
-  biceps: { x: 74, y: 80 },
-  triceps: { x: 146, y: 80 },
-  forearms: { x: 74, y: 108 },
-  core: { x: 110, y: 113 },
-  glutes: { x: 110, y: 145 },
-  quads: { x: 94, y: 178 },
-  hamstrings: { x: 126, y: 178 },
-  calves: { x: 110, y: 222 },
+interface MuscleDiagramFiles {
+  anterior: string;
+  posterior: string;
+}
+
+const BASE_DIAGRAM: MuscleDiagramFiles = {
+  anterior: "Muscle Group=Back, View=Anterior, Dissection=Outer Muscles.svg",
+  posterior: "Muscle Group=Back, View=Posterior, Dissection=Outer Muscles.svg",
 };
 
-function fatigueToColor(score: number): string {
-  if (score <= 0) return "rgba(113,113,122,0.18)";
-  if (score < 25) return "rgba(59,130,246,0.35)";
-  if (score < 50) return "rgba(56,189,248,0.55)";
-  if (score < 75) return "rgba(251,191,36,0.7)";
-  return "rgba(239,68,68,0.8)";
+const DIAGRAM_FILES: Record<MuscleGroup, MuscleDiagramFiles> = {
+  chest: {
+    anterior: "Muscle Group=Chest, View=Anterior, Dissection=Outer Muscles.svg",
+    posterior: "Muscle Group=Chest, View=Posterior, Dissection=Outer Muscles.svg",
+  },
+  back: {
+    anterior: "Muscle Group=Back, View=Anterior, Dissection=Outer Muscles.svg",
+    posterior: "Muscle Group=Back, View=Posterior, Dissection=Outer Muscles.svg",
+  },
+  shoulders: {
+    anterior: "Muscle Group=Shoulders, View=Anterior, Dissection=Outer Muscles.svg",
+    posterior: "Muscle Group=Shoulders, View=Posterior, Dissection=Outer Muscles.svg",
+  },
+  biceps: {
+    anterior: "Muscle Group=- Biceps Brachii, View=Anterior, Dissection=Outer Muscles.svg",
+    posterior: "Muscle Group=- Biceps Brachii, View=Posterior, Dissection=Outer Muscles.svg",
+  },
+  triceps: {
+    anterior: "Muscle Group=- Triceps Brachii, View=Anterior, Dissection=Outer Muscles.svg",
+    posterior: "Muscle Group=- Triceps Brachii, View=Posterior, Dissection=Outer Muscles.svg",
+  },
+  forearms: {
+    anterior: "Muscle Group=Forearms, View=Anterior, Dissection=Outer Muscles.svg",
+    posterior: "Muscle Group=Forearms, View=Posterior, Dissection=Outer Muscles.svg",
+  },
+  core: {
+    anterior: "Muscle Group=Waist, View=Anterior, Dissection=Outer Muscles.svg",
+    posterior: "Muscle Group=Waist, View=Posterior, Dissection=Outer Muscles.svg",
+  },
+  glutes: {
+    anterior: "Muscle Group=Hips, View=Anterior, Dissection=Outer Muscles.svg",
+    posterior: "Muscle Group=Hips, View=Posterior, Dissection=Outer Muscles.svg",
+  },
+  quads: {
+    anterior: "Muscle Group=- Quadriceps, View=Anterior, Dissection=Outer Muscles.svg",
+    posterior: "Muscle Group=- Quadriceps, View=Posterior, Dissection=Outer Muscles.svg",
+  },
+  hamstrings: {
+    anterior: "Muscle Group=- Hamstrings, View=Anterior, Dissection=Outer Muscles.svg",
+    posterior: "Muscle Group=- Hamstrings, View=Posterior, Dissection=Outer Muscles.svg",
+  },
+  calves: {
+    anterior: "Muscle Group=Calves, View=Anterior, Dissection=Outer Muscles.svg",
+    posterior: "Muscle Group=Calves, View=Posterior, Dissection=Outer Muscles.svg",
+  },
+};
+
+function toDiagramPath(fileName: string): string {
+  return `/diagrams/muscular_system/${encodeURIComponent(fileName)}`;
+}
+
+function fatigueToOpacity(score: number): number {
+  if (score <= 0) return 0;
+  return Math.max(0.16, Math.min(0.95, score / 100));
+}
+
+function toRedOnlyDataUrl(src: string): Promise<string> {
+  return new Promise((resolve) => {
+    const image = new Image();
+    image.crossOrigin = "anonymous";
+
+    image.onload = () => {
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = image.naturalWidth;
+        canvas.height = image.naturalHeight;
+
+        const context = canvas.getContext("2d");
+        if (!context) {
+          resolve(src);
+          return;
+        }
+
+        context.drawImage(image, 0, 0);
+        const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+        const pixels = imageData.data;
+
+        for (let i = 0; i < pixels.length; i += 4) {
+          const red = pixels[i];
+          const green = pixels[i + 1];
+          const blue = pixels[i + 2];
+          const alpha = pixels[i + 3];
+
+          if (alpha === 0) continue;
+
+          const maxOther = Math.max(green, blue);
+          const isRed = red > 90 && red > maxOther * 1.2 && red - maxOther > 24;
+
+          if (!isRed) {
+            pixels[i + 3] = 0;
+            continue;
+          }
+
+          pixels[i + 1] = 0;
+          pixels[i + 2] = 0;
+        }
+
+        context.putImageData(imageData, 0, 0);
+        resolve(canvas.toDataURL("image/png"));
+      } catch {
+        resolve(src);
+      }
+    };
+
+    image.onerror = () => resolve(src);
+    image.src = src;
+  });
+}
+
+function RedOnlyOverlay({
+  src,
+  opacity,
+}: {
+  src: string;
+  opacity: number;
+}) {
+  const [processedSrc, setProcessedSrc] = useState<string>(src);
+
+  useEffect(() => {
+    let cancelled = false;
+    setProcessedSrc(src);
+
+    toRedOnlyDataUrl(src).then((nextSrc) => {
+      if (!cancelled) setProcessedSrc(nextSrc);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [src]);
+
+  return (
+    <img
+      src={processedSrc}
+      alt=""
+      aria-hidden="true"
+      className="absolute inset-0 w-full h-full object-contain"
+      loading="lazy"
+      style={{ opacity }}
+    />
+  );
 }
 
 interface MuscleModelProps {
@@ -33,33 +165,62 @@ interface MuscleModelProps {
 }
 
 export default function MuscleModel({ scores, title = "Muscle Load Map", compact = false }: MuscleModelProps) {
-  const sorted = [...MUSCLE_GROUPS]
-    .map((muscle) => ({ muscle, score: scores[muscle] || 0 }))
-    .sort((a, b) => b.score - a.score);
+  const sorted = useMemo(
+    () =>
+      [...MUSCLE_GROUPS]
+        .map((muscle) => ({ muscle, score: scores[muscle] || 0 }))
+        .sort((a, b) => b.score - a.score),
+    [scores]
+  );
 
   return (
     <div className="rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 p-3">
       <p className="text-sm font-medium mb-2">{title}</p>
       <div className={`grid ${compact ? "grid-cols-1" : "md:grid-cols-[240px,1fr]"} gap-3`}>
-        <div className="mx-auto">
-          <svg viewBox="0 0 220 270" width="220" height="270" aria-label="Muscle load model">
-            <rect x="85" y="10" width="50" height="30" rx="15" fill="#e4e4e7" />
-            <rect x="70" y="40" width="80" height="90" rx="30" fill="#f4f4f5" />
-            <rect x="58" y="50" width="14" height="90" rx="7" fill="#f4f4f5" />
-            <rect x="148" y="50" width="14" height="90" rx="7" fill="#f4f4f5" />
-            <rect x="85" y="130" width="22" height="108" rx="11" fill="#f4f4f5" />
-            <rect x="113" y="130" width="22" height="108" rx="11" fill="#f4f4f5" />
-            {MUSCLE_GROUPS.map((muscle) => {
-              const point = POSITIONS[muscle];
-              const score = scores[muscle] || 0;
-              return (
-                <g key={muscle}>
-                  <circle cx={point.x} cy={point.y} r={compact ? 8 : 10} fill={fatigueToColor(score)} />
-                  <title>{`${MUSCLE_LABELS[muscle]}: ${score}%`}</title>
-                </g>
-              );
-            })}
-          </svg>
+        <div className="mx-auto w-full max-w-[360px]">
+          <div className="rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-2">
+            <p className="text-xs font-medium mb-2">Overlay view (all muscle groups)</p>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="rounded-md border border-zinc-200 dark:border-zinc-700 overflow-hidden bg-white relative aspect-[3/4] isolate">
+                <img
+                  src={toDiagramPath(BASE_DIAGRAM.anterior)}
+                  alt="Anterior muscle model"
+                  className="absolute inset-0 w-full h-full object-contain"
+                  loading="lazy"
+                  style={{ opacity: 1 }}
+                />
+                {sorted.map(({ muscle, score }) => {
+                  if (score <= 0) return null;
+                  return (
+                    <RedOnlyOverlay
+                      key={`anterior-${muscle}`}
+                      src={toDiagramPath(DIAGRAM_FILES[muscle].anterior)}
+                      opacity={fatigueToOpacity(score)}
+                    />
+                  );
+                })}
+              </div>
+              <div className="rounded-md border border-zinc-200 dark:border-zinc-700 overflow-hidden bg-white relative aspect-[3/4] isolate">
+                <img
+                  src={toDiagramPath(BASE_DIAGRAM.posterior)}
+                  alt="Posterior muscle model"
+                  className="absolute inset-0 w-full h-full object-contain"
+                  loading="lazy"
+                  style={{ opacity: 1 }}
+                />
+                {sorted.map(({ muscle, score }) => {
+                  if (score <= 0) return null;
+                  return (
+                    <RedOnlyOverlay
+                      key={`posterior-${muscle}`}
+                      src={toDiagramPath(DIAGRAM_FILES[muscle].posterior)}
+                      opacity={fatigueToOpacity(score)}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+          </div>
         </div>
         <div className="grid sm:grid-cols-2 gap-2 content-start">
           {sorted.map(({ muscle, score }) => (

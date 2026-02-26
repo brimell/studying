@@ -6,14 +6,17 @@ import TodayProgress from "./TodayProgress";
 import DailyStudyChart from "./DailyStudyChart";
 import SubjectDistribution from "./SubjectDistribution";
 import StudyProjection from "./StudyProjection";
+import FirstExamCountdown from "./FirstExamCountdown";
 import HabitTracker from "./HabitTracker";
 import WorkoutFatigueCard from "./WorkoutFatigueCard";
+import AlertsPanel from "./AlertsPanel";
 
 const DASHBOARD_LAYOUT_STORAGE_KEY = "study-stats.dashboard.layout.v1";
 const DASHBOARD_SETTINGS_STORAGE_KEY = "study-stats.dashboard.settings.v1";
 const DEFAULT_ORDER = [
   "today-progress",
   "study-projection",
+  "first-exam-countdown",
   "habit-tracker",
   "workout-fatigue",
   "daily-study-chart",
@@ -28,6 +31,7 @@ type CardSizePreset = "compact" | "standard" | "large" | "full";
 const DEFAULT_CARD_SIZES: Record<CardId, CardSizePreset> = {
   "today-progress": "standard",
   "study-projection": "large",
+  "first-exam-countdown": "standard",
   "habit-tracker": "full",
   "workout-fatigue": "large",
   "daily-study-chart": "large",
@@ -68,6 +72,18 @@ function reorderCards(current: CardId[], sourceId: CardId, targetId: CardId): Ca
   if (sourceIndex === -1 || targetIndex === -1) return current;
   next.splice(sourceIndex, 1);
   next.splice(targetIndex, 0, sourceId);
+  return next;
+}
+
+function moveCardByOffset(current: CardId[], cardId: CardId, offset: -1 | 1): CardId[] {
+  const index = current.indexOf(cardId);
+  if (index === -1) return current;
+  const targetIndex = index + offset;
+  if (targetIndex < 0 || targetIndex >= current.length) return current;
+
+  const next = [...current];
+  const [card] = next.splice(index, 1);
+  next.splice(targetIndex, 0, card);
   return next;
 }
 
@@ -167,6 +183,10 @@ export default function Dashboard() {
         "study-projection": {
           title: "Study Projection",
           content: <StudyProjection />,
+        },
+        "first-exam-countdown": {
+          title: "First Exam Countdown",
+          content: <FirstExamCountdown />,
         },
         "habit-tracker": {
           title: "Habit Tracker",
@@ -269,6 +289,7 @@ export default function Dashboard() {
 
   return (
     <div>
+      <AlertsPanel />
       <div className="mb-4 flex flex-wrap items-center gap-3 text-xs text-zinc-500">
         <span className="font-medium text-zinc-600 dark:text-zinc-300">Dashboard Grid</span>
         <label className="inline-flex items-center gap-1.5">
@@ -332,6 +353,24 @@ export default function Dashboard() {
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs text-zinc-500">
               <span>{cards[id].title}</span>
               <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setOrder((previous) => moveCardByOffset(previous, id, -1))}
+                  disabled={order.indexOf(id) <= 0}
+                  className="px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 disabled:opacity-40"
+                  aria-label={`Move ${cards[id].title} up`}
+                >
+                  ↑
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setOrder((previous) => moveCardByOffset(previous, id, 1))}
+                  disabled={order.indexOf(id) >= order.length - 1}
+                  className="px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 disabled:opacity-40"
+                  aria-label={`Move ${cards[id].title} down`}
+                >
+                  ↓
+                </button>
                 <label className="inline-flex items-center gap-1">
                   <span>Size</span>
                   <select

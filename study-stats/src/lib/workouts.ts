@@ -89,8 +89,7 @@ export function getDefaultWorkoutTemplates(): WorkoutTemplate[] {
         { id: "d3-1", name: "DB Front Squat", muscles: ["quads", "glutes", "core"], sets: 4, reps: 12, notes: "4x8-12" },
         { id: "d3-2", name: "Bulgarian Split Squats", muscles: ["quads", "glutes", "hamstrings"], sets: 3, reps: 10, notes: "3x8-10" },
         { id: "d3-3", name: "Dumbbell RDL", muscles: ["hamstrings", "glutes", "back"], sets: 3, reps: 10, notes: "3x8-10" },
-        { id: "d3-4", name: "Standing Calf Raises", muscles: ["calves"], sets: 4, reps: 20, notes: "4x12-20" },
-        { id: "d3-5", name: "Leg Raises", muscles: ["core"], sets: 3, reps: 15, notes: "3x12-15" },
+        { id: "d3-4", name: "Leg Raises", muscles: ["core"], sets: 3, reps: 15, notes: "3x12-15" },
       ],
     },
     {
@@ -99,10 +98,11 @@ export function getDefaultWorkoutTemplates(): WorkoutTemplate[] {
       createdAt,
       exercises: [
         { id: "d4-1", name: "Dead Hangs", muscles: ["forearms", "shoulders", "back"], sets: 2, reps: 60, notes: "2x30-60s" },
-        { id: "d4-2", name: "Push-Ups (slow stretch)", muscles: ["chest", "shoulders", "triceps"], sets: 2, reps: 20, notes: "2xnear failure" },
-        { id: "d4-3", name: "Single-Leg Calf Raises", muscles: ["calves"], sets: 3, reps: 12, notes: "12 each leg" },
-        { id: "d4-4", name: "Tibialis Raises", muscles: ["calves"], sets: 2, reps: 15, notes: "2x15 (lean against wall)" },
+        { id: "d4-2", name: "Push-Ups (slow stretch)", muscles: ["chest", "shoulders", "triceps"], sets: 3, reps: 12, notes: "3 sets" },
+        { id: "d4-3", name: "Single-Leg Calf Raises", muscles: ["calves"], sets: 3, reps: 12, notes: "3 sets" },
+        { id: "d4-4", name: "Tibialis Raises", muscles: ["calves"], sets: 2, reps: 15, notes: "2 sets (lean against wall)" },
         { id: "d4-5", name: "Hammer Curl", muscles: ["biceps", "forearms"], sets: 3, reps: 12, notes: "2-3x10-12" },
+        { id: "d4-6", name: "Palm down wrist curl", muscles: ["forearms"], sets: 2, reps: 15 },
       ],
     },
     {
@@ -121,7 +121,7 @@ export function getDefaultWorkoutTemplates(): WorkoutTemplate[] {
       name: "Day 6 - 5K",
       createdAt,
       exercises: [
-        { id: "d6-1", name: "5K Run", muscles: ["quads", "hamstrings", "calves", "core"], sets: 1, reps: 5, notes: "5 kilometers; jam wrap before" },
+        { id: "d6-1", name: "5K Run", muscles: ["quads", "hamstrings", "calves", "core"], sets: 1, reps: 5, notes: "jam wrap before" },
       ],
     },
     {
@@ -143,6 +143,52 @@ export function defaultWorkoutPlannerPayload(): WorkoutPlannerPayload {
     workouts: getDefaultWorkoutTemplates(),
     logs: [],
     updatedAt: new Date().toISOString(),
+  };
+}
+
+export function forceApplyDefaultTemplates(
+  payload: WorkoutPlannerPayload
+): { payload: WorkoutPlannerPayload; changed: boolean } {
+  const defaults = getDefaultWorkoutTemplates();
+  const defaultIds = new Set(defaults.map((workout) => workout.id));
+  const existingById = new Map(payload.workouts.map((workout) => [workout.id, workout]));
+
+  let changed = false;
+  const nextWorkouts: WorkoutTemplate[] = [...defaults];
+
+  // Preserve non-default custom workouts as-is.
+  for (const workout of payload.workouts) {
+    if (defaultIds.has(workout.id)) continue;
+    nextWorkouts.push(workout);
+  }
+
+  // Detect whether defaults differ from what user currently has.
+  for (const defaultWorkout of defaults) {
+    const existing = existingById.get(defaultWorkout.id);
+    if (!existing) {
+      changed = true;
+      continue;
+    }
+    if (JSON.stringify(existing) !== JSON.stringify(defaultWorkout)) {
+      changed = true;
+    }
+  }
+
+  if (nextWorkouts.length !== payload.workouts.length) {
+    changed = true;
+  }
+
+  if (!changed) {
+    return { payload, changed: false };
+  }
+
+  return {
+    payload: {
+      ...payload,
+      workouts: nextWorkouts,
+      updatedAt: new Date().toISOString(),
+    },
+    changed: true,
   };
 }
 

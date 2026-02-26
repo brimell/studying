@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import {
   defaultWorkoutPlannerPayload,
   emptyWorkoutPayload,
+  forceApplyDefaultTemplates,
   sanitizeWorkoutPayload,
 } from "@/lib/workouts";
 
@@ -60,10 +61,22 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  const payload = sanitizeWorkoutPayload(data?.payload || emptyWorkoutPayload());
+  const sanitized = sanitizeWorkoutPayload(data?.payload || emptyWorkoutPayload());
+  const { payload, changed } = forceApplyDefaultTemplates(sanitized);
+  if (changed) {
+    await client.from(WORKOUT_TABLE).upsert(
+      {
+        user_id: userId,
+        payload,
+        updated_at: payload.updatedAt,
+      },
+      { onConflict: "user_id" }
+    );
+  }
+
   return NextResponse.json({
     payload,
-    updatedAt: data?.updated_at || null,
+    updatedAt: changed ? payload.updatedAt : data?.updated_at || null,
   });
 }
 
@@ -79,7 +92,9 @@ export async function PUT(req: NextRequest) {
   }
 
   const inputPayload = (body as { payload?: unknown })?.payload;
-  const payload = sanitizeWorkoutPayload(inputPayload);
+  const sanitized = sanitizeWorkoutPayload(inputPayload);
+  const applied = forceApplyDefaultTemplates(sanitized);
+  const payload = applied.payload;
   payload.updatedAt = new Date().toISOString();
 
   const { client, userId } = auth;

@@ -4,10 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 
 const PROJECTION_DATE_STORAGE_KEY = "study-stats.projection.end-date";
 const PROJECTION_HOURS_STORAGE_KEY = "study-stats.projection.hours-per-day";
-const PROJECTION_SHOW_COUNTDOWN_STORAGE_KEY = "study-stats.projection.show-countdown";
 const PROJECTION_EXAM_DATE_STORAGE_KEY = "study-stats.projection.exam-date";
-const PROJECTION_COUNTDOWN_START_STORAGE_KEY = "study-stats.projection.countdown-start";
 const PROJECTION_SUBJECT_TARGETS_STORAGE_KEY = "study-stats.projection.subject-targets";
+const EXAM_DATE_UPDATED_EVENT = "study-stats:exam-date-updated";
 
 const MONTH_LENGTH_DAYS = 30.4375;
 
@@ -47,10 +46,6 @@ function getTodayAtNoon(): Date {
   return new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12, 0, 0, 0);
 }
 
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value));
-}
-
 function round1(value: number): number {
   return Math.round(value * 10) / 10;
 }
@@ -77,11 +72,7 @@ function isValidSubjectTargets(value: unknown): value is SubjectTarget[] {
 export default function StudyProjection() {
   const [endDate, setEndDate] = useState(getDefaultProjectionDate);
   const [hoursPerDay, setHoursPerDay] = useState(5);
-  const [showCountdown, setShowCountdown] = useState(false);
   const [firstExamDate, setFirstExamDate] = useState(getDefaultProjectionDate);
-  const [countdownStartDate, setCountdownStartDate] = useState(() =>
-    toDateInputValue(getTodayAtNoon())
-  );
   const [subjectTargets, setSubjectTargets] = useState<SubjectTarget[]>(
     DEFAULT_SUBJECT_TARGETS
   );
@@ -96,18 +87,8 @@ export default function StudyProjection() {
       if (!Number.isNaN(parsed) && parsed >= 1 && parsed <= 16) setHoursPerDay(parsed);
     }
 
-    const storedShowCountdown = window.localStorage.getItem(
-      PROJECTION_SHOW_COUNTDOWN_STORAGE_KEY
-    );
-    if (storedShowCountdown) setShowCountdown(storedShowCountdown === "true");
-
     const storedExamDate = window.localStorage.getItem(PROJECTION_EXAM_DATE_STORAGE_KEY);
     if (storedExamDate) setFirstExamDate(storedExamDate);
-
-    const storedCountdownStart = window.localStorage.getItem(
-      PROJECTION_COUNTDOWN_START_STORAGE_KEY
-    );
-    if (storedCountdownStart) setCountdownStartDate(storedCountdownStart);
 
     const storedTargets = window.localStorage.getItem(PROJECTION_SUBJECT_TARGETS_STORAGE_KEY);
     if (storedTargets) {
@@ -138,22 +119,13 @@ export default function StudyProjection() {
   }, [hoursPerDay]);
 
   useEffect(() => {
-    window.localStorage.setItem(
-      PROJECTION_SHOW_COUNTDOWN_STORAGE_KEY,
-      String(showCountdown)
-    );
-  }, [showCountdown]);
-
-  useEffect(() => {
-    window.localStorage.setItem(PROJECTION_EXAM_DATE_STORAGE_KEY, firstExamDate);
-  }, [firstExamDate]);
-
-  useEffect(() => {
-    window.localStorage.setItem(
-      PROJECTION_COUNTDOWN_START_STORAGE_KEY,
-      countdownStartDate
-    );
-  }, [countdownStartDate]);
+    const onExamDateUpdated = () => {
+      const storedExamDate = window.localStorage.getItem(PROJECTION_EXAM_DATE_STORAGE_KEY);
+      if (storedExamDate) setFirstExamDate(storedExamDate);
+    };
+    window.addEventListener(EXAM_DATE_UPDATED_EVENT, onExamDateUpdated);
+    return () => window.removeEventListener(EXAM_DATE_UPDATED_EVENT, onExamDateUpdated);
+  }, []);
 
   useEffect(() => {
     window.localStorage.setItem(
@@ -173,24 +145,9 @@ export default function StudyProjection() {
   const hoursPerSubject = Math.round(totalHours / subjectCount);
 
   const examDateObject = parseDateInput(firstExamDate);
-  const countdownStartObject = parseDateInput(countdownStartDate);
   const daysUntilExam = Math.max(
     0,
     Math.ceil((examDateObject.getTime() - now.getTime()) / (1000 * 86400))
-  );
-  const weeksUntilExam = Math.floor(daysUntilExam / 7);
-  const remainingDays = daysUntilExam % 7;
-  const totalCountdownDays = Math.max(
-    1,
-    Math.ceil((examDateObject.getTime() - countdownStartObject.getTime()) / (1000 * 86400))
-  );
-  const elapsedCountdownDays = Math.ceil(
-    (now.getTime() - countdownStartObject.getTime()) / (1000 * 86400)
-  );
-  const countdownProgress = clamp(
-    (elapsedCountdownDays / totalCountdownDays) * 100,
-    0,
-    100
   );
 
   const targetAnalysis = useMemo(() => {
@@ -269,61 +226,6 @@ export default function StudyProjection() {
         <StatCard label="Days remaining" value={daysRemaining} />
         <StatCard label="Total hours" value={totalHours} />
         <StatCard label="Hours / subject" value={hoursPerSubject} />
-      </div>
-
-      <div className="mt-6 border-t border-zinc-200 dark:border-zinc-800 pt-4">
-        <label className="flex items-center gap-2 text-sm font-medium mb-3">
-          <input
-            type="checkbox"
-            checked={showCountdown}
-            onChange={(e) => setShowCountdown(e.target.checked)}
-            className="rounded border-zinc-300"
-          />
-          Show first exam countdown
-        </label>
-
-        {showCountdown && (
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <label className="flex flex-col gap-1 text-sm">
-                First exam date
-                <input
-                  type="date"
-                  value={firstExamDate}
-                  onChange={(e) => setFirstExamDate(e.target.value)}
-                  className="border rounded-lg px-3 py-2 bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
-                />
-              </label>
-              <label className="flex flex-col gap-1 text-sm">
-                Countdown start date
-                <input
-                  type="date"
-                  value={countdownStartDate}
-                  onChange={(e) => setCountdownStartDate(e.target.value)}
-                  className="border rounded-lg px-3 py-2 bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
-                />
-              </label>
-            </div>
-
-            <div className="rounded-xl bg-zinc-50 dark:bg-zinc-800 p-4">
-              <p className="text-sm text-zinc-500 mb-2">Until first exam</p>
-              <p className="text-2xl font-bold mb-3">
-                {weeksUntilExam} week{weeksUntilExam === 1 ? "" : "s"} {remainingDays} day
-                {remainingDays === 1 ? "" : "s"}
-              </p>
-              <div className="w-full h-3 bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-sky-500 transition-all duration-700"
-                  style={{ width: `${countdownProgress}%` }}
-                />
-              </div>
-              <div className="flex justify-between mt-2 text-xs text-zinc-500">
-                <span>Start: {countdownStartDate}</span>
-                <span>Exam: {firstExamDate}</span>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
       <div className="mt-6 border-t border-zinc-200 dark:border-zinc-800 pt-4">
