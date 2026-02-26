@@ -243,6 +243,24 @@ function getDefaultHabitConfigs(): HabitConfigEntry[] {
 }
 
 function toErrorResponse(error: unknown, fallback: string): NextResponse {
+  const anyError = error as {
+    code?: number;
+    response?: { status?: number };
+    message?: string;
+  };
+  const status = anyError?.code || anyError?.response?.status;
+  const messageLower = (anyError?.message || "").toLowerCase();
+  const isAuthError =
+    status === 401 ||
+    messageLower.includes("invalid authentication credentials") ||
+    messageLower.includes("invalid credentials") ||
+    messageLower.includes("login required");
+  if (isAuthError) {
+    return NextResponse.json(
+      { error: "Google session expired. Sign out and sign in with Google again." },
+      { status: 401 }
+    );
+  }
   const message = error instanceof Error ? error.message : fallback;
   return NextResponse.json({ error: message }, { status: 500 });
 }

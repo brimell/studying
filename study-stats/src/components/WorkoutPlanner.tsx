@@ -43,6 +43,7 @@ export default function WorkoutPlanner() {
   const [exerciseSets, setExerciseSets] = useState(3);
   const [exerciseReps, setExerciseReps] = useState(10);
   const [exerciseMuscles, setExerciseMuscles] = useState<MuscleGroup[]>(DEFAULT_EXERCISE_MUSCLES);
+  const [showCreateWorkoutModal, setShowCreateWorkoutModal] = useState(false);
 
   const [logDateByWorkout, setLogDateByWorkout] = useState<Record<string, string>>({});
 
@@ -250,6 +251,7 @@ export default function WorkoutPlanner() {
     await persist(nextPayload, `Saved workout "${name}".`);
     setNewWorkoutName("");
     setDraftExercises([]);
+    setShowCreateWorkoutModal(false);
   };
 
   const removeWorkout = async (workoutId: string) => {
@@ -367,10 +369,21 @@ export default function WorkoutPlanner() {
   return (
     <div className="space-y-5">
       <div className="rounded-2xl bg-white dark:bg-zinc-900 p-6 shadow-sm border border-zinc-200 dark:border-zinc-800">
-        <h1 className="text-2xl font-bold">Workout Planner</h1>
-        <p className="text-sm text-zinc-500 mt-1">
-          Build workouts, track sessions by date, and monitor muscle fatigue.
-        </p>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-bold">Workout Planner</h1>
+            <p className="text-sm text-zinc-500 mt-1">
+              Build workouts, track sessions by date, and monitor muscle fatigue.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowCreateWorkoutModal(true)}
+            className="px-4 py-2 rounded-lg bg-sky-500 hover:bg-sky-600 text-white text-sm font-medium transition-colors"
+          >
+            Create Workout
+          </button>
+        </div>
       </div>
 
       {(loading || saving) && (
@@ -383,114 +396,7 @@ export default function WorkoutPlanner() {
 
       <MuscleModel scores={fatigueScores} title="Current Muscle Fatigue (Recovery-Weighted)" />
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
-        <section className="rounded-2xl bg-white dark:bg-zinc-900 p-5 shadow-sm border border-zinc-200 dark:border-zinc-800">
-          <h2 className="text-lg font-semibold mb-3">Create Workout</h2>
-          <div className="mb-3">
-            <MuscleModel scores={draftMuscleScores} title="Draft Workout Muscle Targets" compact />
-          </div>
-          <form onSubmit={saveWorkout} className="space-y-3">
-            <input
-              type="text"
-              value={newWorkoutName}
-              onChange={(event) => setNewWorkoutName(event.target.value)}
-              placeholder="Workout name (e.g. Push Day)"
-              className="w-full border rounded-lg px-3 py-2 text-sm bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
-            />
-
-            <div className="rounded-lg border border-zinc-200 dark:border-zinc-700 p-3 space-y-2">
-              <p className="text-sm font-medium">Add Exercise</p>
-              <input
-                type="text"
-                value={exerciseName}
-                onChange={(event) => setExerciseName(event.target.value)}
-                placeholder="Exercise name"
-                className="w-full border rounded-lg px-3 py-2 text-sm bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
-              />
-              <div className="grid grid-cols-2 gap-2">
-                <input
-                  type="number"
-                  value={exerciseSets}
-                  min={1}
-                  max={30}
-                  onChange={(event) => setExerciseSets(Number(event.target.value))}
-                  placeholder="Sets"
-                  className="border rounded-lg px-3 py-2 text-sm bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
-                />
-                <input
-                  type="number"
-                  value={exerciseReps}
-                  min={1}
-                  max={100}
-                  onChange={(event) => setExerciseReps(Number(event.target.value))}
-                  placeholder="Reps"
-                  className="border rounded-lg px-3 py-2 text-sm bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
-                />
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-1">
-                {MUSCLE_GROUPS.map((muscle) => (
-                  <label key={muscle} className="text-xs flex items-center gap-1">
-                    <input
-                      type="checkbox"
-                      checked={exerciseMuscles.includes(muscle)}
-                      onChange={(event) => {
-                        setExerciseMuscles((previous) =>
-                          event.target.checked
-                            ? [...previous, muscle]
-                            : previous.filter((entry) => entry !== muscle)
-                        );
-                      }}
-                    />
-                    <span>{MUSCLE_LABELS[muscle]}</span>
-                  </label>
-                ))}
-              </div>
-              <button
-                type="button"
-                onClick={addExerciseToDraft}
-                className="px-3 py-1.5 rounded-md text-xs bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors"
-              >
-                Add Exercise
-              </button>
-            </div>
-
-            <div className="space-y-2">
-              {draftExercises.length === 0 && (
-                <p className="text-xs text-zinc-500">No exercises added yet.</p>
-              )}
-              {draftExercises.map((exercise) => (
-                <div
-                  key={exercise.id}
-                  className="rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 p-2 text-xs"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="font-medium">{exercise.name}</p>
-                    <button
-                      type="button"
-                      onClick={() => removeDraftExercise(exercise.id)}
-                      className="px-1.5 py-0.5 rounded bg-zinc-200 dark:bg-zinc-700"
-                    >
-                      🗑️
-                    </button>
-                  </div>
-                  <p className="text-zinc-500">
-                    {exercise.sets} sets x {exercise.reps} reps •{" "}
-                    {exercise.muscles.map((muscle) => MUSCLE_LABELS[muscle]).join(", ")}
-                  </p>
-                </div>
-              ))}
-            </div>
-
-            <button
-              type="submit"
-              disabled={!newWorkoutName.trim() || draftExercises.length === 0 || saving}
-              className="px-4 py-2 rounded-lg bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white text-sm font-medium transition-colors"
-            >
-              Save Workout
-            </button>
-          </form>
-        </section>
-
+      <div className="grid grid-cols-1 gap-5">
         <section className="rounded-2xl bg-white dark:bg-zinc-900 p-5 shadow-sm border border-zinc-200 dark:border-zinc-800">
           <h2 className="text-lg font-semibold mb-3">Saved Workouts</h2>
           <div className="space-y-3">
@@ -550,6 +456,128 @@ export default function WorkoutPlanner() {
           </div>
         </section>
       </div>
+
+      {showCreateWorkoutModal && (
+        <div className="fixed inset-0 z-[90] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white dark:bg-zinc-900 p-5 shadow-xl border border-zinc-200 dark:border-zinc-800">
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <h2 className="text-lg font-semibold">Create Workout</h2>
+              <button
+                type="button"
+                onClick={() => setShowCreateWorkoutModal(false)}
+                className="px-2 py-1 rounded-md text-xs bg-zinc-200 dark:bg-zinc-700"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="mb-3">
+              <MuscleModel scores={draftMuscleScores} title="Draft Workout Muscle Targets" compact />
+            </div>
+
+            <form onSubmit={saveWorkout} className="space-y-3">
+              <input
+                type="text"
+                value={newWorkoutName}
+                onChange={(event) => setNewWorkoutName(event.target.value)}
+                placeholder="Workout name (e.g. Push Day)"
+                className="w-full border rounded-lg px-3 py-2 text-sm bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
+              />
+
+              <div className="rounded-lg border border-zinc-200 dark:border-zinc-700 p-3 space-y-2">
+                <p className="text-sm font-medium">Add Exercise</p>
+                <input
+                  type="text"
+                  value={exerciseName}
+                  onChange={(event) => setExerciseName(event.target.value)}
+                  placeholder="Exercise name"
+                  className="w-full border rounded-lg px-3 py-2 text-sm bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
+                />
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="number"
+                    value={exerciseSets}
+                    min={1}
+                    max={30}
+                    onChange={(event) => setExerciseSets(Number(event.target.value))}
+                    placeholder="Sets"
+                    className="border rounded-lg px-3 py-2 text-sm bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
+                  />
+                  <input
+                    type="number"
+                    value={exerciseReps}
+                    min={1}
+                    max={100}
+                    onChange={(event) => setExerciseReps(Number(event.target.value))}
+                    placeholder="Reps"
+                    className="border rounded-lg px-3 py-2 text-sm bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
+                  />
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-1">
+                  {MUSCLE_GROUPS.map((muscle) => (
+                    <label key={muscle} className="text-xs flex items-center gap-1">
+                      <input
+                        type="checkbox"
+                        checked={exerciseMuscles.includes(muscle)}
+                        onChange={(event) => {
+                          setExerciseMuscles((previous) =>
+                            event.target.checked
+                              ? [...previous, muscle]
+                              : previous.filter((entry) => entry !== muscle)
+                          );
+                        }}
+                      />
+                      <span>{MUSCLE_LABELS[muscle]}</span>
+                    </label>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={addExerciseToDraft}
+                  className="px-3 py-1.5 rounded-md text-xs bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors"
+                >
+                  Add Exercise
+                </button>
+              </div>
+
+              <div className="space-y-2">
+                {draftExercises.length === 0 && (
+                  <p className="text-xs text-zinc-500">No exercises added yet.</p>
+                )}
+                {draftExercises.map((exercise) => (
+                  <div
+                    key={exercise.id}
+                    className="rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 p-2 text-xs"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="font-medium">{exercise.name}</p>
+                      <button
+                        type="button"
+                        onClick={() => removeDraftExercise(exercise.id)}
+                        className="px-1.5 py-0.5 rounded bg-zinc-200 dark:bg-zinc-700"
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                    <p className="text-zinc-500">
+                      {exercise.sets} sets x {exercise.reps} reps •{" "}
+                      {exercise.muscles.map((muscle) => MUSCLE_LABELS[muscle]).join(", ")}
+                    </p>
+                  </div>
+                ))}
+              </div>
+
+              <button
+                type="submit"
+                disabled={!newWorkoutName.trim() || draftExercises.length === 0 || saving}
+                className="px-4 py-2 rounded-lg bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white text-sm font-medium transition-colors"
+              >
+                Save Workout
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
 
       <section className="rounded-2xl bg-white dark:bg-zinc-900 p-5 shadow-sm border border-zinc-200 dark:border-zinc-800">
         <h2 className="text-lg font-semibold mb-3">Workout History</h2>

@@ -6,6 +6,22 @@ import {
   getCalendarClient,
 } from "@/lib/calendar";
 
+function isGoogleAuthError(error: unknown): boolean {
+  const anyError = error as {
+    code?: number;
+    response?: { status?: number };
+    message?: string;
+  };
+  const status = anyError?.code || anyError?.response?.status;
+  if (status === 401) return true;
+  const message = (anyError?.message || "").toLowerCase();
+  return (
+    message.includes("invalid authentication credentials") ||
+    message.includes("invalid credentials") ||
+    message.includes("login required")
+  );
+}
+
 export async function GET() {
   const session = await auth();
   const accessToken = (session as unknown as { accessToken?: string } | null)?.accessToken;
@@ -39,6 +55,12 @@ export async function GET() {
       defaultSourceCalendarIds,
     });
   } catch (error: unknown) {
+    if (isGoogleAuthError(error)) {
+      return NextResponse.json(
+        { error: "Google session expired. Sign out and sign in with Google again." },
+        { status: 401 }
+      );
+    }
     const message = error instanceof Error ? error.message : "Failed to fetch calendars";
     return NextResponse.json({ error: message }, { status: 500 });
   }
