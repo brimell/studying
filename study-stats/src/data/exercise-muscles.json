@@ -1,7 +1,7 @@
 [
   {
-    "exerciseId": "st-1",
-    "exerciseName": "Arm circles",
+    "exerciseId": "ex-001",
+    "exerciseName": "Arm Circles",
     "muscles": [
       { "id": "deltoid-anterior", "percent": 30 },
       { "id": "deltoid-medial-lateral", "percent": 30 },
@@ -10,8 +10,8 @@
     ]
   },
   {
-    "exerciseId": "st-2",
-    "exerciseName": "Band pull-aparts",
+    "exerciseId": "ex-002",
+    "exerciseName": "Band Pull-Aparts",
     "muscles": [
       { "id": "rhomboids", "percent": 40 },
       { "id": "trapezius-middle", "percent": 30 },
@@ -20,8 +20,85 @@
     ]
   },
   {
-    "exerciseId": "d1-1",
-    "exerciseName": "Incline Dumbbell Bench",
+    "exerciseId": "ex-003",
+    "exerciseName": "Band Face Pulls",
+    "muscles": [
+      { "id": "deltoid-posterior", "percent": 45 },
+      { "id": "trapezius-middle", "percent": 25 },
+      { "id": "trapezius-lower", "percent": 20 },
+      { "id": "infraspinatus-teres-minor", "percent": 10 }
+    ]
+  },
+  {
+    "exerciseId": "ex-004",
+    "exerciseName": "Shoulder Dislocates",
+    "muscles": [
+      { "id": "deltoid-anterior", "percent": 30 },
+      { "id": "pectoralis-major", "percent": 25 },
+      { "id": "serratus-anterior", "percent": 25 },
+      { "id": "supraspinatus", "percent": 20 }
+    ]
+  },
+  {
+    "exerciseId": "ex-005",
+    "exerciseName": "Chin Tucks",
+    "muscles": [
+      { "id": "sternocleidomastoid", "percent": 40 },
+      { "id": "splenius", "percent": 35 },
+      { "id": "neck", "percent": 25 }
+    ]
+  },
+  {
+    "exerciseId": "ex-006",
+    "exerciseName": "Wall Posture Reset",
+    "muscles": [
+      { "id": "rhomboids", "percent": 35 },
+      { "id": "trapezius-middle", "percent": 30 },
+      { "id": "erector-spinae", "percent": 20 },
+      { "id": "core", "percent": 15 }
+    ]
+  },
+  {
+    "exerciseId": "ex-007",
+    "exerciseName": "Thoracic Rotations",
+    "muscles": [
+      { "id": "obliques", "percent": 40 },
+      { "id": "quadratus-lumborum", "percent": 30 },
+      { "id": "erector-spinae", "percent": 30 }
+    ]
+  },
+  {
+    "exerciseId": "ex-008",
+    "exerciseName": "Cat-Cow",
+    "muscles": [
+      { "id": "erector-spinae", "percent": 40 },
+      { "id": "rectus-abdominis", "percent": 30 },
+      { "id": "core", "percent": 30 }
+    ]
+  },
+  {
+    "exerciseId": "ex-009",
+    "exerciseName": "Deep Squat Hold",
+    "muscles": [
+      { "id": "quadriceps", "percent": 35 },
+      { "id": "gluteus-maximus", "percent": 30 },
+      { "id": "hip-adductors", "percent": 20 },
+      { "id": "core", "percent": 15 }
+    ]
+  },
+  {
+    "exerciseId": "ex-010",
+    "exerciseName": "Glute Bridges",
+    "muscles": [
+      { "id": "gluteus-maximus", "percent": 50 },
+      { "id": "hamstrings", "percent": 30 },
+      { "id": "erector-spinae", "percent": 20 }
+    ]
+  },
+
+  {
+    "exerciseId": "ex-011",
+    "exerciseName": "Incline Dumbbell Bench Press",
     "muscles": [
       { "id": "pectoralis-major", "percent": 50 },
       { "id": "deltoid-anterior", "percent": 30 },
@@ -29,8 +106,8 @@
     ]
   },
   {
-    "exerciseId": "d1-2",
-    "exerciseName": "Flat Dumbbell Bench",
+    "exerciseId": "ex-012",
+    "exerciseName": "Flat Dumbbell Bench Press",
     "muscles": [
       { "id": "pectoralis-major", "percent": 55 },
       { "id": "deltoid-anterior", "percent": 25 },
@@ -38,91 +115,8 @@
     ]
   },
   {
-    "exerciseId": "d1-3",
-    "exerciseName": "Seated Dumbbell Shoulder Press",
-    "muscles": [
-      { "id": "deltoid-anterior", "percent": 45 },
-      { "id": "deltoid-medial-lateral", "percent": 30 },
-      { "id": "triceps-brachii", "percent": 25 }
-    ]
-  },
-  {
-    "exerciseId": "d1-4",
-    "exerciseName": "Skull Crushers",
-    "muscles": [
-      { "id": "triceps-brachii", "percent": 85 },
-      { "id": "forearms", "percent": 15 }
-    ]
-  },
-  {
-    "exerciseId": "d1-5",
-    "exerciseName": "Lateral Raises",
-    "muscles": [
-      { "id": "deltoid-medial-lateral", "percent": 70 },
-      { "id": "supraspinatus", "percent": 20 },
-      { "id": "trapezius-upper", "percent": 10 }
-    ]
-  },
-  {
-    "exerciseId": "d2-1",
-    "exerciseName": "Chest-Supported Dumbbell Row",
-    "muscles": [
-      { "id": "latissimus-dorsi-teres-major", "percent": 40 },
-      { "id": "rhomboids", "percent": 25 },
-      { "id": "biceps-brachii", "percent": 20 },
-      { "id": "brachioradialis", "percent": 15 }
-    ]
-  },
-  {
-    "exerciseId": "d2-2",
-    "exerciseName": "Rear Delt Fly",
-    "muscles": [
-      { "id": "deltoid-posterior", "percent": 50 },
-      { "id": "rhomboids", "percent": 25 },
-      { "id": "trapezius-middle", "percent": 25 }
-    ]
-  },
-  {
-    "exerciseId": "d3-1",
-    "exerciseName": "DB Front Squat",
-    "muscles": [
-      { "id": "quadriceps", "percent": 45 },
-      { "id": "gluteus-maximus", "percent": 30 },
-      { "id": "core", "percent": 15 },
-      { "id": "erector-spinae", "percent": 10 }
-    ]
-  },
-  {
-    "exerciseId": "d3-2",
-    "exerciseName": "Bulgarian Split Squats",
-    "muscles": [
-      { "id": "quadriceps", "percent": 40 },
-      { "id": "gluteus-maximus", "percent": 35 },
-      { "id": "hamstrings", "percent": 15 },
-      { "id": "hip-adductors", "percent": 10 }
-    ]
-  },
-  {
-    "exerciseId": "d3-3",
-    "exerciseName": "Dumbbell RDL",
-    "muscles": [
-      { "id": "hamstrings", "percent": 45 },
-      { "id": "gluteus-maximus", "percent": 35 },
-      { "id": "erector-spinae", "percent": 20 }
-    ]
-  },
-  {
-    "exerciseId": "d3-4",
-    "exerciseName": "Leg Raises",
-    "muscles": [
-      { "id": "rectus-abdominis", "percent": 50 },
-      { "id": "hip-flexors", "percent": 30 },
-      { "id": "core", "percent": 20 }
-    ]
-  },
-  {
-    "exerciseId": "d4-2",
-    "exerciseName": "Push-Ups (slow stretch)",
+    "exerciseId": "ex-013",
+    "exerciseName": "Push-Ups",
     "muscles": [
       { "id": "pectoralis-major", "percent": 45 },
       { "id": "deltoid-anterior", "percent": 25 },
@@ -131,7 +125,301 @@
     ]
   },
   {
-    "exerciseId": "d6-1",
+    "exerciseId": "ex-014",
+    "exerciseName": "Dips",
+    "muscles": [
+      { "id": "pectoralis-major", "percent": 40 },
+      { "id": "triceps-brachii", "percent": 40 },
+      { "id": "deltoid-anterior", "percent": 20 }
+    ]
+  },
+  {
+    "exerciseId": "ex-015",
+    "exerciseName": "Cable Fly",
+    "muscles": [
+      { "id": "pectoralis-major", "percent": 70 },
+      { "id": "deltoid-anterior", "percent": 20 },
+      { "id": "biceps-brachii", "percent": 10 }
+    ]
+  },
+
+  {
+    "exerciseId": "ex-016",
+    "exerciseName": "Standing Overhead Press",
+    "muscles": [
+      { "id": "deltoid-anterior", "percent": 40 },
+      { "id": "deltoid-medial-lateral", "percent": 30 },
+      { "id": "triceps-brachii", "percent": 20 },
+      { "id": "core", "percent": 10 }
+    ]
+  },
+  {
+    "exerciseId": "ex-017",
+    "exerciseName": "Lateral Raises",
+    "muscles": [
+      { "id": "deltoid-medial-lateral", "percent": 70 },
+      { "id": "supraspinatus", "percent": 20 },
+      { "id": "trapezius-upper", "percent": 10 }
+    ]
+  },
+  {
+    "exerciseId": "ex-018",
+    "exerciseName": "Rear Delt Fly",
+    "muscles": [
+      { "id": "deltoid-posterior", "percent": 50 },
+      { "id": "rhomboids", "percent": 25 },
+      { "id": "trapezius-middle", "percent": 25 }
+    ]
+  },
+  {
+    "exerciseId": "ex-019",
+    "exerciseName": "Arnold Press",
+    "muscles": [
+      { "id": "deltoid-anterior", "percent": 35 },
+      { "id": "deltoid-medial-lateral", "percent": 35 },
+      { "id": "triceps-brachii", "percent": 20 },
+      { "id": "serratus-anterior", "percent": 10 }
+    ]
+  },
+
+  {
+    "exerciseId": "ex-020",
+    "exerciseName": "Pull-Ups",
+    "muscles": [
+      { "id": "latissimus-dorsi-teres-major", "percent": 45 },
+      { "id": "biceps-brachii", "percent": 25 },
+      { "id": "rhomboids", "percent": 20 },
+      { "id": "brachioradialis", "percent": 10 }
+    ]
+  },
+  {
+    "exerciseId": "ex-021",
+    "exerciseName": "Lat Pulldown",
+    "muscles": [
+      { "id": "latissimus-dorsi-teres-major", "percent": 50 },
+      { "id": "biceps-brachii", "percent": 25 },
+      { "id": "rhomboids", "percent": 15 },
+      { "id": "brachialis", "percent": 10 }
+    ]
+  },
+  {
+    "exerciseId": "ex-022",
+    "exerciseName": "Chest-Supported Row",
+    "muscles": [
+      { "id": "latissimus-dorsi-teres-major", "percent": 40 },
+      { "id": "rhomboids", "percent": 25 },
+      { "id": "trapezius-middle", "percent": 15 },
+      { "id": "biceps-brachii", "percent": 20 }
+    ]
+  },
+  {
+    "exerciseId": "ex-023",
+    "exerciseName": "Seated Cable Row",
+    "muscles": [
+      { "id": "latissimus-dorsi-teres-major", "percent": 35 },
+      { "id": "rhomboids", "percent": 25 },
+      { "id": "trapezius-middle", "percent": 20 },
+      { "id": "biceps-brachii", "percent": 20 }
+    ]
+  },
+
+  {
+    "exerciseId": "ex-024",
+    "exerciseName": "Barbell Curl",
+    "muscles": [
+      { "id": "biceps-brachii", "percent": 60 },
+      { "id": "brachialis", "percent": 25 },
+      { "id": "brachioradialis", "percent": 15 }
+    ]
+  },
+  {
+    "exerciseId": "ex-025",
+    "exerciseName": "Hammer Curl",
+    "muscles": [
+      { "id": "brachialis", "percent": 45 },
+      { "id": "brachioradialis", "percent": 35 },
+      { "id": "biceps-brachii", "percent": 20 }
+    ]
+  },
+  {
+    "exerciseId": "ex-026",
+    "exerciseName": "Preacher Curl",
+    "muscles": [
+      { "id": "biceps-brachii", "percent": 65 },
+      { "id": "brachialis", "percent": 25 },
+      { "id": "brachioradialis", "percent": 10 }
+    ]
+  },
+
+  {
+    "exerciseId": "ex-027",
+    "exerciseName": "Skull Crushers",
+    "muscles": [
+      { "id": "triceps-brachii", "percent": 85 },
+      { "id": "forearms", "percent": 15 }
+    ]
+  },
+  {
+    "exerciseId": "ex-028",
+    "exerciseName": "Cable Triceps Pushdown",
+    "muscles": [
+      { "id": "triceps-brachii", "percent": 80 },
+      { "id": "forearms", "percent": 20 }
+    ]
+  },
+  {
+    "exerciseId": "ex-029",
+    "exerciseName": "Overhead Triceps Extension",
+    "muscles": [
+      { "id": "triceps-brachii", "percent": 75 },
+      { "id": "deltoid-anterior", "percent": 15 },
+      { "id": "core", "percent": 10 }
+    ]
+  },
+
+  {
+    "exerciseId": "ex-030",
+    "exerciseName": "Back Squat",
+    "muscles": [
+      { "id": "quadriceps", "percent": 40 },
+      { "id": "gluteus-maximus", "percent": 35 },
+      { "id": "erector-spinae", "percent": 15 },
+      { "id": "hamstrings", "percent": 10 }
+    ]
+  },
+  {
+    "exerciseId": "ex-031",
+    "exerciseName": "Front Squat",
+    "muscles": [
+      { "id": "quadriceps", "percent": 45 },
+      { "id": "gluteus-maximus", "percent": 25 },
+      { "id": "core", "percent": 20 },
+      { "id": "erector-spinae", "percent": 10 }
+    ]
+  },
+  {
+    "exerciseId": "ex-032",
+    "exerciseName": "Bulgarian Split Squat",
+    "muscles": [
+      { "id": "quadriceps", "percent": 40 },
+      { "id": "gluteus-maximus", "percent": 35 },
+      { "id": "hamstrings", "percent": 15 },
+      { "id": "hip-adductors", "percent": 10 }
+    ]
+  },
+  {
+    "exerciseId": "ex-033",
+    "exerciseName": "Romanian Deadlift",
+    "muscles": [
+      { "id": "hamstrings", "percent": 45 },
+      { "id": "gluteus-maximus", "percent": 35 },
+      { "id": "erector-spinae", "percent": 20 }
+    ]
+  },
+  {
+    "exerciseId": "ex-034",
+    "exerciseName": "Hip Thrust",
+    "muscles": [
+      { "id": "gluteus-maximus", "percent": 60 },
+      { "id": "hamstrings", "percent": 25 },
+      { "id": "core", "percent": 15 }
+    ]
+  },
+  {
+    "exerciseId": "ex-035",
+    "exerciseName": "Leg Press",
+    "muscles": [
+      { "id": "quadriceps", "percent": 50 },
+      { "id": "gluteus-maximus", "percent": 30 },
+      { "id": "hamstrings", "percent": 20 }
+    ]
+  },
+
+  {
+    "exerciseId": "ex-036",
+    "exerciseName": "Standing Calf Raises",
+    "muscles": [
+      { "id": "gastrocnemius", "percent": 65 },
+      { "id": "soleus", "percent": 35 }
+    ]
+  },
+  {
+    "exerciseId": "ex-037",
+    "exerciseName": "Seated Calf Raises",
+    "muscles": [
+      { "id": "soleus", "percent": 65 },
+      { "id": "gastrocnemius", "percent": 35 }
+    ]
+  },
+  {
+    "exerciseId": "ex-038",
+    "exerciseName": "Tibialis Raises",
+    "muscles": [
+      { "id": "tibialis-anterior", "percent": 85 },
+      { "id": "feet", "percent": 15 }
+    ]
+  },
+
+  {
+    "exerciseId": "ex-039",
+    "exerciseName": "Plank",
+    "muscles": [
+      { "id": "core", "percent": 40 },
+      { "id": "rectus-abdominis", "percent": 25 },
+      { "id": "obliques", "percent": 20 },
+      { "id": "erector-spinae", "percent": 15 }
+    ]
+  },
+  {
+    "exerciseId": "ex-040",
+    "exerciseName": "Hanging Leg Raises",
+    "muscles": [
+      { "id": "rectus-abdominis", "percent": 45 },
+      { "id": "hip-flexors", "percent": 35 },
+      { "id": "core", "percent": 20 }
+    ]
+  },
+  {
+    "exerciseId": "ex-041",
+    "exerciseName": "Russian Twists",
+    "muscles": [
+      { "id": "obliques", "percent": 50 },
+      { "id": "rectus-abdominis", "percent": 25 },
+      { "id": "core", "percent": 25 }
+    ]
+  },
+
+  {
+    "exerciseId": "ex-042",
+    "exerciseName": "Dead Hangs",
+    "muscles": [
+      { "id": "latissimus-dorsi-teres-major", "percent": 35 },
+      { "id": "forearms", "percent": 35 },
+      { "id": "trapezius-lower", "percent": 30 }
+    ]
+  },
+  {
+    "exerciseId": "ex-043",
+    "exerciseName": "Farmer's Carry",
+    "muscles": [
+      { "id": "forearms", "percent": 35 },
+      { "id": "trapezius-upper", "percent": 25 },
+      { "id": "core", "percent": 25 },
+      { "id": "gluteus-maximus", "percent": 15 }
+    ]
+  },
+  {
+    "exerciseId": "ex-044",
+    "exerciseName": "Sprint Intervals",
+    "muscles": [
+      { "id": "quadriceps", "percent": 30 },
+      { "id": "hamstrings", "percent": 25 },
+      { "id": "gluteus-maximus", "percent": 25 },
+      { "id": "gastrocnemius", "percent": 20 }
+    ]
+  },
+  {
+    "exerciseId": "ex-045",
     "exerciseName": "5K Run",
     "muscles": [
       { "id": "quadriceps", "percent": 30 },

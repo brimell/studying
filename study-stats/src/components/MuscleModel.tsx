@@ -240,9 +240,11 @@ function toDiagramPath(fileName: string): string {
   return `/diagrams/muscular_system/${encodeURIComponent(fileName)}?v=${DIAGRAM_ASSET_VERSION}`;
 }
 
-function fatigueToOpacity(score: number, minimumOpacity = 0.16): number {
-  if (score <= 0) return 0;
-  return Math.max(minimumOpacity, Math.min(0.95, score / 100));
+function normalizedGradeToOpacity(grade: number): number {
+  if (grade <= 0) return 0;
+  const clamped = Math.max(0, Math.min(100, grade)) / 100;
+  const lifted = Math.pow(clamped, 0.68);
+  return Math.max(0.2, Math.min(0.98, 0.2 + lifted * 0.78));
 }
 
 const overlayImageCache = new Map<string, string>();
@@ -404,6 +406,15 @@ function RedOnlyOverlay({
       aria-hidden="true"
       className="absolute inset-0 w-full h-full object-contain"
       loading="lazy"
+      onError={(event) => {
+        const target = event.currentTarget;
+        if (target.dataset.fallbackApplied === "1") {
+          target.style.display = "none";
+          return;
+        }
+        target.dataset.fallbackApplied = "1";
+        target.src = TRANSPARENT_PIXEL_DATA_URL;
+      }}
       style={{
         opacity,
         transform: highlighted ? "scale(1.01)" : "scale(1)",
@@ -472,6 +483,15 @@ function OverlayPanel({
         alt={alt}
         className="absolute inset-0 w-full h-full object-contain"
         loading="lazy"
+        onError={(event) => {
+          const target = event.currentTarget;
+          if (target.dataset.fallbackApplied === "1") {
+            target.style.display = "none";
+            return;
+          }
+          target.dataset.fallbackApplied = "1";
+          target.src = TRANSPARENT_PIXEL_DATA_URL;
+        }}
         style={{ opacity: 1 }}
       />
       {isVisible &&
@@ -572,12 +592,13 @@ export default function MuscleModel({
     return map;
   }, [loadPoints]);
   const normalizedGradeByMuscle = useMemo(() => {
+    const hasLoadData = normalizedLoadByMuscle.size > 0;
     const rawGrade = new Map<MuscleGroup, number>();
     let maxRawGrade = 0;
 
     for (const { muscle, score } of nonZero) {
       const normalizedLoad = normalizedLoadByMuscle.get(muscle) ?? 0;
-      const grade = loadPoints ? (score * normalizedLoad) / 100 : score;
+      const grade = hasLoadData ? normalizedLoad : score;
       if (grade <= 0) continue;
       rawGrade.set(muscle, grade);
       if (grade > maxRawGrade) maxRawGrade = grade;
@@ -590,7 +611,7 @@ export default function MuscleModel({
       normalized.set(muscle, (grade / maxRawGrade) * 100);
     }
     return normalized;
-  }, [loadPoints, nonZero, normalizedLoadByMuscle]);
+  }, [nonZero, normalizedLoadByMuscle]);
   const hasHover = hoveredEntryKey !== null;
   const overlayPanels = useMemo(
     () =>
@@ -614,7 +635,7 @@ export default function MuscleModel({
 
           const src = toDiagramPath(resolveDiagramFiles(muscle, simplifyLabels, dissection)[view]);
           const hoverKey = String(simplifyLabels ? getCommonGroupKey(muscle) : muscle);
-          const opacity = fatigueToOpacity(normalizedGrade, 0);
+          const opacity = normalizedGradeToOpacity(normalizedGrade);
           const existing = groupedOverlays.get(src);
           if (existing) {
             existing.opacity = Math.max(existing.opacity, opacity);
