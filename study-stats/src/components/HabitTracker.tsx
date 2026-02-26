@@ -1867,10 +1867,7 @@ export default function HabitTracker() {
                         label="Active days"
                         value={`${habit.totalCompleted}`}
                       />
-                      <StudyStatBadge
-                        label="Total hours"
-                        value={`${habit.totalHours.toFixed(1)}h`}
-                      />
+                      {/* Removed Total hours stat for binary habits */}
                     </div>
 
                     <div className="overflow-x-auto pb-2">
