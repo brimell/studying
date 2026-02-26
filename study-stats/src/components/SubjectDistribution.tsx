@@ -98,7 +98,7 @@ export default function SubjectDistribution() {
                     ))}
                   </Pie>
                   <Tooltip
-                    formatter={(value: number | string) => `${Number(value).toFixed(1)}h`}
+                    formatter={(value?: number | string) => `${Number(value ?? 0).toFixed(1)}h`}
                   />
                 </PieChart>
               </ResponsiveContainer>
@@ -116,7 +116,7 @@ export default function SubjectDistribution() {
                   />
                   <YAxis unit="h" />
                   <Tooltip
-                    formatter={(value: number | string) => [`${Number(value).toFixed(1)}h`, "Hours"]}
+                    formatter={(value?: number | string) => [`${Number(value ?? 0).toFixed(1)}h`, "Hours"]}
                   />
                   <Bar dataKey="hours" radius={[4, 4, 0, 0]}>
                     {filteredSubjects.map((_, i) => (

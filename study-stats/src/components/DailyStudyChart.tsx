@@ -105,7 +105,7 @@ export default function DailyStudyChart() {
                 tick={{ fontSize: 12 }}
               />
               <Tooltip
-                formatter={(value: number | string) => [`${Number(value).toFixed(2)}h`, "Hours"]}
+                formatter={(value?: number | string) => [`${Number(value ?? 0).toFixed(2)}h`, "Hours"]}
               />
               <ReferenceLine
                 x={data.averageMonth}
