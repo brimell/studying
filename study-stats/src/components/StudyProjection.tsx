@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 
 const PROJECTION_DATE_STORAGE_KEY = "study-stats.projection.end-date";
 const PROJECTION_HOURS_STORAGE_KEY = "study-stats.projection.hours-per-day";
@@ -69,13 +70,25 @@ function isValidSubjectTargets(value: unknown): value is SubjectTarget[] {
   );
 }
 
+function createSubjectId(name: string): string {
+  const slug = name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return slug || `subject-${Date.now()}`;
+}
+
 export default function StudyProjection() {
+  const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const [endDate, setEndDate] = useState(getDefaultProjectionDate);
   const [hoursPerDay, setHoursPerDay] = useState(5);
   const [firstExamDate, setFirstExamDate] = useState(getDefaultProjectionDate);
   const [subjectTargets, setSubjectTargets] = useState<SubjectTarget[]>(
     DEFAULT_SUBJECT_TARGETS
   );
+  const [cloudProjectionReady, setCloudProjectionReady] = useState(false);
+  const projectionSyncSnapshotRef = useRef<string>("");
 
   useEffect(() => {
     const storedDate = window.localStorage.getItem(PROJECTION_DATE_STORAGE_KEY);
@@ -133,6 +146,106 @@ export default function StudyProjection() {
       JSON.stringify(subjectTargets)
     );
   }, [subjectTargets]);
+
+  useEffect(() => {
+    if (!supabase) {
+      setCloudProjectionReady(true);
+      return;
+    }
+
+    let cancelled = false;
+    const loadCloudProjection = async () => {
+      try {
+        const { data } = await supabase.auth.getSession();
+        const token = data.session?.access_token;
+        if (!token) return;
+
+        const response = await fetch("/api/study-projection", {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        if (!response.ok) return;
+
+        const payload = (await response.json()) as {
+          endDate?: string | null;
+          hoursPerDay?: number | null;
+          cloudDisabled?: boolean;
+        };
+        if (cancelled || payload.cloudDisabled) return;
+
+        if (typeof payload.endDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(payload.endDate)) {
+          setEndDate(payload.endDate);
+        }
+        if (
+          typeof payload.hoursPerDay === "number" &&
+          Number.isFinite(payload.hoursPerDay) &&
+          payload.hoursPerDay >= 1 &&
+          payload.hoursPerDay <= 16
+        ) {
+          setHoursPerDay(payload.hoursPerDay);
+        }
+
+        if (
+          typeof payload.endDate === "string" &&
+          /^\d{4}-\d{2}-\d{2}$/.test(payload.endDate) &&
+          typeof payload.hoursPerDay === "number" &&
+          Number.isFinite(payload.hoursPerDay) &&
+          payload.hoursPerDay >= 1 &&
+          payload.hoursPerDay <= 16
+        ) {
+          projectionSyncSnapshotRef.current = `${payload.endDate}|${payload.hoursPerDay}`;
+        }
+      } catch {
+        // Ignore cloud load errors; localStorage remains active.
+      } finally {
+        if (!cancelled) setCloudProjectionReady(true);
+      }
+    };
+
+    void loadCloudProjection();
+    return () => {
+      cancelled = true;
+    };
+  }, [supabase]);
+
+  useEffect(() => {
+    if (!cloudProjectionReady || !supabase) return;
+
+    let cancelled = false;
+    const syncCloudProjection = async () => {
+      const snapshot = `${endDate}|${hoursPerDay}`;
+      if (snapshot === projectionSyncSnapshotRef.current) return;
+
+      try {
+        const { data } = await supabase.auth.getSession();
+        const token = data.session?.access_token;
+        if (!token) return;
+
+        const response = await fetch("/api/study-projection", {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            endDate,
+            hoursPerDay,
+          }),
+        });
+        if (!response.ok) return;
+        if (!cancelled) projectionSyncSnapshotRef.current = snapshot;
+      } catch {
+        // Ignore cloud sync errors; localStorage remains source of truth on this device.
+      }
+    };
+
+    void syncCloudProjection();
+    return () => {
+      cancelled = true;
+    };
+  }, [cloudProjectionReady, endDate, hoursPerDay, supabase]);
 
   const now = getTodayAtNoon();
   const projectionTargetDate = parseDateInput(endDate);
@@ -197,6 +310,33 @@ export default function StudyProjection() {
     );
   };
 
+  const addSubject = () => {
+    const baseName = "New Subject";
+    const existingNames = new Set(
+      subjectTargets.map((subject) => subject.name.trim().toLowerCase())
+    );
+    let nextName = baseName;
+    let suffix = 2;
+    while (existingNames.has(nextName.toLowerCase())) {
+      nextName = `${baseName} ${suffix}`;
+      suffix += 1;
+    }
+
+    setSubjectTargets((previous) => [
+      ...previous,
+      {
+        id: createSubjectId(nextName),
+        name: nextName,
+        weeklyTargetHours: 0,
+        monthlyTargetHours: 0,
+      },
+    ]);
+  };
+
+  const removeSubject = (id: string) => {
+    setSubjectTargets((previous) => previous.filter((subject) => subject.id !== id));
+  };
+
   return (
     <div className="rounded-2xl bg-white dark:bg-zinc-900 p-6 shadow-sm border border-zinc-200 dark:border-zinc-800">
       <h2 className="text-lg font-semibold mb-4">Study Projection</h2>
@@ -233,6 +373,15 @@ export default function StudyProjection() {
         <p className="text-xs text-zinc-500 mb-4">
           Set weekly/monthly target hours per subject. Gaps and required pace update automatically.
         </p>
+        <div className="mb-4">
+          <button
+            type="button"
+            onClick={addSubject}
+            className="px-3 py-1.5 rounded-md text-xs bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors"
+          >
+            Add subject
+          </button>
+        </div>
 
         <div className="space-y-3">
           {targetAnalysis.map((subject) => {
@@ -244,6 +393,15 @@ export default function StudyProjection() {
                 key={subject.id}
                 className="rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 p-3"
               >
+                <div className="flex justify-end mb-2">
+                  <button
+                    type="button"
+                    onClick={() => removeSubject(subject.id)}
+                    className="px-2 py-1 rounded-md text-xs bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors"
+                  >
+                    Remove
+                  </button>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   <label className="flex flex-col gap-1 text-sm">
                     Subject

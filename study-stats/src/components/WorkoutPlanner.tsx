@@ -14,7 +14,12 @@ import type {
   WorkoutTemplate,
 } from "@/lib/types";
 import { MUSCLE_GROUPS, WORKOUT_WEEK_DAYS } from "@/lib/types";
-import { computeMuscleFatigue, emptyWorkoutPayload, MUSCLE_LABELS } from "@/lib/workouts";
+import {
+  computeMuscleFatigue,
+  emptyWorkoutPayload,
+  MUSCLE_LABELS,
+  UI_MUSCLE_GROUPS,
+} from "@/lib/workouts";
 
 function generateId(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
@@ -28,7 +33,7 @@ function todayDateKey(): string {
 const TRACKER_CALENDAR_STORAGE_KEY = "study-stats.tracker-calendar-id";
 const HABIT_WORKOUT_LINKS_STORAGE_KEY = "study-stats.habit-tracker.workout-links";
 
-const DEFAULT_EXERCISE_MUSCLES: MuscleGroup[] = ["chest"];
+const DEFAULT_EXERCISE_MUSCLES: MuscleGroup[] = ["pectoralis-major"];
 
 const WEEKDAY_LABELS: Record<WorkoutWeekDay, string> = {
   monday: "Monday",
@@ -735,7 +740,7 @@ export default function WorkoutPlanner() {
 
             {payload.weeklyPlans.map((plan) => {
               const summary = weeklyPlanSummaries.get(plan.id);
-              const nonZeroMuscles = MUSCLE_GROUPS
+              const nonZeroMuscles = UI_MUSCLE_GROUPS
                 .map((muscle) => ({
                   muscle,
                   load: summary?.totalByMuscle[muscle] || 0,
@@ -744,7 +749,7 @@ export default function WorkoutPlanner() {
                 }))
                 .filter((entry) => entry.load > 0)
                 .sort((a, b) => b.load - a.load);
-              const missingMuscles = MUSCLE_GROUPS.filter(
+              const missingMuscles = UI_MUSCLE_GROUPS.filter(
                 (muscle) => (summary?.totalByMuscle[muscle] || 0) <= 0
               );
 
@@ -887,7 +892,7 @@ export default function WorkoutPlanner() {
                   />
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-1">
-                  {MUSCLE_GROUPS.map((muscle) => (
+                  {UI_MUSCLE_GROUPS.map((muscle) => (
                     <label key={muscle} className="text-xs flex items-center gap-1">
                       <input
                         type="checkbox"

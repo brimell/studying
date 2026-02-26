@@ -2,8 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { MuscleGroup } from "@/lib/types";
-import { MUSCLE_GROUPS } from "@/lib/types";
-import { MUSCLE_LABELS } from "@/lib/workouts";
+import { MUSCLE_LABELS, UI_MUSCLE_GROUPS } from "@/lib/workouts";
 
 interface MuscleDiagramFiles {
   anterior: string;
@@ -234,7 +233,7 @@ interface MuscleModelProps {
 export default function MuscleModel({ scores, title = "Muscle Load Map", compact = false }: MuscleModelProps) {
   const sorted = useMemo(
     () =>
-      [...MUSCLE_GROUPS]
+      [...UI_MUSCLE_GROUPS]
         .map((muscle) => ({ muscle, score: scores[muscle] || 0 }))
         .sort((a, b) => b.score - a.score),
     [scores]

@@ -25,3 +25,13 @@ create table if not exists public.study_stats_exam_countdown (
 
 create index if not exists study_stats_exam_countdown_updated_at_idx
   on public.study_stats_exam_countdown (updated_at desc);
+
+create table if not exists public.study_stats_projection (
+  user_id uuid primary key references auth.users (id) on delete cascade,
+  end_date date not null,
+  hours_per_day double precision not null,
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
+create index if not exists study_stats_projection_updated_at_idx
+  on public.study_stats_projection (updated_at desc);

@@ -12,6 +12,77 @@ import musclesData from "@/data/muscles.json";
 import exerciseMusclesData from "@/data/exercise-muscles.json";
 
 const MUSCLE_DEFINITIONS = musclesData as Array<{ id: MuscleGroup; name: string }>;
+const ALLOWED_MUSCLES = new Set<MuscleGroup>(MUSCLE_GROUPS);
+
+const LEGACY_MUSCLE_REMAP: Partial<Record<MuscleGroup, MuscleGroup[]>> = {
+  chest: ["pectoralis-major", "pectoralis-minor", "serratus-anterior"],
+  back: ["latissimus-dorsi-teres-major", "rhomboids", "trapezius-middle", "erector-spinae"],
+  shoulders: ["deltoid-anterior", "deltoid-medial-lateral", "deltoid-posterior", "supraspinatus"],
+  biceps: ["biceps-brachii", "brachialis", "brachioradialis"],
+  triceps: ["triceps-brachii"],
+  forearms: ["brachioradialis", "wrist-extensors", "wrist-flexors", "pronators", "supinators"],
+  core: ["rectus-abdominis", "obliques", "quadratus-lumborum"],
+  glutes: ["gluteus-maximus", "deep-external-rotators"],
+  quads: ["quadriceps", "sartorius"],
+  calves: ["gastrocnemius", "soleus", "tibialis-anterior"],
+};
+
+const LEGACY_MUSCLE_GROUP_SET = new Set<MuscleGroup>(
+  Object.keys(LEGACY_MUSCLE_REMAP) as MuscleGroup[]
+);
+
+export const UI_MUSCLE_GROUPS: MuscleGroup[] = MUSCLE_GROUPS.filter(
+  (muscle) => !LEGACY_MUSCLE_GROUP_SET.has(muscle)
+);
+
+function normalizeMuscles(muscles: MuscleGroup[]): MuscleGroup[] {
+  const seen = new Set<MuscleGroup>();
+  const result: MuscleGroup[] = [];
+
+  for (const muscle of muscles) {
+    const mapped = LEGACY_MUSCLE_REMAP[muscle];
+    const expanded = mapped && mapped.length > 0 ? mapped : [muscle];
+
+    for (const candidate of expanded) {
+      if (!ALLOWED_MUSCLES.has(candidate) || seen.has(candidate)) continue;
+      seen.add(candidate);
+      result.push(candidate);
+    }
+  }
+
+  return result;
+}
+
+type ExerciseMuscleWeight = {
+  id: MuscleGroup;
+  percent: number;
+};
+
+type ExerciseMuscleMapEntry = {
+  exerciseId: string;
+  exerciseName: string;
+  muscles: ExerciseMuscleWeight[];
+};
+
+function normalizeWeightedMuscles(muscles: ExerciseMuscleWeight[]): ExerciseMuscleWeight[] {
+  const byMuscle = new Map<MuscleGroup, number>();
+
+  for (const muscle of muscles) {
+    if (!ALLOWED_MUSCLES.has(muscle.id) || muscle.percent <= 0) continue;
+    const mapped = LEGACY_MUSCLE_REMAP[muscle.id];
+    const expanded = mapped && mapped.length > 0 ? mapped : [muscle.id];
+    const share = muscle.percent / expanded.length;
+
+    for (const candidate of expanded) {
+      if (!ALLOWED_MUSCLES.has(candidate) || share <= 0) continue;
+      byMuscle.set(candidate, (byMuscle.get(candidate) || 0) + share);
+    }
+  }
+
+  return [...byMuscle.entries()]
+    .map(([id, percent]) => ({ id, percent }))
+    .sort((left, right) => right.percent - left.percent);
+}
 
 const MUSCLE_LABELS_FROM_JSON = MUSCLE_DEFINITIONS.reduce(
   (accumulator, entry) => {
@@ -29,13 +100,41 @@ export const MUSCLE_LABELS: Record<MuscleGroup, string> = MUSCLE_GROUPS.reduce(
   {} as Record<MuscleGroup, string>
 );
 
-export const EXERCISE_MUSCLE_MAP = new Map(
-  (exerciseMusclesData as Array<{
+const EXERCISE_MUSCLE_ENTRIES: ExerciseMuscleMapEntry[] = (
+  exerciseMusclesData as Array<{
     exerciseId: string;
     exerciseName: string;
-    muscles: MuscleGroup[];
-  }>).map((entry) => [entry.exerciseId, entry])
+    muscles: Array<{ id: string; percent: number }>;
+  }>
+)
+  .map((entry) => {
+    const muscles = normalizeWeightedMuscles(
+      entry.muscles
+      .map((muscle) => ({
+        id: muscle.id as MuscleGroup,
+        percent: Number.isFinite(muscle.percent) ? muscle.percent : 0,
+      }))
+      .filter((muscle) => ALLOWED_MUSCLES.has(muscle.id) && muscle.percent > 0)
+      .sort((left, right) => right.percent - left.percent)
+    );
+
+    return {
+      exerciseId: entry.exerciseId,
+      exerciseName: entry.exerciseName,
+      muscles,
+    };
+  })
+  .filter((entry) => entry.exerciseId.trim().length > 0 && entry.muscles.length > 0);
+
+export const EXERCISE_MUSCLE_MAP = new Map<string, ExerciseMuscleMapEntry>(
+  EXERCISE_MUSCLE_ENTRIES.map((entry) => [entry.exerciseId, entry])
 );
+
+function resolveExerciseMuscles(exerciseId: string, fallback: MuscleGroup[]): MuscleGroup[] {
+  const mapped = EXERCISE_MUSCLE_MAP.get(exerciseId);
+  if (!mapped) return normalizeMuscles(fallback);
+  return normalizeMuscles(mapped.muscles.map((muscle) => muscle.id));
+}
 
 const MAX_WORKOUTS = 100;
 const MAX_EXERCISES_PER_WORKOUT = 60;
@@ -64,7 +163,7 @@ export function emptyWorkoutPayload(): WorkoutPlannerPayload {
 
 export function getDefaultWorkoutTemplates(): WorkoutTemplate[] {
   const createdAt = "2026-02-26T00:00:00.000Z";
-  return [
+  const templates: WorkoutTemplate[] = [
     {
       id: "default-stretching",
       name: "Stretching (Before Every Session)",
@@ -165,6 +264,14 @@ export function getDefaultWorkoutTemplates(): WorkoutTemplate[] {
       ],
     },
   ];
+
+  return templates.map((template) => ({
+    ...template,
+    exercises: template.exercises.map((exercise) => ({
+      ...exercise,
+      muscles: resolveExerciseMuscles(exercise.id, exercise.muscles),
+    })),
+  }));
 }
 
 function getDefaultWeeklyPlans(): WeeklyWorkoutPlan[] {
@@ -257,18 +364,13 @@ function safeString(input: unknown, maxLength = 120): string {
 
 function sanitizeMuscles(input: unknown): MuscleGroup[] {
   if (!Array.isArray(input)) return [];
-  const allowed = new Set(MUSCLE_GROUPS);
-  const seen = new Set<MuscleGroup>();
-  const result: MuscleGroup[] = [];
+  const base: MuscleGroup[] = [];
   for (const item of input) {
     if (typeof item !== "string") continue;
-    if (!allowed.has(item as MuscleGroup)) continue;
-    const muscle = item as MuscleGroup;
-    if (seen.has(muscle)) continue;
-    seen.add(muscle);
-    result.push(muscle);
+    if (!ALLOWED_MUSCLES.has(item as MuscleGroup)) continue;
+    base.push(item as MuscleGroup);
   }
-  return result;
+  return normalizeMuscles(base);
 }
 
 function sanitizeExercise(input: unknown): WorkoutExercise | null {
@@ -450,38 +552,45 @@ function createMuscleNumberMap(initialValue = 0): Record<MuscleGroup, number> {
 }
 
 function getBaseRecoveryHours(muscle: MuscleGroup): number {
-  const label = MUSCLE_LABELS[muscle].toLowerCase();
-
   if (
-    label.includes("quad") ||
-    label.includes("hamstring") ||
-    label.includes("thigh") ||
-    label.includes("glute") ||
-    label.includes("hip") ||
-    label.includes("adductor") ||
-    label.includes("abductor") ||
-    label.includes("sartorius")
+    [
+      "quadriceps",
+      "quads",
+      "hamstrings",
+      "thighs",
+      "gluteus-maximus",
+      "glutes",
+      "hip-flexors",
+      "hip-adductors",
+      "abductors",
+      "sartorius",
+      "deep-external-rotators",
+      "hips",
+    ].includes(muscle)
   ) {
     return 84;
   }
 
-  if (
-    label.includes("calf") ||
-    label.includes("soleus") ||
-    label.includes("gastrocnemius") ||
-    label.includes("tibialis") ||
-    label.includes("feet")
-  ) {
+  if (["calves", "gastrocnemius", "soleus", "tibialis-anterior", "feet"].includes(muscle)) {
     return 48;
   }
 
   if (
-    label.includes("chest") ||
-    label.includes("back") ||
-    label.includes("latissimus") ||
-    label.includes("rhomboid") ||
-    label.includes("trapezius") ||
-    label.includes("erector")
+    [
+      "pectoralis-major",
+      "pectoralis-minor",
+      "chest",
+      "back",
+      "latissimus-dorsi-teres-major",
+      "rhomboids",
+      "trapezius-upper",
+      "trapezius-middle",
+      "trapezius-lower",
+      "erector-spinae",
+      "quadratus-lumborum",
+      "splenius",
+      "levator-scapulae",
+    ].includes(muscle)
   ) {
     return 60;
   }
