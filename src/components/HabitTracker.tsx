@@ -487,7 +487,7 @@ export default function HabitTracker() {
   const [showAddHabitModal, setShowAddHabitModal] = useState(false);
   const [editingBinaryHabitSlug, setEditingBinaryHabitSlug] = useState<string | null>(null);
   const [editingDurationHabitSlug, setEditingDurationHabitSlug] = useState<string | null>(null);
-  const [habitSettingsOpen, setHabitSettingsOpen] = useState<Record<string, boolean>>({});
+  const [activeHabitSettingsSlug, setActiveHabitSettingsSlug] = useState<string | null>(null);
   const habitDayQueueRef = useRef<QueuedHabitDayUpdate[]>([]);
   const habitDayQueueRunningRef = useRef(false);
   const milestoneSyncTimeoutRef = useRef<number | null>(null);
@@ -505,7 +505,8 @@ export default function HabitTracker() {
     showAddMilestoneModal ||
     showAddHabitModal ||
     editingBinaryHabitSlug !== null ||
-    editingDurationHabitSlug !== null;
+    editingDurationHabitSlug !== null ||
+    activeHabitSettingsSlug !== null;
 
   useEffect(() => {
     if (!hasOpenModal) return;
@@ -1240,6 +1241,10 @@ export default function HabitTracker() {
     if (!data || !editingBinaryHabitSlug) return null;
     return data.habits.find((habit) => habit.slug === editingBinaryHabitSlug) || null;
   }, [data, editingBinaryHabitSlug]);
+  const activeHabitSettings = useMemo(() => {
+    if (!data || !activeHabitSettingsSlug) return null;
+    return data.habits.find((habit) => habit.slug === activeHabitSettingsSlug) || null;
+  }, [activeHabitSettingsSlug, data]);
 
   useEffect(() => {
     if (!data) return;
@@ -1342,6 +1347,21 @@ export default function HabitTracker() {
     }
     return latest;
   }, [studyExamDateSet]);
+  const activeHabitFuturePreview = useMemo(() => {
+    if (!activeHabitSettings) return null;
+    return (
+      habitFuturePreviewSettings[activeHabitSettings.slug] || {
+        mode: "auto" as FuturePreviewMode,
+        customDays: DEFAULT_CUSTOM_FUTURE_PREVIEW_DAYS,
+      }
+    );
+  }, [activeHabitSettings, habitFuturePreviewSettings]);
+  const activeHabitColor = useMemo(() => {
+    if (!activeHabitSettings) return null;
+    return habitColors[activeHabitSettings.slug] && isHexColor(habitColors[activeHabitSettings.slug])
+      ? habitColors[activeHabitSettings.slug]
+      : resolveDefaultHabitColor(activeHabitSettings.slug);
+  }, [activeHabitSettings, habitColors]);
 
   useEffect(() => {
     if (!data || data.habits.length === 0) return;
@@ -1906,13 +1926,6 @@ export default function HabitTracker() {
     setHabitTrackingCalendarDrafts(nextTrackingCalendars);
     setHabitSourceDrafts(nextSources);
     setHabitTermsDrafts(nextTerms);
-    setHabitSettingsOpen((previous) => {
-      const next: Record<string, boolean> = {};
-      for (const habit of data.habits) {
-        if (previous[habit.slug]) next[habit.slug] = true;
-      }
-      return next;
-    });
   }, [data]);
 
   return (
@@ -1998,7 +2011,6 @@ export default function HabitTracker() {
             <div className="space-y-4">
               {orderedHabits.map((habit) => {
                 const isExamAwareStudyHabit = habit.slug === examAwareStudyHabitSlug;
-                const habitSettingsExpanded = Boolean(habitSettingsOpen[habit.slug]);
                 const habitFuturePreview = habitFuturePreviewSettings[habit.slug] || {
                   mode: "auto" as FuturePreviewMode,
                   customDays: DEFAULT_CUSTOM_FUTURE_PREVIEW_DAYS,
@@ -2092,175 +2104,17 @@ export default function HabitTracker() {
                           </span>
                           <span>{habit.name}</span>
                         </p>
-                        {habitSettingsExpanded && (
-                          <p className="text-xs text-zinc-500">
-                          {habit.mode === "duration"
-                            ? `⏱️ Hours mode, current streak ${habit.currentStreak}d, longest ${habit.longestStreak}d, active ${habit.totalCompleted} days, total ${habit.totalHours.toFixed(1)}h`
-                            : `✅ Yes/No mode, current streak ${habit.currentStreak}d, longest ${habit.longestStreak}d, completed ${habit.totalCompleted} days`}
-                          </p>
-                        )}
                       </div>
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
-                          onClick={() =>
-                            setHabitSettingsOpen((previous) => ({
-                              ...previous,
-                              [habit.slug]: !previous[habit.slug],
-                            }))
-                          }
+                          onClick={() => setActiveHabitSettingsSlug(habit.slug)}
                           className="pill-btn px-2 py-0.5 text-xs"
                         >
-                          {habitSettingsExpanded ? "Hide settings" : "Settings"}
+                          Settings
                         </button>
-                        {habitSettingsExpanded && (
-                          <>
-                        {habit.mode === "binary" && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setActionError(null);
-                              setEditingBinaryHabitSlug(habit.slug);
-                            }}
-                            className="px-2 py-1 rounded-md text-xs bg-zinc-200 hover:bg-zinc-300 transition-colors"
-                          >
-                            Edit tracking source
-                          </button>
-                        )}
-                        {habit.mode === "duration" && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setActionError(null);
-                              setEditingDurationHabitSlug(habit.slug);
-                            }}
-                            className="px-2 py-1 rounded-md text-xs bg-zinc-200 hover:bg-zinc-300 transition-colors"
-                          >
-                            Edit time tracking sources
-                          </button>
-                        )}
-                        <label className="flex items-center gap-1 text-xs text-zinc-500">
-                          <input
-                            type="checkbox"
-                            checked={shouldShowFutureDays}
-                            onChange={(event) =>
-                              setHabitShowFutureDays((previous) => ({
-                                ...previous,
-                                [habit.slug]: event.target.checked,
-                              }))
-                            }
-                          />
-                          <span>Show future days</span>
-                        </label>
-                        {shouldShowFutureDays && (
-                          <>
-                            <label className="flex items-center gap-1 text-xs text-zinc-500">
-                              <span>Future preview</span>
-                              <select
-                                value={habitFuturePreview.mode}
-                                onChange={(event) =>
-                                  setHabitFuturePreviewSettings((previous) => ({
-                                    ...previous,
-                                    [habit.slug]: {
-                                      mode:
-                                        event.target.value === "custom" ? "custom" : "auto",
-                                      customDays: clampFuturePreviewDays(
-                                        previous[habit.slug]?.customDays ??
-                                          DEFAULT_CUSTOM_FUTURE_PREVIEW_DAYS
-                                      ),
-                                    },
-                                  }))
-                                }
-                                className="rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1 text-xs"
-                              >
-                                <option value="auto">Auto</option>
-                                <option value="custom">Custom</option>
-                              </select>
-                            </label>
-                            {habitFuturePreview.mode === "custom" && (
-                              <label className="flex items-center gap-1 text-xs text-zinc-500">
-                                <span>Days</span>
-                                <input
-                                  type="number"
-                                  min={1}
-                                  max={365}
-                                  step={1}
-                                  value={habitFuturePreview.customDays}
-                                  onChange={(event) =>
-                                    setHabitFuturePreviewSettings((previous) => ({
-                                      ...previous,
-                                      [habit.slug]: {
-                                        mode: previous[habit.slug]?.mode || "auto",
-                                        customDays: clampFuturePreviewDays(
-                                          Number(event.target.value || "0")
-                                        ),
-                                      },
-                                    }))
-                                  }
-                                  className="w-16 rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1 text-xs"
-                                  aria-label={`Custom future days for ${habit.name}`}
-                                />
-                              </label>
-                            )}
-                          </>
-                        )}
-                        <label className="flex items-center gap-1 text-xs text-zinc-500">
-                          <span>Color</span>
-                          <select
-                            value={habitColor}
-                            onChange={(event) =>
-                              setHabitColors((previous) => ({
-                                ...previous,
-                                [habit.slug]: event.target.value,
-                              }))
-                            }
-                            className="rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1 text-xs"
-                            aria-label={`Set ${habit.name} color`}
-                          >
-                            {HABIT_COLOR_OPTIONS.map((option) => (
-                              <option key={`${habit.slug}-${option.value}`} value={option.value}>
-                                {option.label}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                        <button
-                          type="button"
-                          aria-label={`Remove ${habit.name}`}
-                          onClick={() => {
-                            const confirmed = window.confirm(
-                              `Remove "${habit.name}" from your habit tracker? This will delete its tracked history in the current date range.`
-                            );
-                            if (!confirmed) return;
-                            void removeHabit(habit.name);
-                          }}
-                          disabled={actionLoading}
-                          className="px-2 py-1 rounded-md text-xs bg-zinc-200 hover:bg-zinc-300 transition-colors"
-                        >
-                          🗑️
-                        </button>
-                          </>
-                        )}
                       </div>
                     </div>
-
-                    {habitSettingsExpanded && (
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
-                      <StudyStatBadge
-                        label="Current streak"
-                        value={`${habit.currentStreak}d`}
-                      />
-                      <StudyStatBadge
-                        label="Longest streak"
-                        value={`${habit.longestStreak}d`}
-                      />
-                      <StudyStatBadge
-                        label="Active days"
-                        value={`${habit.totalCompleted}`}
-                      />
-                      {/* Removed Total hours stat for binary habits */}
-                      </div>
-                    )}
 
                     <div className="overflow-x-auto pb-2">
                       <div className="flex ml-8 mb-1 relative" style={{ gap: 0 }}>
@@ -2357,55 +2211,188 @@ export default function HabitTracker() {
                         ))}
                       </div>
 
-                      {habitSettingsExpanded && (
-                        <div className="flex items-center gap-2 mt-3 text-xs text-zinc-500">
-                        {habit.mode === "duration" ? (
-                          <>
-                            <span>Less</span>
-                            {[0, 1, 2, 3, 4].map((level) => (
-                              <div
-                                key={`${habit.slug}-legend-${level}`}
-                                className="w-[13px] h-[13px] rounded-[2px]"
-                                style={{
-                                  backgroundColor: getHeatCellColor(
-                                    habitColor,
-                                    level as 0 | 1 | 2 | 3 | 4
-                                  ),
-                                }}
-                              />
-                            ))}
-                            <span>More</span>
-                            {isExamAwareStudyHabit && (
-                              <>
-                                <div
-                                  className="w-[13px] h-[13px] rounded-[2px] ml-2"
-                                  style={{ backgroundColor: getFutureCellColor() }}
-                                />
-                                <span className="text-zinc-400">Future day</span>
-                                <div className="w-[13px] h-[13px] rounded-[2px] ring-1 ring-red-500 ring-inset" />
-                                <span className="text-zinc-400">🟥 Exam date</span>
-                              </>
-                            )}
-                          </>
-                        ) : (
-                          <>
-                            <span>Less</span>
-                            <div className="w-[13px] h-[13px] rounded-[2px] bg-zinc-200" />
-                            <div
-                              className="w-[13px] h-[13px] rounded-[2px]"
-                              style={{ backgroundColor: habitColor }}
-                            />
-                            <span>More</span>
-                          </>
-                        )}
-                        </div>
-                      )}
                     </div>
                   </div>
                 );
               })}
             </div>
           </div>
+
+          {activeHabitSettings &&
+            activeHabitFuturePreview &&
+            activeHabitColor &&
+            typeof document !== "undefined" &&
+            createPortal(
+              <div
+                className="fixed inset-0 z-[120] flex items-center justify-center bg-zinc-900/55 p-4 overflow-y-auto"
+                onMouseDown={(event) => {
+                  if (event.target === event.currentTarget) setActiveHabitSettingsSlug(null);
+                }}
+              >
+                <div
+                  className="w-full max-w-xl rounded-xl border border-zinc-200 bg-white p-4 my-auto shadow-2xl"
+                  onMouseDown={(event) => event.stopPropagation()}
+                >
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-sm font-semibold">Habit Settings: {activeHabitSettings.name}</h4>
+                    <button
+                      type="button"
+                      onClick={() => setActiveHabitSettingsSlug(null)}
+                      className="px-2 py-1 rounded-md text-xs bg-zinc-200"
+                    >
+                      Close
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
+                    <StudyStatBadge label="Current streak" value={`${activeHabitSettings.currentStreak}d`} />
+                    <StudyStatBadge label="Longest streak" value={`${activeHabitSettings.longestStreak}d`} />
+                    <StudyStatBadge label="Active days" value={`${activeHabitSettings.totalCompleted}`} />
+                    <StudyStatBadge
+                      label={activeHabitSettings.mode === "duration" ? "Total hours" : "Mode"}
+                      value={
+                        activeHabitSettings.mode === "duration"
+                          ? `${activeHabitSettings.totalHours.toFixed(1)}h`
+                          : "Yes/No"
+                      }
+                    />
+                  </div>
+
+                  <div className="space-y-3">
+                    {activeHabitSettings.mode === "binary" && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActionError(null);
+                          setActiveHabitSettingsSlug(null);
+                          setEditingBinaryHabitSlug(activeHabitSettings.slug);
+                        }}
+                        className="px-2 py-1 rounded-md text-xs bg-zinc-200 hover:bg-zinc-300 transition-colors"
+                      >
+                        Edit tracking source
+                      </button>
+                    )}
+
+                    {activeHabitSettings.mode === "duration" && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActionError(null);
+                          setActiveHabitSettingsSlug(null);
+                          setEditingDurationHabitSlug(activeHabitSettings.slug);
+                        }}
+                        className="px-2 py-1 rounded-md text-xs bg-zinc-200 hover:bg-zinc-300 transition-colors"
+                      >
+                        Edit time tracking sources
+                      </button>
+                    )}
+
+                    <label className="flex items-center gap-2 text-xs text-zinc-500">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(habitShowFutureDays[activeHabitSettings.slug])}
+                        onChange={(event) =>
+                          setHabitShowFutureDays((previous) => ({
+                            ...previous,
+                            [activeHabitSettings.slug]: event.target.checked,
+                          }))
+                        }
+                      />
+                      <span>Show future days</span>
+                    </label>
+
+                    {habitShowFutureDays[activeHabitSettings.slug] && (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <label className="flex items-center gap-1 text-xs text-zinc-500">
+                          <span>Future preview</span>
+                          <select
+                            value={activeHabitFuturePreview.mode}
+                            onChange={(event) =>
+                              setHabitFuturePreviewSettings((previous) => ({
+                                ...previous,
+                                [activeHabitSettings.slug]: {
+                                  mode: event.target.value === "custom" ? "custom" : "auto",
+                                  customDays: clampFuturePreviewDays(
+                                    previous[activeHabitSettings.slug]?.customDays ??
+                                      DEFAULT_CUSTOM_FUTURE_PREVIEW_DAYS
+                                  ),
+                                },
+                              }))
+                            }
+                            className="rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1 text-xs"
+                          >
+                            <option value="auto">Auto</option>
+                            <option value="custom">Custom</option>
+                          </select>
+                        </label>
+                        {activeHabitFuturePreview.mode === "custom" && (
+                          <label className="flex items-center gap-1 text-xs text-zinc-500">
+                            <span>Days</span>
+                            <input
+                              type="number"
+                              min={1}
+                              max={365}
+                              step={1}
+                              value={activeHabitFuturePreview.customDays}
+                              onChange={(event) =>
+                                setHabitFuturePreviewSettings((previous) => ({
+                                  ...previous,
+                                  [activeHabitSettings.slug]: {
+                                    mode: previous[activeHabitSettings.slug]?.mode || "auto",
+                                    customDays: clampFuturePreviewDays(Number(event.target.value || "0")),
+                                  },
+                                }))
+                              }
+                              className="w-16 rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1 text-xs"
+                              aria-label={`Custom future days for ${activeHabitSettings.name}`}
+                            />
+                          </label>
+                        )}
+                      </div>
+                    )}
+
+                    <label className="flex items-center gap-2 text-xs text-zinc-500">
+                      <span>Color</span>
+                      <select
+                        value={activeHabitColor}
+                        onChange={(event) =>
+                          setHabitColors((previous) => ({
+                            ...previous,
+                            [activeHabitSettings.slug]: event.target.value,
+                          }))
+                        }
+                        className="rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1 text-xs"
+                        aria-label={`Set ${activeHabitSettings.name} color`}
+                      >
+                        {HABIT_COLOR_OPTIONS.map((option) => (
+                          <option key={`${activeHabitSettings.slug}-${option.value}`} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <button
+                      type="button"
+                      aria-label={`Remove ${activeHabitSettings.name}`}
+                      onClick={() => {
+                        const confirmed = window.confirm(
+                          `Remove "${activeHabitSettings.name}" from your habit tracker? This will delete its tracked history in the current date range.`
+                        );
+                        if (!confirmed) return;
+                        setActiveHabitSettingsSlug(null);
+                        void removeHabit(activeHabitSettings.name);
+                      }}
+                      disabled={actionLoading}
+                      className="px-2 py-1 rounded-md text-xs bg-zinc-200 hover:bg-zinc-300 transition-colors"
+                    >
+                      Remove habit
+                    </button>
+                  </div>
+                </div>
+              </div>,
+              document.body
+            )}
 
           {editingDurationHabit &&
             typeof document !== "undefined" &&
