@@ -25,6 +25,7 @@ const WEEKLY_STUDY_GOAL_HOURS = 20;
 const MONTHLY_STUDY_GOAL_HOURS = 80;
 const WEEKLY_ALL_HABITS_GOAL_DAYS = 5;
 const MONTHLY_ALL_HABITS_GOAL_DAYS = 22;
+const MONTHLY_TO_WEEKLY_RATIO = 30 / 7;
 
 interface AnalyticsState {
   today: TodayProgressData | null;
@@ -104,13 +105,40 @@ function readStudyGoalForecastTargets(): StudyGoalForecastTargets {
       weeklyHours?: unknown;
       monthlyHours?: unknown;
     };
-    return {
-      weeklyHours: clampForecastHours(Number(parsed.weeklyHours), fallback.weeklyHours),
-      monthlyHours: clampForecastHours(Number(parsed.monthlyHours), fallback.monthlyHours),
-    };
+    const weekly = Number(parsed.weeklyHours);
+    if (Number.isFinite(weekly)) {
+      return targetsFromWeeklyHours(weekly);
+    }
+    const monthly = Number(parsed.monthlyHours);
+    if (Number.isFinite(monthly)) {
+      return targetsFromMonthlyHours(monthly);
+    }
+    return fallback;
   } catch {
     return fallback;
   }
+}
+
+function targetsFromWeeklyHours(weeklyHours: number): StudyGoalForecastTargets {
+  const safeWeekly = clampForecastHours(weeklyHours, WEEKLY_STUDY_GOAL_HOURS);
+  return {
+    weeklyHours: safeWeekly,
+    monthlyHours: clampForecastHours(
+      safeWeekly * MONTHLY_TO_WEEKLY_RATIO,
+      MONTHLY_STUDY_GOAL_HOURS
+    ),
+  };
+}
+
+function targetsFromMonthlyHours(monthlyHours: number): StudyGoalForecastTargets {
+  const safeMonthly = clampForecastHours(monthlyHours, MONTHLY_STUDY_GOAL_HOURS);
+  return {
+    weeklyHours: clampForecastHours(
+      safeMonthly / MONTHLY_TO_WEEKLY_RATIO,
+      WEEKLY_STUDY_GOAL_HOURS
+    ),
+    monthlyHours: safeMonthly,
+  };
 }
 
 function mean(values: number[]): number {
@@ -833,13 +861,7 @@ export default function AdvancedAnalytics() {
                   max={300}
                   value={goalTargets.weeklyHours}
                   onChange={(event) =>
-                    setGoalTargets((previous) => ({
-                      ...previous,
-                      weeklyHours: clampForecastHours(
-                        Number(event.target.value),
-                        previous.weeklyHours
-                      ),
-                    }))
+                    setGoalTargets(targetsFromWeeklyHours(Number(event.target.value)))
                   }
                   className="field-select w-full"
                 />
@@ -852,13 +874,7 @@ export default function AdvancedAnalytics() {
                   max={300}
                   value={goalTargets.monthlyHours}
                   onChange={(event) =>
-                    setGoalTargets((previous) => ({
-                      ...previous,
-                      monthlyHours: clampForecastHours(
-                        Number(event.target.value),
-                        previous.monthlyHours
-                      ),
-                    }))
+                    setGoalTargets(targetsFromMonthlyHours(Number(event.target.value)))
                   }
                   className="field-select w-full"
                 />
