@@ -309,7 +309,7 @@ export default function Dashboard() {
           content: <TodayProgress />,
         },
         "first-exam-countdown": {
-          title: "First Exam Countdown",
+          title: "Exam Countdown",
           content: <FirstExamCountdown />,
         },
         "habit-tracker": {

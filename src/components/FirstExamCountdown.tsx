@@ -46,6 +46,7 @@ export default function FirstExamCountdown() {
     toDateInputValue(getTodayAtNoon())
   );
   const [showStudyProjection, setShowStudyProjection] = useState(false);
+  const [showFullscreenCountdown, setShowFullscreenCountdown] = useState(false);
   const [localHydrated, setLocalHydrated] = useState(false);
   const syncTimeoutRef = useRef<number | null>(null);
   const hydratedFromCloudRef = useRef(false);
@@ -183,10 +184,10 @@ export default function FirstExamCountdown() {
   }, [callApi, countdownStartDate, firstExamDate, localHydrated, session, supabase]);
 
   useEffect(() => {
-    if (!showStudyProjection) return;
+    if (!showStudyProjection && !showFullscreenCountdown) return;
     lockBodyScroll();
     return () => unlockBodyScroll();
-  }, [showStudyProjection]);
+  }, [showFullscreenCountdown, showStudyProjection]);
 
   const now = getTodayAtNoon();
   const examDateObject = parseDateInput(firstExamDate);
@@ -216,17 +217,26 @@ export default function FirstExamCountdown() {
   return (
     <div className="surface-card p-6">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-lg font-semibold">First Exam Countdown</h2>
-        <button
-          type="button"
-          onClick={() => setShowStudyProjection(true)}
-          className="pill-btn"
-        >
-          Project Future Studying
-        </button>
+        <h2 className="text-lg font-semibold">Exam Countdown</h2>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowFullscreenCountdown(true)}
+            className="pill-btn"
+          >
+            Fullscreen
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowStudyProjection(true)}
+            className="pill-btn"
+          >
+            Project Future Studying
+          </button>
+        </div>
       </div>
       <div className="rounded-xl bg-zinc-50 p-4">
-        <p className="text-sm text-zinc-500 mb-2">Until first exam</p>
+        <p className="text-sm text-zinc-500 mb-2">Until exam</p>
         <p className="text-2xl font-bold mb-3 stat-mono">
           {weeksUntilExam} week{weeksUntilExam === 1 ? "" : "s"} {remainingDays} day
           {remainingDays === 1 ? "" : "s"}
@@ -268,6 +278,39 @@ export default function FirstExamCountdown() {
                 </button>
               </div>
               <StudyProjection />
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {mounted &&
+        showFullscreenCountdown &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[210] bg-white flex items-center justify-center p-4"
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) setShowFullscreenCountdown(false);
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => setShowFullscreenCountdown(false)}
+              className="pill-btn absolute top-4 right-4"
+            >
+              Close
+            </button>
+            <div className="w-full max-w-5xl text-center">
+              <p className="text-sm text-zinc-500 mb-4">Until exam</p>
+              <p className="stat-mono font-bold tracking-tight text-zinc-900 leading-none text-[clamp(3.6rem,12vw,10rem)]">
+                {weeksUntilExam}w {remainingDays}d
+              </p>
+              <div className="mx-auto mt-8 w-full max-w-4xl h-6 bg-zinc-200 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-sky-500 transition-all duration-700"
+                  style={{ width: `${countdownProgress}%` }}
+                />
+              </div>
+              <p className="stat-mono mt-3 text-sm text-zinc-500">{progressLabel}</p>
             </div>
           </div>,
           document.body
