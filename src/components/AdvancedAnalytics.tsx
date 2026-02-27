@@ -451,7 +451,7 @@ function detectAnomalies(
 function forecastContinuousGoal(
   id: string,
   title: string,
-  period: "Weekly" | "Monthly",
+  period: "Daily" | "Weekly" | "Monthly",
   target: number,
   unit: "hours" | "days",
   dailyMean: number,
