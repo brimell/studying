@@ -222,6 +222,8 @@ body * {
   --floating-icon-left: 0px;
   display: flex;
   flex-direction: column;
+  position: relative;
+  overflow: visible;
   width: 100%;
   min-width: 11rem;
 }
@@ -313,13 +315,17 @@ body * {
 }
 
 .dropdown-list-container {
+  position: absolute;
+  top: calc(100% + 0.2rem);
+  left: 0;
+  right: 0;
+  z-index: 120;
   overflow: hidden;
   max-height: var(--dropdown-height);
   transition: max-height var(--transition-time) var(--transition-timing);
 }
 
 .dropdown-list-wrapper {
-  margin-top: 0.4rem;
   padding: 0.4rem;
   background-color: var(--primary-bg-color);
   border-radius: var(--border-radius);
