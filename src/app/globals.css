@@ -1107,3 +1107,89 @@ h3 {
     transform: translate(0, -36px) rotate(-360deg);
   }
 }
+
+.study-analog-wrap {
+  width: min(92vw, 34rem);
+}
+
+.study-analog-wrap-compact {
+  width: min(80vw, 18rem);
+}
+
+.study-analog-wrap-fullscreen {
+  width: min(72vw, 42rem);
+}
+
+.study-analog-clockface {
+  border: 2px solid #111827;
+  border-radius: 50%;
+  width: min(20em, 100%);
+  aspect-ratio: 1 / 1;
+  margin: 0 auto;
+  position: relative;
+  background: #ffffff;
+  font-family: var(--font-inter), "Inter", sans-serif;
+}
+
+.study-analog-clockface::after {
+  background: #111827;
+  border-radius: 50%;
+  content: "";
+  height: 1em;
+  width: 1em;
+  position: absolute;
+  left: 9.5em;
+  top: 9.5em;
+}
+
+.study-analog-hand {
+  position: absolute;
+  transform-origin: 50% 100%;
+}
+
+.study-analog-second {
+  background: #ef4444;
+  width: 2px;
+  height: 9em;
+  left: calc(50% - 1px);
+  top: 1em;
+}
+
+.study-analog-minute {
+  background: #111827;
+  border-radius: 3px;
+  width: 6px;
+  height: 7.5em;
+  left: calc(50% - 3px);
+  top: 2.5em;
+}
+
+.study-analog-hour {
+  background: #111827;
+  width: 10px;
+  height: 4.5em;
+  left: calc(50% - 5px);
+  top: 5.5em;
+}
+
+.study-analog-hour::after {
+  border: solid transparent;
+  border-bottom-color: #111827;
+  border-width: 10px 5px;
+  content: "";
+  position: absolute;
+  top: -20px;
+}
+
+.study-analog-label {
+  font-size: 2em;
+  position: absolute;
+  text-align: center;
+  transform-origin: 50% 9.5em;
+  top: 0.5em;
+  width: 100%;
+}
+
+.study-analog-label-number {
+  display: inline-block;
+}

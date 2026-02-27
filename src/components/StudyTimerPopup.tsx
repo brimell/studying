@@ -36,30 +36,36 @@ function AnalogClock() {
   const hourAngle = hours * 30 + minutes * 0.5;
 
   return (
-    <div className="relative w-[min(70vw,34rem)] aspect-square rounded-full border-[10px] border-zinc-900 bg-white shadow-[inset_0_0_0_2px_#fff]">
+    <div className="study-analog-clockface" aria-label="Analog clock">
+      <div
+        className="study-analog-hand study-analog-second"
+        style={{ transform: `rotate(${secondAngle}deg)` }}
+      />
+      <div
+        className="study-analog-hand study-analog-minute"
+        style={{ transform: `rotate(${minuteAngle}deg)` }}
+      />
+      <div
+        className="study-analog-hand study-analog-hour"
+        style={{ transform: `rotate(${hourAngle}deg)` }}
+      />
       {Array.from({ length: 12 }, (_, index) => {
-        const rotation = index * 30;
+        const rotation = (index + 1) * 30;
         return (
           <div
-            key={`tick-${rotation}`}
-            className="absolute left-1/2 top-1/2 h-[45%] w-[2px] -translate-x-1/2 -translate-y-full origin-bottom bg-zinc-300"
-            style={{ transform: `translateX(-50%) translateY(-100%) rotate(${rotation}deg)` }}
-          />
+            key={`label-${index + 1}`}
+            className="study-analog-label"
+            style={{ transform: `rotate(${rotation}deg)` }}
+          >
+            <span
+              className="study-analog-label-number"
+              style={{ transform: `rotate(${-rotation}deg)` }}
+            >
+              {index + 1}
+            </span>
+          </div>
         );
       })}
-      <div
-        className="absolute left-1/2 top-1/2 h-[28%] w-[8px] -translate-x-1/2 -translate-y-full origin-bottom rounded-full bg-zinc-900"
-        style={{ transform: `translateX(-50%) translateY(-100%) rotate(${hourAngle}deg)` }}
-      />
-      <div
-        className="absolute left-1/2 top-1/2 h-[38%] w-[5px] -translate-x-1/2 -translate-y-full origin-bottom rounded-full bg-zinc-700"
-        style={{ transform: `translateX(-50%) translateY(-100%) rotate(${minuteAngle}deg)` }}
-      />
-      <div
-        className="absolute left-1/2 top-1/2 h-[42%] w-[2px] -translate-x-1/2 -translate-y-full origin-bottom bg-rose-500"
-        style={{ transform: `translateX(-50%) translateY(-100%) rotate(${secondAngle}deg)` }}
-      />
-      <div className="absolute left-1/2 top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full bg-zinc-900" />
     </div>
   );
 }
@@ -125,7 +131,9 @@ export default function StudyTimerPopup({
         {isFullscreen ? (
           <div className="flex-1 flex flex-col items-center justify-center gap-6">
             {state.examMode ? (
-              <AnalogClock />
+              <div className="study-analog-wrap study-analog-wrap-fullscreen">
+                <AnalogClock />
+              </div>
             ) : (
               <p className="stat-mono font-semibold leading-none text-zinc-900 text-[clamp(4rem,18vw,13rem)]">
                 {formatStudyTimerClock(state.remainingSeconds)}
@@ -151,7 +159,7 @@ export default function StudyTimerPopup({
               </p>
               {state.examMode && (
                 <div className="mt-4 flex justify-center">
-                  <div className="w-[min(18rem,80vw)]">
+                  <div className="study-analog-wrap study-analog-wrap-compact">
                     <AnalogClock />
                   </div>
                 </div>
