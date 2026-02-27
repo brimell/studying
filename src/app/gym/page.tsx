@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
+import { useSession } from "next-auth/react";
 import AuthButton from "@/components/AuthButton";
 import SupabaseAccountSync from "@/components/SupabaseAccountSync";
 import { WorkoutDataProvider } from "@/components/WorkoutDataProvider";
@@ -16,8 +18,12 @@ function readWideScreenPreference(): boolean {
 }
 
 export default function GymPage() {
+  const router = useRouter();
+  const { data: session } = useSession();
   const [wideScreen, setWideScreen] = useState<boolean>(readWideScreenPreference);
   const [useLeftSidebar, setUseLeftSidebar] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const syncFromSettings = () => {
@@ -40,9 +46,29 @@ export default function GymPage() {
     return () => window.removeEventListener("resize", updateSidebarMode);
   }, []);
 
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!menuRef.current) return;
+      if (menuRef.current.contains(event.target as Node)) return;
+      setMenuOpen(false);
+    };
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setMenuOpen(false);
+    };
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [menuOpen]);
+
   const containerClass = wideScreen
     ? "w-full px-4 sm:px-6 lg:px-8"
     : "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8";
+  const userLabel = session?.user?.name?.trim() || "John Doe";
 
   return (
     <div className={`app-shell ${useLeftSidebar ? "pl-[4.5rem]" : ""}`}>
@@ -60,27 +86,61 @@ export default function GymPage() {
               : `${containerClass} py-2 flex flex-col gap-2 sm:h-16 sm:flex-row sm:items-center sm:justify-between`
           }
         >
-          <div className={`flex items-center gap-2 sm:gap-3 ${useLeftSidebar ? "flex-col" : ""}`}>
-            <Link
-              href="/"
-              className={`pill-btn ${useLeftSidebar ? "[writing-mode:vertical-rl] rotate-180" : ""}`}
-            >
-              ← Dashboard
-            </Link>
-            <h1
-              className={`text-xl font-bold tracking-tight ${useLeftSidebar ? "[writing-mode:vertical-rl] rotate-180" : ""}`}
-            >
-              Gym
-            </h1>
-          </div>
-          <div
-            className={`flex items-center gap-2 sm:gap-3 ${useLeftSidebar ? "flex-col items-center mt-1" : "w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0"}`}
+          <button
+            type="button"
+            onClick={() => {
+              router.push("/");
+            }}
+            className={`text-left text-lg sm:text-xl font-bold tracking-tight text-zinc-900 ${
+              useLeftSidebar ? "[writing-mode:vertical-rl] rotate-180" : ""
+            }`}
           >
-            <Link href="/?settings=1" className="pill-btn">
-              Settings
-            </Link>
-            <SupabaseAccountSync />
-            <AuthButton />
+            Dashboard
+          </button>
+          <Link
+            href="/gym"
+            className={`text-sm font-medium text-zinc-700 hover:text-zinc-900 underline underline-offset-4 decoration-zinc-300 hover:decoration-zinc-600 ${
+              useLeftSidebar ? "[writing-mode:vertical-rl] rotate-180" : ""
+            }`}
+          >
+            Gym
+          </Link>
+
+          <div className={`relative ${useLeftSidebar ? "mt-auto" : "ml-auto"}`} ref={menuRef}>
+            <div className={`flex items-center gap-2 ${useLeftSidebar ? "flex-col items-center" : ""}`}>
+              <button
+                type="button"
+                onClick={() => setMenuOpen((current) => !current)}
+                className={useLeftSidebar ? "pill-btn px-3 py-2 text-lg" : "pill-btn px-3 py-2"}
+                aria-expanded={menuOpen}
+                aria-haspopup="menu"
+                aria-label={`Open profile menu for ${userLabel}`}
+              >
+                {useLeftSidebar ? "👤" : userLabel}
+              </button>
+            </div>
+
+            {menuOpen && (
+              <div
+                className={`surface-card-strong w-[min(24rem,calc(100vw-2rem))] p-3 z-[80] ${
+                  useLeftSidebar
+                    ? "fixed left-20 bottom-0 max-h-[100dvh] overflow-y-auto"
+                    : "absolute right-0 mt-2"
+                }`}
+              >
+                <div className="flex flex-col gap-2">
+                  <Link
+                    href="/?settings=1"
+                    className="pill-btn w-full text-left"
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    Settings
+                  </Link>
+                  <SupabaseAccountSync />
+                  <AuthButton compact className="w-full text-left" />
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </header>
