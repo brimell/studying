@@ -9,7 +9,8 @@ type TopBarDataControlsMode = "full" | "levelOnly" | "refreshOnly";
 type TopBarDataControlsModeExtended =
   | TopBarDataControlsMode
   | "streakOnly"
-  | "inlineLevel";
+  | "inlineLevel"
+  | "streakIconOnly";
 
 function computeAllHabitsStreak(habits: HabitDefinition[]): number {
   if (habits.length === 0) return 0;
@@ -55,6 +56,7 @@ export default function TopBarDataControls({
   const showRefresh = mode === "full" || mode === "refreshOnly";
   const showInlineLevel = mode === "inlineLevel";
   const showStreakPill = mode === "full" || mode === "levelOnly" || mode === "streakOnly";
+  const showStreakIconOnly = mode === "streakIconOnly";
   const lastFetchedAt = useSyncExternalStore(
     (onStoreChange) => {
       window.addEventListener("study-stats:last-fetched-updated", onStoreChange);
@@ -122,6 +124,14 @@ export default function TopBarDataControls({
     return (
       <span className="stat-mono text-[11px] leading-none">
         Lvl {mounted && gamificationReady ? topBarLevel : "--"}
+      </span>
+    );
+  }
+
+  if (showStreakIconOnly) {
+    return (
+      <span className="pill-btn px-2 py-1 text-sm">
+        🔥 <span className="stat-mono">{mounted && gamificationReady ? allHabitsStreak : "--"}</span>
       </span>
     );
   }

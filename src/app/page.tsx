@@ -146,21 +146,39 @@ export default function Home() {
             Gym
           </Link>
 
-          <div className={`relative ${useLeftSidebar ? "" : "ml-auto"}`} ref={menuRef}>
-            <div className={`flex items-center gap-2 ${useLeftSidebar ? "justify-between" : ""}`}>
-              <TopBarDataControls mode="streakOnly" />
-              <button
-                type="button"
-                onClick={() => setMenuOpen((current) => !current)}
-                className="pill-btn px-3 py-2"
-                aria-expanded={menuOpen}
-                aria-haspopup="menu"
-              >
-                <span className="inline-flex items-center gap-1.5">
-                  <span>{userLabel}</span>
-                  <TopBarDataControls mode="inlineLevel" />
-                </span>
-              </button>
+          <div className={`relative ${useLeftSidebar ? "mt-auto self-start" : "ml-auto"}`} ref={menuRef}>
+            <div className={`flex items-center gap-2 ${useLeftSidebar ? "flex-col items-start" : ""}`}>
+              {useLeftSidebar ? (
+                <>
+                  <TopBarDataControls mode="streakIconOnly" />
+                  <button
+                    type="button"
+                    onClick={() => setMenuOpen((current) => !current)}
+                    className="pill-btn px-3 py-2 text-lg"
+                    aria-expanded={menuOpen}
+                    aria-haspopup="menu"
+                    aria-label={`Open profile menu for ${userLabel}`}
+                  >
+                    👤
+                  </button>
+                </>
+              ) : (
+                <>
+                  <TopBarDataControls mode="streakOnly" />
+                  <button
+                    type="button"
+                    onClick={() => setMenuOpen((current) => !current)}
+                    className="pill-btn px-3 py-2"
+                    aria-expanded={menuOpen}
+                    aria-haspopup="menu"
+                  >
+                    <span className="inline-flex items-center gap-1.5">
+                      <span>{userLabel}</span>
+                      <TopBarDataControls mode="inlineLevel" />
+                    </span>
+                  </button>
+                </>
+              )}
             </div>
 
             {menuOpen && (
