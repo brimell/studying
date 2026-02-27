@@ -123,6 +123,11 @@ export default function DailyStudyChart() {
     };
   }, [fetchData]);
 
+  const chartEntries = useMemo(
+    () => (data ? [...data.entries].sort((left, right) => right.date.localeCompare(left.date)) : []),
+    [data]
+  );
+
   return (
     <div className="surface-card p-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
@@ -177,9 +182,9 @@ export default function DailyStudyChart() {
               </strong>
             </span>
           </div>
-          <ResponsiveContainer width="100%" height={Math.max(300, data.entries.length * 28)}>
+          <ResponsiveContainer width="100%" height={Math.max(300, chartEntries.length * 28)}>
             <BarChart
-              data={data.entries}
+              data={chartEntries}
               layout="vertical"
               margin={{ top: 0, right: 20, left: 0, bottom: 0 }}
             >
