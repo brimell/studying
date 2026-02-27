@@ -122,15 +122,12 @@ export default function MoodTrackerPopup({ onClose }: MoodTrackerPopupProps) {
   const ratingControls = useMemo(
     () => [
       { key: "face-angry", kind: "face" as const, rating: 1, mood: "angry" as MoodValue, label: "Angry" },
-      { key: "dot-2", kind: "dot" as const, rating: 2, label: "2" },
       { key: "face-sad", kind: "face" as const, rating: 3, mood: "sad" as MoodValue, label: "Sad" },
       { key: "dot-4", kind: "dot" as const, rating: 4, label: "4" },
       { key: "face-ok", kind: "face" as const, rating: 5, mood: "ok" as MoodValue, label: "OK" },
       { key: "dot-6", kind: "dot" as const, rating: 6, label: "6" },
       { key: "face-good", kind: "face" as const, rating: 7, mood: "good" as MoodValue, label: "Good" },
-      { key: "dot-8", kind: "dot" as const, rating: 8, label: "8" },
       { key: "face-happy", kind: "face" as const, rating: 9, mood: "happy" as MoodValue, label: "Happy" },
-      { key: "dot-10", kind: "dot" as const, rating: 10, label: "10" },
     ],
     []
   );
