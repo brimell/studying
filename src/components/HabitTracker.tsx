@@ -1934,7 +1934,7 @@ export default function HabitTracker() {
 
       {data && !loading && (
         <div className="space-y-3">
-          <div className="border-t border-zinc-200 pt-4">
+          <div className="pt-1">
             {actionError && <p className="text-sm text-red-500 mb-3">{actionError}</p>}
             {actionSuccess && <p className="text-sm text-emerald-600 mb-3">{actionSuccess}</p>}
             {habitColorSyncMessage && (
