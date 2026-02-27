@@ -1357,22 +1357,14 @@ export default function WorkoutPlanner() {
         showOrganPanel={false}
       />
 
-      <section className="rounded-2xl bg-white p-5 shadow-sm">
-        <h2 className="text-lg font-semibold mb-1">How Exercise Supports Organs</h2>
-        <p className="text-xs text-zinc-500 mb-3">
-          This card combines workout load with recent daily-tracker factors (for example alcohol,
-          caffeine, sleep, and symptoms) to estimate organ impact. Organ overlays are intentionally
-          shown only here.
+      <section className="rounded-xl bg-white p-3 shadow-sm space-y-1.5">
+        <p className="text-[11px] text-zinc-500">
+          Organ impact combines workouts with daily tracker factors.
         </p>
-        {Object.keys(dailyTrackerOrganImpact.scores).length === 0 && (
-          <p className="text-[11px] text-zinc-500 mb-2">
-            No recent daily tracker factors detected. Organ impact currently reflects workouts only.
-          </p>
-        )}
         <MuscleModel
           scores={fatigueScores}
           loadPoints={currentLoadPoints}
-          title="Estimated Organ Support Impact"
+          title="Organ Impact"
           compact
           organOnly
           extraOrganScores={dailyTrackerOrganImpact.scores}
