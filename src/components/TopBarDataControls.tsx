@@ -5,6 +5,40 @@ import { createPortal } from "react-dom";
 import { formatTimeSince, readGlobalLastFetched } from "@/lib/client-cache";
 import { lockBodyScroll, unlockBodyScroll } from "@/lib/scroll-lock";
 import StudyProjection from "@/components/StudyProjection";
+import type { HabitDefinition, HabitTrackerData } from "@/lib/types";
+
+const TRACKER_CALENDAR_STORAGE_KEY = "study-stats.tracker-calendar-id";
+
+function computeAllHabitsStreak(habits: HabitDefinition[]): number {
+  if (habits.length === 0) return 0;
+  const dateKeys = habits[0].days.map((day) => day.date);
+  let streak = 0;
+
+  for (let index = dateKeys.length - 1; index >= 0; index -= 1) {
+    const date = dateKeys[index];
+    const allCompleted = habits.every((habit) => {
+      const day = habit.days.find((entry) => entry.date === date);
+      return Boolean(day?.completed);
+    });
+    if (!allCompleted) break;
+    streak += 1;
+  }
+
+  return streak;
+}
+
+function computeTopBarLevel(habits: HabitDefinition[]): number {
+  if (habits.length === 0) return 1;
+  const allCurrentStreaks = habits.reduce((sum, habit) => sum + habit.currentStreak, 0);
+  const allTotalCompletedDays = habits.reduce((sum, habit) => sum + habit.totalCompleted, 0);
+  const activeHabitCount = habits.filter((habit) => habit.currentStreak > 0).length;
+
+  const points =
+    Math.min(360, allCurrentStreaks * 10) +
+    Math.min(900, allTotalCompletedDays * 3) +
+    activeHabitCount * 25;
+  return Math.floor(points / 250) + 1;
+}
 
 export default function TopBarDataControls() {
   const lastFetchedAt = useSyncExternalStore(
@@ -18,6 +52,9 @@ export default function TopBarDataControls() {
   const [now, setNow] = useState(() => Date.now());
   const [refreshing, setRefreshing] = useState(false);
   const [showStudyProjection, setShowStudyProjection] = useState(false);
+  const [topBarLevel, setTopBarLevel] = useState(1);
+  const [allHabitsStreak, setAllHabitsStreak] = useState(0);
+  const [gamificationReady, setGamificationReady] = useState(false);
   const mounted = typeof window !== "undefined";
 
   useEffect(() => {
@@ -31,6 +68,42 @@ export default function TopBarDataControls() {
     return () => unlockBodyScroll();
   }, [showStudyProjection]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadGamification = async () => {
+      try {
+        const trackerCalendarId = window.localStorage.getItem(TRACKER_CALENDAR_STORAGE_KEY);
+        const params = new URLSearchParams({ weeks: "26" });
+        if (trackerCalendarId) params.set("trackerCalendarId", trackerCalendarId);
+
+        const response = await fetch(`/api/habit-tracker?${params.toString()}`);
+        const payload = (await response.json()) as HabitTrackerData | { error?: string };
+        if (!response.ok) {
+          throw new Error(("error" in payload && payload.error) || "Failed to load gamification data.");
+        }
+
+        if (cancelled) return;
+        const data = payload as HabitTrackerData;
+        setAllHabitsStreak(computeAllHabitsStreak(data.habits));
+        setTopBarLevel(computeTopBarLevel(data.habits));
+        setGamificationReady(true);
+      } catch {
+        if (cancelled) return;
+        setTopBarLevel(1);
+        setAllHabitsStreak(0);
+        setGamificationReady(true);
+      }
+    };
+
+    void loadGamification();
+    window.addEventListener("study-stats:refresh-all", loadGamification);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("study-stats:refresh-all", loadGamification);
+    };
+  }, []);
+
   const refreshAll = () => {
     setRefreshing(true);
     window.dispatchEvent(new CustomEvent("study-stats:refresh-all"));
@@ -39,6 +112,14 @@ export default function TopBarDataControls() {
 
   return (
     <div className="flex flex-wrap items-center gap-2">
+      <div className="hidden md:flex items-center gap-1.5">
+        <span className="pill-btn text-[11px] px-2 py-1">
+          Level {mounted && gamificationReady ? topBarLevel : "--"}
+        </span>
+        <span className="pill-btn text-[11px] px-2 py-1">
+          All habits streak: {mounted && gamificationReady ? `${allHabitsStreak}d` : "--"}
+        </span>
+      </div>
       <button
         type="button"
         onClick={() => setShowStudyProjection(true)}
