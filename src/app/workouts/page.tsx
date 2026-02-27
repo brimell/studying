@@ -45,7 +45,7 @@ export default function WorkoutsPage() {
             >
               ← Dashboard
             </Link>
-            <h1 className="text-xl font-bold tracking-tight">Workout Planner</h1>
+            <h1 className="text-xl font-bold tracking-tight">Gym</h1>
           </div>
           <div className="w-full sm:w-auto flex items-center gap-2 sm:gap-3 overflow-x-auto pb-1 sm:pb-0">
             <Link href="/?settings=1" className="pill-btn">

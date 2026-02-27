@@ -114,6 +114,9 @@ export default function Home() {
           >
             Dashboard
           </button>
+          <Link href="/workouts" className="pill-btn">
+            Gym
+          </Link>
 
           <div className="relative ml-auto" ref={menuRef}>
             <div className="flex items-center gap-2">
@@ -142,13 +145,6 @@ export default function Home() {
                   >
                     Settings
                   </button>
-                  <Link
-                    href="/workouts"
-                    className="pill-btn w-full text-left"
-                    onClick={() => setMenuOpen(false)}
-                  >
-                    Workout Section
-                  </Link>
                   <TopBarDataControls mode="refreshOnly" stacked />
                   <div className="mt-1 text-[11px] uppercase tracking-wide text-zinc-500">
                     Site account

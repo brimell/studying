@@ -840,7 +840,7 @@ export default function WorkoutPlanner() {
   if (!session) {
     return (
       <div className="rounded-xl border border-zinc-200 bg-white p-5">
-        <h2 className="text-lg font-semibold mb-2">Workout Section</h2>
+        <h2 className="text-lg font-semibold mb-2">Gym</h2>
         <p className="text-sm text-zinc-500">
           Sign in via `☁️ Account Sync` to save workouts in Supabase and sync across devices.
         </p>
@@ -853,7 +853,7 @@ export default function WorkoutPlanner() {
       <div className="surface-card p-6">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold">Workout Section</h1>
+            <h1 className="text-2xl font-bold">Gym</h1>
             <p className="text-sm text-zinc-500 mt-1">
               Build custom routines with exercises, sets, reps, and rest intervals.
             </p>
