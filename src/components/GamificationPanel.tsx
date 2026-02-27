@@ -247,7 +247,7 @@ export default function GamificationPanel() {
   }, [habitData, selectedStudyHabitSlug, workoutPayload]);
 
   return (
-    <div className="rounded-2xl bg-white dark:bg-zinc-900 p-6 shadow-sm border border-zinc-200 dark:border-zinc-800">
+    <div className="surface-card p-6">
       <h2 className="text-lg font-semibold mb-4">Gamification</h2>
 
       {loading && (

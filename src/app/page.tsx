@@ -24,17 +24,17 @@ export default function Home() {
     : "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8";
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
+    <div className="app-shell">
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-white/80 dark:bg-zinc-900/80 backdrop-blur border-b border-zinc-200 dark:border-zinc-800">
+      <header className="top-nav sticky top-0 z-50">
         <div className={`${containerClass} py-2 flex flex-col gap-2 sm:h-16 sm:flex-row sm:items-center sm:justify-between`}>
-          <h1 className="text-lg sm:text-xl font-bold tracking-tight">
+          <h1 className="text-lg sm:text-xl font-bold tracking-tight text-zinc-900">
             Study Stats
           </h1>
           <div className="flex flex-wrap items-center gap-2 sm:gap-3 sm:justify-end">
             <Link
               href="/workouts"
-              className="px-2.5 py-1 rounded-md text-xs bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 transition-colors"
+              className="pill-btn"
             >
               <span className="sm:hidden">Workouts</span>
               <span className="hidden sm:inline">Workout Planner</span>
@@ -43,7 +43,7 @@ export default function Home() {
               type="button"
               aria-pressed={wideScreen}
               onClick={() => setWideScreen((previous) => !previous)}
-              className="hidden md:inline-flex px-2.5 py-1 rounded-md text-xs bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 transition-colors"
+              className="pill-btn hidden md:inline-flex"
             >
               {wideScreen ? "Standard Width" : "Wide Screen"}
             </button>
@@ -55,7 +55,7 @@ export default function Home() {
       </header>
 
       {/* Main content */}
-      <main className={`${containerClass} py-4 sm:py-8`}>
+      <main className={`${containerClass} py-5 sm:py-9`}>
         <Dashboard />
       </main>
     </div>

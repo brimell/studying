@@ -9,7 +9,7 @@ export default function AuthButton() {
     return (
       <button
         disabled
-        className="px-4 py-2 rounded-lg bg-zinc-200 dark:bg-zinc-700 text-sm animate-pulse"
+        className="pill-btn animate-pulse"
       >
         Loading...
       </button>
@@ -32,7 +32,7 @@ export default function AuthButton() {
         </span>
         <button
           onClick={() => signOut()}
-          className="px-3 py-1.5 rounded-lg bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 text-sm transition-colors"
+          className="pill-btn"
         >
           Sign out
         </button>
@@ -43,7 +43,7 @@ export default function AuthButton() {
   return (
     <button
       onClick={() => signIn("google")}
-      className="px-4 py-2 rounded-lg bg-sky-500 hover:bg-sky-600 text-white text-sm font-medium transition-colors"
+      className="pill-btn pill-btn-primary"
     >
       Sign in with Google
     </button>

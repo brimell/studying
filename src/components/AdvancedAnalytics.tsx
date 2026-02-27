@@ -221,7 +221,7 @@ export default function AdvancedAnalytics() {
   }, [state]);
 
   return (
-    <div className="rounded-2xl bg-white dark:bg-zinc-900 p-6 shadow-sm border border-zinc-200 dark:border-zinc-800">
+    <div className="surface-card p-6">
       <h2 className="text-lg font-semibold mb-4">Advanced Analytics</h2>
       {loading && <div className="h-32 flex items-center justify-center text-zinc-400 animate-pulse">Loading...</div>}
       {error && <p className="text-sm text-red-500">{error}</p>}

@@ -664,7 +664,7 @@ export default function WorkoutPlanner() {
 
   return (
     <div className="space-y-5">
-      <div className="rounded-2xl bg-white dark:bg-zinc-900 p-6 shadow-sm border border-zinc-200 dark:border-zinc-800">
+      <div className="surface-card p-6">
         <div className="flex items-center justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold">Workout Planner</h1>

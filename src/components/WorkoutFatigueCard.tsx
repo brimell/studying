@@ -13,7 +13,7 @@ export default function WorkoutFatigueCard() {
 
   if (!session) {
     return (
-      <div className="rounded-2xl bg-white dark:bg-zinc-900 p-6 shadow-sm border border-zinc-200 dark:border-zinc-800">
+      <div className="surface-card p-6">
         <h2 className="text-lg font-semibold mb-2">Workout Fatigue</h2>
         <p className="text-sm text-zinc-500">
           Sign in to Supabase (`☁️ Account Sync`) to see fatigue from your workout logs.
@@ -24,7 +24,7 @@ export default function WorkoutFatigueCard() {
 
   if (loading) {
     return (
-      <div className="rounded-2xl bg-white dark:bg-zinc-900 p-6 shadow-sm border border-zinc-200 dark:border-zinc-800">
+      <div className="surface-card p-6">
         <div className="h-28 flex items-center justify-center text-zinc-400 animate-pulse">Loading...</div>
       </div>
     );
@@ -40,7 +40,7 @@ export default function WorkoutFatigueCard() {
   }
 
   return (
-    <div className="rounded-2xl bg-white dark:bg-zinc-900 p-6 shadow-sm border border-zinc-200 dark:border-zinc-800">
+    <div className="surface-card p-6">
       <MuscleModel scores={scores} title="Muscle Fatigue (Recovery-Weighted)" compact />
     </div>
   );

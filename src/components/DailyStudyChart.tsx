@@ -124,7 +124,7 @@ export default function DailyStudyChart() {
   }, [fetchData]);
 
   return (
-    <div className="rounded-2xl bg-white dark:bg-zinc-900 p-6 shadow-sm border border-zinc-200 dark:border-zinc-800">
+    <div className="surface-card p-6">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <h2 className="text-lg font-semibold">
           Daily Study Time {subject ? `(${subject})` : "(All Subjects)"}

@@ -297,16 +297,16 @@ export default function Dashboard() {
   if (status === "loading") {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-sky-500" />
+        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-teal-600" />
       </div>
     );
   }
 
   if (!session) {
     return (
-      <div className="text-center py-20">
+      <div className="surface-card-strong text-center py-20 px-6">
         <h2 className="text-2xl font-semibold mb-3">Welcome to Study Stats</h2>
-        <p className="text-zinc-500 mb-6 max-w-md mx-auto">
+        <p className="soft-text mb-6 max-w-md mx-auto">
           Sign in with your Google account to view your study statistics from
           Google Calendar.
         </p>
@@ -317,14 +317,14 @@ export default function Dashboard() {
   return (
     <div>
       <AlertsPanel />
-      <div className="mb-4 hidden lg:flex flex-wrap items-center gap-3 text-xs text-zinc-500">
-        <span className="font-medium text-zinc-600 dark:text-zinc-300">Dashboard Grid</span>
+      <div className="surface-card mb-4 hidden lg:flex flex-wrap items-center gap-3 px-3 py-2 text-xs">
+        <span className="font-medium text-zinc-700">Dashboard Grid</span>
         <label className="inline-flex items-center gap-1.5">
           <span>Columns</span>
           <select
             value={gridColumns}
             onChange={(event) => setGridColumns(Number(event.target.value) as (typeof GRID_COLUMN_OPTIONS)[number])}
-            className="rounded-md border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 px-2 py-1 text-xs"
+            className="field-select"
           >
             {GRID_COLUMN_OPTIONS.map((value) => (
               <option key={value} value={value}>
@@ -338,7 +338,7 @@ export default function Dashboard() {
           <select
             value={gridRows}
             onChange={(event) => setGridRows(Number(event.target.value) as (typeof GRID_ROW_OPTIONS)[number])}
-            className="rounded-md border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 px-2 py-1 text-xs"
+            className="field-select"
           >
             {GRID_ROW_OPTIONS.map((value) => (
               <option key={value} value={value}>
@@ -377,14 +377,14 @@ export default function Dashboard() {
               setDropTargetId(null);
             }}
           >
-            <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs text-zinc-500">
-              <span>{cards[id].title}</span>
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs soft-text">
+              <span className="font-medium text-zinc-700">{cards[id].title}</span>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => setOrder((previous) => moveCardByOffset(previous, id, -1))}
                   disabled={order.indexOf(id) <= 0}
-                  className="px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 disabled:opacity-40"
+                  className="pill-btn px-2 py-0.5 disabled:opacity-40"
                   aria-label={`Move ${cards[id].title} up`}
                 >
                   ↑
@@ -393,7 +393,7 @@ export default function Dashboard() {
                   type="button"
                   onClick={() => setOrder((previous) => moveCardByOffset(previous, id, 1))}
                   disabled={order.indexOf(id) >= order.length - 1}
-                  className="px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 disabled:opacity-40"
+                  className="pill-btn px-2 py-0.5 disabled:opacity-40"
                   aria-label={`Move ${cards[id].title} down`}
                 >
                   ↓
@@ -407,7 +407,7 @@ export default function Dashboard() {
                       if (!isValidCardSize(value)) return;
                       setCardSizes((previous) => ({ ...previous, [id]: value }));
                     }}
-                    className="rounded-md border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 px-2 py-1 text-xs"
+                    className="field-select"
                   >
                     {Object.entries(CARD_SIZE_PRESETS).map(([key, preset]) => (
                       <option key={key} value={key}>
@@ -428,7 +428,7 @@ export default function Dashboard() {
                     setDraggingId(null);
                     setDropTargetId(null);
                   }}
-                  className="hidden sm:inline-flex px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 cursor-grab active:cursor-grabbing"
+                  className="pill-btn hidden sm:inline-flex px-2 py-0.5 cursor-grab active:cursor-grabbing"
                 >
                   Drag
                 </span>
@@ -439,7 +439,7 @@ export default function Dashboard() {
                 draggingId === id ? "opacity-65 scale-[0.99]" : "opacity-100 scale-100"
               } ${
                 draggingId && dropTargetId === id && draggingId !== id
-                  ? "rounded-2xl outline outline-2 outline-dashed outline-zinc-400 dark:outline-zinc-500 outline-offset-4"
+                  ? "rounded-2xl outline outline-2 outline-dashed outline-teal-500/60 outline-offset-4"
                   : ""
               }`}
             >

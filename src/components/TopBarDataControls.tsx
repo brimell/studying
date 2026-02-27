@@ -42,18 +42,18 @@ export default function TopBarDataControls() {
       <button
         type="button"
         onClick={() => setShowStudyProjection(true)}
-        className="px-2 py-1 rounded-md text-xs bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors"
+        className="pill-btn"
       >
         <span className="sm:hidden">Project</span>
         <span className="hidden sm:inline">Project Studying</span>
       </button>
-      <p className="text-[11px] text-zinc-500 hidden lg:block">
+      <p className="soft-text text-[11px] hidden lg:block">
         Last fetched {formatTimeSince(lastFetchedAt, now)}
       </p>
       <button
         onClick={refreshAll}
         disabled={refreshing}
-        className="px-2 py-1 rounded-md text-xs bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 disabled:opacity-50 transition-colors"
+        className="pill-btn"
       >
         {refreshing ? "Refreshing..." : "Refresh"}
       </button>
@@ -68,7 +68,7 @@ export default function TopBarDataControls() {
             }}
           >
             <div
-              className="w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-4 my-auto shadow-2xl"
+              className="surface-card-strong w-full max-w-4xl max-h-[90vh] overflow-y-auto p-4 my-auto"
               onMouseDown={(event) => event.stopPropagation()}
             >
               <div className="flex items-center justify-between mb-3">
@@ -76,7 +76,7 @@ export default function TopBarDataControls() {
                 <button
                   type="button"
                   onClick={() => setShowStudyProjection(false)}
-                  className="px-2 py-1 rounded-md text-xs bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors"
+                  className="pill-btn"
                 >
                   Close
                 </button>

@@ -477,13 +477,13 @@ export default function SupabaseAccountSync() {
       <button
         type="button"
         onClick={() => setOpen((previous) => !previous)}
-        className="px-2.5 py-1 rounded-md text-xs bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 transition-colors"
+        className="pill-btn"
       >
         ☁️ Account Sync
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-2 w-[320px] rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-lg p-3 z-50">
+        <div className="surface-card-strong absolute right-0 mt-2 w-[320px] p-3 z-50">
           {!session && (
             <div className="space-y-3">
               <div className="flex items-center gap-2 text-xs">
@@ -492,8 +492,8 @@ export default function SupabaseAccountSync() {
                   onClick={() => setMode("signin")}
                   className={`px-2 py-1 rounded ${
                     mode === "signin"
-                      ? "bg-sky-500 text-white"
-                      : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300"
+                      ? "pill-btn pill-btn-primary"
+                      : "pill-btn text-zinc-600"
                   }`}
                 >
                   Sign In
@@ -503,8 +503,8 @@ export default function SupabaseAccountSync() {
                   onClick={() => setMode("signup")}
                   className={`px-2 py-1 rounded ${
                     mode === "signup"
-                      ? "bg-sky-500 text-white"
-                      : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300"
+                      ? "pill-btn pill-btn-primary"
+                      : "pill-btn text-zinc-600"
                   }`}
                 >
                   Sign Up
@@ -516,21 +516,21 @@ export default function SupabaseAccountSync() {
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
                 placeholder="Email"
-                className="w-full border rounded-lg px-3 py-2 text-sm bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
+                className="field-select w-full border rounded-lg px-3 py-2 text-sm"
               />
               <input
                 type="password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 placeholder="Password"
-                className="w-full border rounded-lg px-3 py-2 text-sm bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
+                className="field-select w-full border rounded-lg px-3 py-2 text-sm"
               />
 
               <button
                 type="button"
                 disabled={busy || !email || !password}
                 onClick={mode === "signin" ? handleSignIn : handleSignUp}
-                className="w-full px-3 py-2 rounded-lg bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white text-sm font-medium transition-colors"
+                className="pill-btn pill-btn-primary w-full px-3 py-2"
               >
                 {mode === "signin" ? "Sign In" : "Create Account"}
               </button>
@@ -555,7 +555,7 @@ export default function SupabaseAccountSync() {
                 type="button"
                 onClick={handleBackup}
                 disabled={busy}
-                className="w-full px-3 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white text-sm font-medium transition-colors"
+                className="pill-btn pill-btn-primary w-full px-3 py-2"
               >
                 Backup Local Data To Cloud
               </button>
@@ -563,7 +563,7 @@ export default function SupabaseAccountSync() {
                 type="button"
                 onClick={handleRestore}
                 disabled={busy}
-                className="w-full px-3 py-2 rounded-lg bg-zinc-700 hover:bg-zinc-800 disabled:opacity-50 text-white text-sm font-medium transition-colors"
+                className="pill-btn w-full px-3 py-2"
               >
                 Restore Data From Cloud
               </button>
@@ -571,7 +571,7 @@ export default function SupabaseAccountSync() {
                 type="button"
                 onClick={handleSignOut}
                 disabled={busy}
-                className="w-full px-3 py-2 rounded-lg bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 disabled:opacity-50 text-sm transition-colors"
+                className="pill-btn w-full px-3 py-2"
               >
                 Sign Out Account
               </button>

@@ -190,7 +190,7 @@ export default function FirstExamCountdown() {
   const progressLabel = useMemo(() => `${Math.round(countdownProgress)}%`, [countdownProgress]);
 
   return (
-    <div className="rounded-2xl bg-white dark:bg-zinc-900 p-6 shadow-sm border border-zinc-200 dark:border-zinc-800">
+    <div className="surface-card p-6">
       <h2 className="text-lg font-semibold mb-4">First Exam Countdown</h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
         <label className="flex flex-col gap-1 text-sm">

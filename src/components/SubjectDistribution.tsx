@@ -121,7 +121,7 @@ export default function SubjectDistribution() {
     data?.subjectTimes.filter((s) => s.hours > 0) || [];
 
   return (
-    <div className="rounded-2xl bg-white dark:bg-zinc-900 p-6 shadow-sm border border-zinc-200 dark:border-zinc-800">
+    <div className="surface-card p-6">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg font-semibold">Subject Distribution</h2>
         <select

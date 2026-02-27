@@ -97,7 +97,7 @@ export default function TodayProgress() {
   const pct = Math.round(data.percentageCompleted);
 
   return (
-    <div className="rounded-2xl bg-white dark:bg-zinc-900 p-6 shadow-sm border border-zinc-200 dark:border-zinc-800">
+    <div className="surface-card p-6">
       <h2 className="text-lg font-semibold mb-4">Today&apos;s Study Progress</h2>
       <div className="flex items-center justify-between mb-2">
         <span className="text-sm text-zinc-500">
@@ -122,7 +122,7 @@ export default function TodayProgress() {
 
 function CardSkeleton({ title }: { title: string }) {
   return (
-    <div className="rounded-2xl bg-white dark:bg-zinc-900 p-6 shadow-sm border border-zinc-200 dark:border-zinc-800 animate-pulse">
+    <div className="surface-card p-6 animate-pulse">
       <h2 className="text-lg font-semibold mb-4">{title}</h2>
       <div className="h-6 bg-zinc-200 dark:bg-zinc-700 rounded-full" />
     </div>
