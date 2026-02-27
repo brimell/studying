@@ -31,6 +31,10 @@ export default function Home() {
             Study Stats
           </h1>
           <div className="flex flex-wrap items-center gap-2 sm:gap-3 sm:justify-end">
+            <a href="#workout-section" className="pill-btn">
+              <span className="sm:hidden">Workout</span>
+              <span className="hidden sm:inline">Workout Section</span>
+            </a>
             <button
               type="button"
               aria-pressed={wideScreen}

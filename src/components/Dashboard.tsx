@@ -365,6 +365,7 @@ export default function Dashboard() {
         {renderedOrder.map((id) => (
           <div
             key={id}
+            id={id === "workout-section" ? "workout-section" : undefined}
             style={getCardStyle(id)}
             ref={(node) => {
               if (!node) {
