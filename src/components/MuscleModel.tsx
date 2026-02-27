@@ -704,6 +704,7 @@ interface MuscleModelProps {
   title?: string;
   compact?: boolean;
   lazyOverlayRender?: boolean;
+  forceSimplifiedOverlays?: boolean;
   showOrganPanel?: boolean;
   organOnly?: boolean;
   onHighlightedMusclesChange?: (muscles: MuscleGroup[]) => void;
@@ -725,6 +726,7 @@ export default function MuscleModel({
   title = "Muscle Load Map",
   compact = false,
   lazyOverlayRender = true,
+  forceSimplifiedOverlays = false,
   showOrganPanel = true,
   organOnly = false,
   onHighlightedMusclesChange,
@@ -903,11 +905,12 @@ export default function MuscleModel({
           const normalizedGrade = normalizedGradeByMuscle.get(muscle) || 0;
           if (normalizedGrade <= 0) continue;
 
-          const src = toDiagramPath(resolveDiagramFiles(muscle, simplifyLabels, dissection)[view]);
+          const useSimplifiedOverlay = forceSimplifiedOverlays || simplifyLabels;
+          const src = toDiagramPath(resolveDiagramFiles(muscle, useSimplifiedOverlay, dissection)[view]);
           const fallbackSrc = simplifyLabels
             ? undefined
             : toDiagramPath(resolveDiagramFiles(muscle, true, dissection)[view]);
-          const hoverKey = String(simplifyLabels ? getCommonGroupKey(muscle) : muscle);
+          const hoverKey = String(useSimplifiedOverlay ? getCommonGroupKey(muscle) : muscle);
           const opacity = normalizedGradeToOpacity(normalizedGrade);
           const existing = groupedOverlays.get(src);
           if (existing) {
@@ -945,7 +948,7 @@ export default function MuscleModel({
           overlays,
         };
       }),
-    [normalizedGradeByMuscle, simplifyLabels, sorted]
+    [forceSimplifiedOverlays, normalizedGradeByMuscle, simplifyLabels, sorted]
   );
   const skeletalPanels = useMemo(
     () => {

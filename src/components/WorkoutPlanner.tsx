@@ -1355,6 +1355,7 @@ export default function WorkoutPlanner() {
         loadPoints={currentLoadPoints}
         title="Current Muscle Fatigue (Recovery-Weighted)"
         lazyOverlayRender={false}
+        forceSimplifiedOverlays
         showOrganPanel={false}
       />
 
