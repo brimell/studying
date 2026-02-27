@@ -9,6 +9,7 @@ import { useSession } from "next-auth/react";
 import AuthButton from "@/components/AuthButton";
 import TopBarDataControls from "@/components/TopBarDataControls";
 import { lockBodyScroll, unlockBodyScroll } from "@/lib/scroll-lock";
+import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 
 const WIDE_SCREEN_STORAGE_KEY = "study-stats.layout.wide-screen";
 const Dashboard = dynamic(() => import("@/components/Dashboard"), {
@@ -36,6 +37,7 @@ function HomeContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { data: session } = useSession();
+  const supabase = useState(() => getSupabaseBrowserClient())[0];
   const [wideScreen, setWideScreen] = useState<boolean>(readWideScreenPreference);
   const [useLeftSidebar, setUseLeftSidebar] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -165,6 +167,13 @@ function HomeContent() {
     params.delete("tracker");
     const query = params.toString();
     router.replace(query ? `/?${query}` : "/");
+  }
+
+  async function signOutAccount() {
+    if (!supabase) return;
+    await supabase.auth.signOut();
+    setMenuOpen(false);
+    router.replace("/auth");
   }
 
   return (
@@ -300,6 +309,13 @@ function HomeContent() {
                   </button>
                   <TopBarDataControls mode="refreshOnly" stacked showLastFetched={false} />
                   <AuthButton compact className="w-full text-left" />
+                  <button
+                    type="button"
+                    className="pill-btn w-full text-left"
+                    onClick={signOutAccount}
+                  >
+                    Sign out account
+                  </button>
                 </div>
               </div>
             )}

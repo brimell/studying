@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Inter } from "next/font/google";
+import AppAccountGate from "@/components/AppAccountGate";
 import Providers from "@/components/Providers";
 import "./globals.css";
 
@@ -37,7 +38,9 @@ export default function RootLayout({
         <div className="relative h-[100dvh] w-screen overflow-hidden bg-background">
           <div className="vintage-tv-bg pointer-events-none absolute inset-0" />
           <div className="relative z-[1] h-full overflow-y-auto">
-            <Providers>{children}</Providers>
+            <Providers>
+              <AppAccountGate>{children}</AppAccountGate>
+            </Providers>
           </div>
         </div>
       </body>
