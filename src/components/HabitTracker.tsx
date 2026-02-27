@@ -1226,13 +1226,6 @@ export default function HabitTracker() {
     [selectedStudyHabit]
   );
 
-  const trackerRangeLabel = useMemo(() => {
-    if (!data) return "";
-    return `${formatShortDate(data.trackerRange.startDate)} - ${formatShortDate(
-      data.trackerRange.endDate
-    )}`;
-  }, [data]);
-
   const editingDurationHabit = useMemo(() => {
     if (!data || !editingDurationHabitSlug) return null;
     return data.habits.find((habit) => habit.slug === editingDurationHabitSlug) || null;
@@ -1942,13 +1935,6 @@ export default function HabitTracker() {
       {data && !loading && (
         <div className="space-y-3">
           <div className="border-t border-zinc-200 pt-4">
-            <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-              <h3 className="text-base font-semibold">✅ Habit Trackers</h3>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-zinc-500">{trackerRangeLabel}</span>
-              </div>
-            </div>
-
             {actionError && <p className="text-sm text-red-500 mb-3">{actionError}</p>}
             {actionSuccess && <p className="text-sm text-emerald-600 mb-3">{actionSuccess}</p>}
             {habitColorSyncMessage && (
