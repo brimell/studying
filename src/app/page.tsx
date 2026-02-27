@@ -276,6 +276,12 @@ function HomeContent() {
                 }`}
               >
                 <div className="flex flex-col gap-2">
+                  <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 flex items-center justify-between">
+                    <span className="text-sm font-semibold text-zinc-900">{userLabel}</span>
+                    <span className="text-xs text-zinc-600">
+                      <TopBarDataControls mode="inlineLevel" />
+                    </span>
+                  </div>
                   <button
                     type="button"
                     className="pill-btn w-full text-left"
