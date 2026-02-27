@@ -1172,13 +1172,10 @@ export default function HabitTracker() {
     );
   }, [data, selectedStudyHabitSlug]);
 
-  const examAwareStudyHabitSlug = useMemo(() => {
-    if (!data) return selectedStudyHabit?.slug || null;
-    const studyingByName = data.habits.find(
-      (habit) => habit.name.trim().toLowerCase() === DEFAULT_STUDY_HABIT_NAME.toLowerCase()
-    );
-    return studyingByName?.slug || selectedStudyHabit?.slug || null;
-  }, [data, selectedStudyHabit]);
+  const examAwareStudyHabitSlug = useMemo(
+    () => selectedStudyHabit?.slug || null,
+    [selectedStudyHabit]
+  );
 
   const trackerRangeLabel = useMemo(() => {
     if (!data) return "";
