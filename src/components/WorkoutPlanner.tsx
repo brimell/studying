@@ -696,7 +696,22 @@ export default function WorkoutPlanner() {
         scores={fatigueScores}
         loadPoints={currentLoadPoints}
         title="Current Muscle Fatigue (Recovery-Weighted)"
+        showOrganPanel={false}
       />
+
+      <section className="rounded-2xl bg-white dark:bg-zinc-900 p-5 shadow-sm border border-zinc-200 dark:border-zinc-800">
+        <h2 className="text-lg font-semibold mb-1">How Exercise Supports Organs</h2>
+        <p className="text-xs text-zinc-500 mb-3">
+          This info card estimates internal-system support based on the muscle groups your workouts load.
+          Organ overlays are intentionally shown only here.
+        </p>
+        <MuscleModel
+          scores={fatigueScores}
+          loadPoints={currentLoadPoints}
+          title="Estimated Organ Support Impact"
+          compact
+        />
+      </section>
 
       <div className="grid grid-cols-1 gap-5">
         <section
@@ -726,6 +741,7 @@ export default function WorkoutPlanner() {
                     loadPoints={workoutLoadById.get(workout.id)}
                     title="Workout Muscle Targets"
                     compact
+                    showOrganPanel={false}
                   />
                 </div>
                 <div className="mt-2 space-y-1">
@@ -887,6 +903,7 @@ export default function WorkoutPlanner() {
                       loadPoints={summary?.totalByMuscle}
                       title="Weekly Muscle Groups Hit"
                       compact
+                      showOrganPanel={false}
                     />
                   </div>
 
@@ -956,6 +973,7 @@ export default function WorkoutPlanner() {
                   loadPoints={draftLoadPoints}
                   title="Draft Workout Muscle Targets"
                   compact
+                  showOrganPanel={false}
                 />
               </div>
 

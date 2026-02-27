@@ -669,6 +669,7 @@ interface MuscleModelProps {
   loadPoints?: Partial<Record<MuscleGroup, number>>;
   title?: string;
   compact?: boolean;
+  showOrganPanel?: boolean;
 }
 
 interface DisplayMuscleEntry {
@@ -683,6 +684,7 @@ export default function MuscleModel({
   loadPoints,
   title = "Muscle Load Map",
   compact = false,
+  showOrganPanel = true,
 }: MuscleModelProps) {
   const [simplifyLabels, setSimplifyLabels] = useState(false);
   const [hoveredEntryKey, setHoveredEntryKey] = useState<string | null>(null);
@@ -910,6 +912,7 @@ export default function MuscleModel({
   }, [overlayPanels]);
 
   useEffect(() => {
+    if (!showOrganPanel) return;
     const warmedPairs = new Set<string>();
     for (const panel of skeletalPanels) {
       for (const overlay of panel.overlays) {
@@ -925,7 +928,7 @@ export default function MuscleModel({
       warmedPairs.add(pairKey);
       void toRedOnlyDataUrl(overlay.src, organPanel.baseSrc);
     }
-  }, [organPanel, skeletalPanels]);
+  }, [organPanel, skeletalPanels, showOrganPanel]);
 
   return (
     <div className="rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 p-3">
@@ -987,24 +990,26 @@ export default function MuscleModel({
                 ))}
               </div>
             </div>
-            <div className="w-full min-w-[320px] max-w-[360px] rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-2">
-              <p className="text-xs font-medium mb-2">Internal system support impact</p>
-              <OverlayPanel
-                key={organPanel.key}
-                baseSrc={organPanel.baseSrc}
-                alt="Organ system support model"
-                overlays={organPanel.overlays}
-                hoveredEntryKey={null}
-                hasHover={false}
-              />
-              <div className="grid grid-cols-2 gap-x-3 gap-y-1 mt-2">
-                {topOrganEntries.map(([region, score]) => (
-                  <div key={`organ-impact-${region}`} className="text-[10px] text-zinc-500 dark:text-zinc-400">
-                    {ORGAN_REGION_LABELS[region]} {Math.round(score)}%
-                  </div>
-                ))}
+            {showOrganPanel && (
+              <div className="w-full min-w-[320px] max-w-[360px] rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-2">
+                <p className="text-xs font-medium mb-2">Internal system support impact</p>
+                <OverlayPanel
+                  key={organPanel.key}
+                  baseSrc={organPanel.baseSrc}
+                  alt="Organ system support model"
+                  overlays={organPanel.overlays}
+                  hoveredEntryKey={null}
+                  hasHover={false}
+                />
+                <div className="grid grid-cols-2 gap-x-3 gap-y-1 mt-2">
+                  {topOrganEntries.map(([region, score]) => (
+                    <div key={`organ-impact-${region}`} className="text-[10px] text-zinc-500 dark:text-zinc-400">
+                      {ORGAN_REGION_LABELS[region]} {Math.round(score)}%
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
         <div className="grid sm:grid-cols-2 gap-2 content-start">
