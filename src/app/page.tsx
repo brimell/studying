@@ -5,6 +5,8 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useSession } from "next-auth/react";
+import AuthButton from "@/components/AuthButton";
 import TopBarDataControls from "@/components/TopBarDataControls";
 import {
   getDisplayNameFromMetadata,
@@ -37,6 +39,7 @@ export default function Home() {
 function HomeContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { status: googleAuthStatus } = useSession();
   const supabase = useState(() => getSupabaseBrowserClient())[0];
   const [wideScreen, setWideScreen] = useState<boolean>(readWideScreenPreference);
   const [useLeftSidebar, setUseLeftSidebar] = useState(false);
@@ -356,6 +359,14 @@ function HomeContent() {
 
       {/* Main content */}
       <main className={`${containerClass} pt-2 pb-5 sm:pt-3 sm:pb-9`}>
+        {googleAuthStatus === "unauthenticated" && (
+          <div className="surface-card p-3 mb-3 flex items-center justify-between gap-3">
+            <p className="text-sm text-zinc-700">
+              Google is not authorised for this browser session.
+            </p>
+            <AuthButton />
+          </div>
+        )}
         <Dashboard />
       </main>
 

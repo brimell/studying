@@ -15,11 +15,10 @@ const GOOGLE_LINKED_METADATA_KEY = "google_linked_once";
 export default function AuthButton({ compact = false, className = "" }: AuthButtonProps) {
   const { data: session, status } = useSession();
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
-  const [linkedBeforeSnapshot, setLinkedBeforeSnapshot] = useState(() => {
+  const [, setLinkedBeforeSnapshot] = useState(() => {
     if (typeof window === "undefined") return false;
     return Boolean(window.localStorage.getItem(GOOGLE_LINKED_STORAGE_KEY));
   });
-  const hasLinkedBefore = Boolean(session?.user?.email) || linkedBeforeSnapshot;
 
   useEffect(() => {
     if (!supabase) return;
@@ -150,7 +149,7 @@ export default function AuthButton({ compact = false, className = "" }: AuthButt
       onClick={() => signIn("google")}
       className={`pill-btn pill-btn-primary ${className}`.trim()}
     >
-      {hasLinkedBefore ? "Reconnect Google Calendar" : "Connect Google Calendar"}
+      Update Google authorisation for this session
     </button>
   );
 }
