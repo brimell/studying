@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { MuscleGroup } from "@/lib/types";
 import { MUSCLE_LABELS, UI_MUSCLE_GROUPS } from "@/lib/workouts";
 
@@ -316,7 +316,7 @@ const SPECIFIC_FILE_BASE_BY_MUSCLE: Partial<Record<MuscleGroup, string>> = {
   "pectoralis-major": "Muscle Group=- Pectoralis Major",
   "pectoralis-minor": "Muscle Group=- Pectoralis Minor",
   "quadratus-lumborum": "Muscle Group=- Quadratus Lumborum",
-  rhomboids: "Muscle Group=-Rhomboids",
+  rhomboids: "Muscle Group=- Rhomboids",
   "serratus-anterior": "Muscle Group=- Serratus Anterior",
   splenius: "Muscle Group=- Splenius",
   sternocleidomastoid: "Muscle Group=- Sternocleidomastoid",
@@ -517,6 +517,7 @@ function toRedOnlyDataUrl(src: string, baseSrc: string): Promise<string> {
 function RedOnlyOverlay({
   src,
   baseSrc,
+  fallbackSrc,
   opacity,
   delayMs = 0,
   highlighted = false,
@@ -524,6 +525,7 @@ function RedOnlyOverlay({
 }: {
   src: string;
   baseSrc: string;
+  fallbackSrc?: string;
   opacity: number;
   delayMs?: number;
   highlighted?: boolean;
@@ -543,17 +545,33 @@ function RedOnlyOverlay({
     let cancelled = false;
     toRedOnlyDataUrl(src, baseSrc).then((nextSrc) => {
       if (cancelled) return;
-      setProcessedOverlay((previous) =>
-        previous.key === cacheKey && previous.src === nextSrc
-          ? previous
-          : { key: cacheKey, src: nextSrc }
-      );
+      const applySource = (resolvedSrc: string) => {
+        if (cancelled) return;
+        setProcessedOverlay((previous) =>
+          previous.key === cacheKey && previous.src === resolvedSrc
+            ? previous
+            : { key: cacheKey, src: resolvedSrc }
+        );
+      };
+
+      if (
+        nextSrc === TRANSPARENT_PIXEL_DATA_URL &&
+        fallbackSrc &&
+        fallbackSrc !== src
+      ) {
+        toRedOnlyDataUrl(fallbackSrc, baseSrc).then((fallbackResolvedSrc) => {
+          applySource(fallbackResolvedSrc);
+        });
+        return;
+      }
+
+      applySource(nextSrc);
     });
 
     return () => {
       cancelled = true;
     };
-  }, [baseSrc, cacheKey, src]);
+  }, [baseSrc, cacheKey, fallbackSrc, src]);
 
   return (
     // eslint-disable-next-line @next/next/no-img-element
@@ -592,6 +610,7 @@ function RedOnlyOverlay({
 interface OverlayRenderEntry {
   key: string;
   src: string;
+  fallbackSrc?: string;
   opacity: number;
   delayMs: number;
   hoverKeys: string[];
@@ -610,8 +629,31 @@ function OverlayPanel({
   hoveredEntryKeys: Set<string>;
   hasHover: boolean;
 }) {
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  const [isVisible, setIsVisible] = useState(false);
+
+  useEffect(() => {
+    if (isVisible) return;
+    const node = panelRef.current;
+    if (!node) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries.some((entry) => entry.isIntersecting)) return;
+        setIsVisible(true);
+        observer.disconnect();
+      },
+      { rootMargin: "120px 0px" }
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [isVisible]);
+
   return (
-    <div className="rounded-md border border-zinc-200 overflow-hidden bg-white relative aspect-[3/4] isolate">
+    <div
+      ref={panelRef}
+      className="rounded-md border border-zinc-200 overflow-hidden bg-white relative aspect-[3/4] isolate"
+    >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={baseSrc}
@@ -629,23 +671,25 @@ function OverlayPanel({
         }}
         style={{ opacity: 1 }}
       />
-      {overlays.map((overlay) => {
-        const highlighted =
-          hoveredEntryKeys.size > 0 &&
-          overlay.hoverKeys.some((hoverKey) => hoveredEntryKeys.has(hoverKey));
-        const dimmed = hasHover && !highlighted;
-        return (
-          <RedOnlyOverlay
-            key={overlay.key}
-            src={overlay.src}
-            baseSrc={baseSrc}
-            opacity={hasHover ? (highlighted ? 0.98 : 0.02) : overlay.opacity}
-            delayMs={overlay.delayMs}
-            highlighted={highlighted}
-            dimmed={dimmed}
-          />
-        );
-      })}
+      {isVisible &&
+        overlays.map((overlay) => {
+          const highlighted =
+            hoveredEntryKeys.size > 0 &&
+            overlay.hoverKeys.some((hoverKey) => hoveredEntryKeys.has(hoverKey));
+          const dimmed = hasHover && !highlighted;
+          return (
+            <RedOnlyOverlay
+              key={overlay.key}
+              src={overlay.src}
+              baseSrc={baseSrc}
+              fallbackSrc={overlay.fallbackSrc}
+              opacity={hasHover ? (highlighted ? 0.98 : 0.02) : overlay.opacity}
+              delayMs={overlay.delayMs}
+              highlighted={highlighted}
+              dimmed={dimmed}
+            />
+          );
+        })}
     </div>
   );
 }
@@ -841,7 +885,12 @@ export default function MuscleModel({
         const baseSrc = toDiagramPath(BASE_DIAGRAM[dissection][view]);
         const groupedOverlays = new Map<
           string,
-          { opacity: number; hoverKeys: Set<string>; ordinal: number }
+          {
+            opacity: number;
+            hoverKeys: Set<string>;
+            ordinal: number;
+            fallbackSrc?: string;
+          }
         >();
 
         for (const { muscle } of sorted) {
@@ -849,18 +898,25 @@ export default function MuscleModel({
           if (normalizedGrade <= 0) continue;
 
           const src = toDiagramPath(resolveDiagramFiles(muscle, simplifyLabels, dissection)[view]);
+          const fallbackSrc = simplifyLabels
+            ? undefined
+            : toDiagramPath(resolveDiagramFiles(muscle, true, dissection)[view]);
           const hoverKey = String(simplifyLabels ? getCommonGroupKey(muscle) : muscle);
           const opacity = normalizedGradeToOpacity(normalizedGrade);
           const existing = groupedOverlays.get(src);
           if (existing) {
             existing.opacity = Math.max(existing.opacity, opacity);
             existing.hoverKeys.add(hoverKey);
+            if (fallbackSrc && !existing.fallbackSrc) {
+              existing.fallbackSrc = fallbackSrc;
+            }
             continue;
           }
           groupedOverlays.set(src, {
             opacity,
             hoverKeys: new Set([hoverKey]),
             ordinal: groupedOverlays.size,
+            fallbackSrc,
           });
         }
 
@@ -869,6 +925,7 @@ export default function MuscleModel({
           .map(([src, overlay], index) => ({
             key: `${dissection}-${view}-${src}`,
             src,
+            fallbackSrc: overlay.fallbackSrc,
             opacity: overlay.opacity,
             delayMs: index * 22,
             hoverKeys: [...overlay.hoverKeys],
