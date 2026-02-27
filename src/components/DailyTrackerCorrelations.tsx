@@ -10,6 +10,7 @@ import {
 import type { DailyStudyTimeData } from "@/lib/types";
 
 const MIN_DAYS_FOR_CORRELATION = 7;
+const MIN_POINTS_FOR_WEEKLY_TIMELINE = 4;
 const MIN_ABS_CORRELATION = 0.3;
 const MAX_RESULTS = 16;
 const STUDY_CALENDAR_IDS_STORAGE_KEY = "study-stats.study.calendar-ids";
@@ -63,6 +64,16 @@ interface PairCorrelation {
   yAverage: number;
 }
 
+interface WeeklyCorrelationPoint {
+  weekStart: string;
+  weekEnd: string;
+  correlation: number | null;
+  sampleSize: number;
+  pValue: number | null;
+  confidenceLower: number | null;
+  confidenceUpper: number | null;
+}
+
 function readStudyCalendarIds(): string[] {
   const stored = window.localStorage.getItem(STUDY_CALENDAR_IDS_STORAGE_KEY);
   if (!stored) return [];
@@ -101,8 +112,12 @@ function normalCdf(z: number): number {
   return 0.5 * (1 + erf(z / Math.SQRT2));
 }
 
-function pearsonCorrelation(xValues: number[], yValues: number[]): number | null {
-  if (xValues.length !== yValues.length || xValues.length < MIN_DAYS_FOR_CORRELATION) return null;
+function pearsonCorrelation(
+  xValues: number[],
+  yValues: number[],
+  minSamples = MIN_DAYS_FOR_CORRELATION
+): number | null {
+  if (xValues.length !== yValues.length || xValues.length < minSamples) return null;
 
   const n = xValues.length;
   const meanX = xValues.reduce((sum, value) => sum + value, 0) / n;
@@ -165,6 +180,33 @@ function effectLabel(correlation: number): string {
   if (absR >= 0.5) return "strong";
   if (absR >= 0.3) return "moderate";
   return "weak";
+}
+
+function parseDateKeyUtc(dateKey: string): Date {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day));
+}
+
+function toDateKeyUtc(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+function addDays(dateKey: string, offset: number): string {
+  const date = parseDateKeyUtc(dateKey);
+  date.setUTCDate(date.getUTCDate() + offset);
+  return toDateKeyUtc(date);
+}
+
+function weekStartForDate(dateKey: string): string {
+  const date = parseDateKeyUtc(dateKey);
+  const day = date.getUTCDay();
+  const diffToMonday = (day + 6) % 7;
+  date.setUTCDate(date.getUTCDate() - diffToMonday);
+  return toDateKeyUtc(date);
+}
+
+function shortDateLabel(dateKey: string): string {
+  return dateKey.slice(5);
 }
 
 function extractDayAggregates(
@@ -294,6 +336,52 @@ function computeDetectedCorrelations(dayData: DayAggregate[]): PairCorrelation[]
     .slice(0, MAX_RESULTS);
 }
 
+function computeWeeklyCorrelationTimeline(
+  dayData: DayAggregate[],
+  xMetric: MetricKey,
+  yMetric: MetricKey
+): WeeklyCorrelationPoint[] {
+  if (xMetric === yMetric) return [];
+
+  const weekBuckets = new Map<string, { xValues: number[]; yValues: number[] }>();
+
+  for (const day of dayData) {
+    const xValue = day.metrics[xMetric];
+    const yValue = day.metrics[yMetric];
+    if (typeof xValue !== "number" || typeof yValue !== "number") continue;
+    const weekStart = weekStartForDate(day.date);
+    const existing = weekBuckets.get(weekStart) || { xValues: [], yValues: [] };
+    existing.xValues.push(xValue);
+    existing.yValues.push(yValue);
+    weekBuckets.set(weekStart, existing);
+  }
+
+  return [...weekBuckets.entries()]
+    .sort((left, right) => left[0].localeCompare(right[0]))
+    .map(([weekStart, values]) => {
+      const sampleSize = values.xValues.length;
+      const correlation = pearsonCorrelation(
+        values.xValues,
+        values.yValues,
+        MIN_POINTS_FOR_WEEKLY_TIMELINE
+      );
+      const pValue =
+        correlation === null ? null : computePValueFromCorrelation(correlation, sampleSize);
+      const interval =
+        correlation === null ? null : computeCorrelationCI(correlation, sampleSize);
+
+      return {
+        weekStart,
+        weekEnd: addDays(weekStart, 6),
+        sampleSize,
+        correlation,
+        pValue,
+        confidenceLower: interval?.lower ?? null,
+        confidenceUpper: interval?.upper ?? null,
+      };
+    });
+}
+
 export default function DailyTrackerCorrelations() {
   const [entries, setEntries] = useState<DailyTrackerEntry[]>([]);
   const [studyHoursByDate, setStudyHoursByDate] = useState<Map<string, number>>(new Map());
@@ -348,6 +436,10 @@ export default function DailyTrackerCorrelations() {
   const dayData = useMemo(() => extractDayAggregates(entries, studyHoursByDate), [entries, studyHoursByDate]);
   const pairCorrelation = useMemo(
     () => computePairCorrelation(dayData, xMetric, yMetric),
+    [dayData, xMetric, yMetric]
+  );
+  const weeklyTimeline = useMemo(
+    () => computeWeeklyCorrelationTimeline(dayData, xMetric, yMetric),
     [dayData, xMetric, yMetric]
   );
   const detectedCorrelations = useMemo(() => computeDetectedCorrelations(dayData), [dayData]);
@@ -409,6 +501,63 @@ export default function DailyTrackerCorrelations() {
           </p>
         </div>
       )}
+
+      <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 space-y-2">
+        <p className="text-sm font-medium">Correlation timeline (week-by-week)</p>
+        <p className="text-xs text-zinc-500">
+          Weekly snapshots for {METRIC_LABELS[xMetric]} vs {METRIC_LABELS[yMetric]}.
+        </p>
+        {xMetric === yMetric && (
+          <p className="text-xs text-zinc-500">Choose two different variables to build the timeline.</p>
+        )}
+        {xMetric !== yMetric && weeklyTimeline.length === 0 && (
+          <p className="text-xs text-zinc-500">No weekly overlap yet for these variables.</p>
+        )}
+        {xMetric !== yMetric && weeklyTimeline.length > 0 && (
+          <div className="space-y-1.5">
+            {weeklyTimeline.map((point) => {
+              const value = point.correlation;
+              const widthPercent = value === null ? 0 : Math.min(50, Math.abs(value) * 50);
+              const left = value === null ? 50 : value >= 0 ? 50 : 50 - widthPercent;
+              return (
+                <div
+                  key={`${point.weekStart}-${point.weekEnd}`}
+                  className="rounded-md border border-zinc-200 bg-white px-2 py-1.5"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[11px] text-zinc-600 stat-mono">
+                      {shortDateLabel(point.weekStart)} to {shortDateLabel(point.weekEnd)}
+                    </p>
+                    <p className="text-[11px] text-zinc-500">
+                      n=<span className="stat-mono">{point.sampleSize}</span>
+                    </p>
+                  </div>
+                  <div className="mt-1 relative h-2 rounded bg-zinc-200 overflow-hidden">
+                    <div className="absolute inset-y-0 left-1/2 w-px bg-zinc-300" />
+                    {value !== null && (
+                      <div
+                        className={`absolute inset-y-0 rounded ${
+                          value >= 0 ? "bg-emerald-500" : "bg-rose-500"
+                        }`}
+                        style={{ left: `${left}%`, width: `${widthPercent}%` }}
+                      />
+                    )}
+                  </div>
+                  <p className="text-[11px] text-zinc-500 mt-1">
+                    {value === null
+                      ? `Need at least ${MIN_POINTS_FOR_WEEKLY_TIMELINE} overlapping days this week.`
+                      : `r=${value.toFixed(2)} • p=${
+                          point.pValue !== null ? point.pValue.toFixed(3) : "N/A"
+                        } • CI ${point.confidenceLower?.toFixed(2) ?? "N/A"} to ${
+                          point.confidenceUpper?.toFixed(2) ?? "N/A"
+                        }`}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
 
       <div className="pt-1">
         <p className="text-sm font-medium mb-2">Detected correlations</p>
