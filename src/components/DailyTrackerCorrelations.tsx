@@ -8,6 +8,13 @@ import {
   type DailyTrackerEntry,
 } from "@/lib/daily-tracker";
 import type { DailyStudyTimeData } from "@/lib/types";
+import {
+  fetchJsonWithDedupe,
+  isStale,
+  readCache,
+  writeCache,
+  writeGlobalLastFetched,
+} from "@/lib/client-cache";
 
 const MIN_DAYS_FOR_CORRELATION = 7;
 const MIN_POINTS_FOR_WEEKLY_TIMELINE = 4;
@@ -398,23 +405,47 @@ export default function DailyTrackerCorrelations() {
       const params = new URLSearchParams({ days: "180" });
       const calendarIds = readStudyCalendarIds();
       if (calendarIds.length > 0) params.set("calendarIds", calendarIds.join(","));
+      const query = params.toString();
+      const cacheKey = `study-stats:daily-tracker-correlations:study:${query}`;
 
       try {
-        const response = await fetch(`/api/daily-study-time?${params.toString()}`);
-        const payload = (await response.json()) as DailyStudyTimeData | { error?: string };
-        if (!response.ok) {
-          setStudyHoursByDate(new Map());
-          return;
+        const cached = readCache<DailyStudyTimeData>(cacheKey);
+        if (cached) {
+          const initialMap = new Map<string, number>();
+          for (const entry of cached.data.entries) {
+            if (typeof entry.hours !== "number") continue;
+            initialMap.set(entry.date, entry.hours);
+          }
+          setStudyHoursByDate(initialMap);
+          if (!isStale(cached.fetchedAt)) {
+            return;
+          }
         }
 
+        const payload = await fetchJsonWithDedupe<DailyStudyTimeData>(
+          `api:daily-study-time:${query}`,
+          async () => {
+            const response = await fetch(`/api/daily-study-time?${query}`);
+            const json = (await response.json()) as DailyStudyTimeData | { error?: string };
+            if (!response.ok) {
+              throw new Error(("error" in json && json.error) || "Failed to load study time.");
+            }
+            return json as DailyStudyTimeData;
+          }
+        );
+
         const map = new Map<string, number>();
-        for (const entry of (payload as DailyStudyTimeData).entries) {
+        for (const entry of payload.entries) {
           if (typeof entry.hours !== "number") continue;
           map.set(entry.date, entry.hours);
         }
         setStudyHoursByDate(map);
+        const fetchedAt = writeCache(cacheKey, payload);
+        writeGlobalLastFetched(fetchedAt);
       } catch {
-        setStudyHoursByDate(new Map());
+        if (!readCache<DailyStudyTimeData>(cacheKey)) {
+          setStudyHoursByDate(new Map());
+        }
       }
     };
 

@@ -19,10 +19,11 @@ import {
   fetchJsonWithDedupe,
   isStale,
   readCache,
+  trackedFetch,
   writeCache,
   writeGlobalLastFetched,
 } from "@/lib/client-cache";
-import LoadingIcon from "./LoadingIcon";
+import MorphingText from "./MorphingText";
 
 const STUDY_CALENDAR_IDS_STORAGE_KEY = "study-stats.study.calendar-ids";
 const TRACKER_CALENDAR_STORAGE_KEY = "study-stats.tracker-calendar-id";
@@ -814,7 +815,7 @@ function readinessTone(score: number): string {
 
 export default function AdvancedAnalytics() {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
-  const [loading, setLoading] = useState(true);
+  const [, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [state, setState] = useState<AnalyticsState>({
     today: null,
@@ -922,7 +923,7 @@ export default function AdvancedAnalytics() {
         const { data } = await supabase.auth.getSession();
         const token = data.session?.access_token;
         if (token) {
-          const workoutRes = await fetch("/api/workout-planner", {
+          const workoutRes = await trackedFetch("/api/workout-planner", {
             method: "GET",
             headers: { Authorization: `Bearer ${token}` },
           });
@@ -940,7 +941,7 @@ export default function AdvancedAnalytics() {
         const localTrackerCalendarId = window.localStorage.getItem(TRACKER_CALENDAR_STORAGE_KEY);
         const params = new URLSearchParams({ weeks: "16" });
         if (localTrackerCalendarId) params.set("trackerCalendarId", localTrackerCalendarId);
-        const habitRes = await fetch(`/api/habit-tracker?${params.toString()}`);
+        const habitRes = await trackedFetch(`/api/habit-tracker?${params.toString()}`);
         const habitJson = (await habitRes.json()) as HabitTrackerData | { error?: string };
         if (habitRes.ok) {
           habitData = habitJson as HabitTrackerData;
@@ -1064,39 +1065,44 @@ export default function AdvancedAnalytics() {
 
   return (
     <div className="surface-card p-6 relative">
-      {loading && !analytics && (
-        <div className="h-32 flex items-center justify-center">
-          <LoadingIcon />
-        </div>
-      )}
-      {loading && analytics && (
-        <div className="absolute top-3 right-3 z-10">
-          <span className="pill-btn text-[11px] px-2 py-1 stat-mono">Updating...</span>
-        </div>
-      )}
       {error && <p className="text-sm text-red-500">{error}</p>}
       {analytics && (
         <div className="space-y-4 text-sm">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div className="rounded-lg bg-zinc-50 border border-zinc-200 p-3">
               <p className="text-zinc-500">Study Efficiency</p>
-              <p className="text-xl font-semibold mt-1 stat-mono">{toPercent(analytics.efficiencyRatio)}</p>
+              <p className="text-xl font-semibold mt-1 stat-mono inline-flex">
+                <MorphingText text={toPercent(analytics.efficiencyRatio)} />
+              </p>
               <p className="text-xs text-zinc-500 mt-1">
-                Productive-day ratio: <span className="stat-mono">{toPercent(analytics.productiveRatio)}</span>
+                Productive-day ratio:{" "}
+                <span className="stat-mono inline-flex">
+                  <MorphingText text={toPercent(analytics.productiveRatio)} />
+                </span>
               </p>
             </div>
             <div className="rounded-lg bg-zinc-50 border border-zinc-200 p-3">
               <p className="text-zinc-500">Study Trend</p>
-              <p className="text-xl font-semibold mt-1 stat-mono">{analytics.recentAvg.toFixed(1)}h/day</p>
+              <p className="text-xl font-semibold mt-1 stat-mono inline-flex">
+                <MorphingText text={`${analytics.recentAvg.toFixed(1)}h/day`} />
+              </p>
               <p className="text-xs text-zinc-500 mt-1">
-                Vs previous: <span className="stat-mono">{(analytics.recentAvg - analytics.previousAvg).toFixed(1)}h/day</span>
+                Vs previous:{" "}
+                <span className="stat-mono inline-flex">
+                  <MorphingText text={`${(analytics.recentAvg - analytics.previousAvg).toFixed(1)}h/day`} />
+                </span>
               </p>
             </div>
             <div className="rounded-lg bg-zinc-50 border border-zinc-200 p-3">
               <p className="text-zinc-500">Next 7-Day Prediction</p>
-              <p className="text-xl font-semibold mt-1 stat-mono">{analytics.nextWeekPrediction.toFixed(1)}h</p>
+              <p className="text-xl font-semibold mt-1 stat-mono inline-flex">
+                <MorphingText text={`${analytics.nextWeekPrediction.toFixed(1)}h`} />
+              </p>
               <p className="text-xs text-zinc-500 mt-1">
-                Daily trend slope: <span className="stat-mono">{analytics.trendSlope.toFixed(2)}h/day</span>
+                Daily trend slope:{" "}
+                <span className="stat-mono inline-flex">
+                  <MorphingText text={`${analytics.trendSlope.toFixed(2)}h/day`} />
+                </span>
               </p>
             </div>
           </div>
@@ -1123,14 +1129,22 @@ export default function AdvancedAnalytics() {
               ) : (
                 <>
                   <p className="font-semibold mt-1">
-                    Current mean fatigue: <span className="stat-mono">{analytics.fatigueNow.toFixed(1)}%</span>
+                    Current mean fatigue:{" "}
+                    <span className="stat-mono inline-flex">
+                      <MorphingText text={`${analytics.fatigueNow.toFixed(1)}%`} />
+                    </span>
                   </p>
                   <p className="text-xs text-zinc-500 mt-1">
-                    7-day fatigue trend: <span className="stat-mono">{(analytics.fatigueTrend || 0).toFixed(2)}%/day</span>
+                    7-day fatigue trend:{" "}
+                    <span className="stat-mono inline-flex">
+                      <MorphingText text={`${(analytics.fatigueTrend || 0).toFixed(2)}%/day`} />
+                    </span>
                   </p>
                   <p className="text-xs text-zinc-500 mt-1">
                     Recovery to sub-30%:{" "}
-                    <span className="stat-mono">{analytics.recoveryDays ? `${analytics.recoveryDays} day(s)` : "beyond 14 days"}</span>
+                    <span className="stat-mono inline-flex">
+                      <MorphingText text={analytics.recoveryDays ? `${analytics.recoveryDays} day(s)` : "beyond 14 days"} />
+                    </span>
                   </p>
                 </>
               )}
@@ -1143,8 +1157,8 @@ export default function AdvancedAnalytics() {
                 </p>
               ) : (
                 <>
-                  <p className="text-2xl font-semibold mt-1 stat-mono">
-                    {analytics.recoveryScore.latest.score.toFixed(0)}
+                  <p className="text-2xl font-semibold mt-1 stat-mono inline-flex">
+                    <MorphingText text={analytics.recoveryScore.latest.score.toFixed(0)} />
                   </p>
                   <p className={`text-xs mt-1 ${readinessTone(analytics.recoveryScore.latest.score)}`}>
                     {readinessLabel(analytics.recoveryScore.latest.score)}
@@ -1316,6 +1330,7 @@ export default function AdvancedAnalytics() {
           </div>
         </div>
       )}
+      {!analytics && !error && <p className="text-sm text-zinc-500">Waiting for first sync...</p>}
     </div>
   );
 }

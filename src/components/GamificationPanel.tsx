@@ -6,10 +6,11 @@ import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import {
   isStale,
   readCache,
+  trackedFetch,
   writeCache,
   writeGlobalLastFetched,
 } from "@/lib/client-cache";
-import LoadingIcon from "./LoadingIcon";
+import MorphingText from "./MorphingText";
 
 const TRACKER_CALENDAR_STORAGE_KEY = "study-stats.tracker-calendar-id";
 const STUDY_HABIT_STORAGE_KEY = "study-stats.habit-tracker.study-habit";
@@ -90,7 +91,7 @@ function computeCombinedStreakStats(habits: HabitDefinition[]): CombinedStreakSt
 
 export default function GamificationPanel() {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
-  const [loading, setLoading] = useState(true);
+  const [, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [habitData, setHabitData] = useState<HabitTrackerData | null>(null);
   const [workoutPayload, setWorkoutPayload] = useState<WorkoutPlannerPayload | null>(null);
@@ -124,7 +125,7 @@ export default function GamificationPanel() {
 
       const params = new URLSearchParams({ weeks: "26" });
       if (trackerCalendarId) params.set("trackerCalendarId", trackerCalendarId);
-      const habitResponse = await fetch(`/api/habit-tracker?${params.toString()}`);
+      const habitResponse = await trackedFetch(`/api/habit-tracker?${params.toString()}`);
       const habitJson = (await habitResponse.json()) as HabitTrackerData | { error?: string };
       if (!habitResponse.ok) {
         throw new Error(("error" in habitJson && habitJson.error) || "Failed to load habits.");
@@ -136,7 +137,7 @@ export default function GamificationPanel() {
         const { data } = await supabase.auth.getSession();
         const token = data.session?.access_token;
         if (token) {
-          const workoutResponse = await fetch("/api/workout-planner", {
+          const workoutResponse = await trackedFetch("/api/workout-planner", {
             method: "GET",
             headers: { Authorization: `Bearer ${token}` },
           });
@@ -210,16 +211,6 @@ export default function GamificationPanel() {
 
   return (
     <div className="surface-card p-6 relative">
-      {loading && !model && (
-        <div className="h-32 flex items-center justify-center">
-          <LoadingIcon />
-        </div>
-      )}
-      {loading && model && (
-        <div className="absolute top-3 right-3 z-10">
-          <span className="pill-btn text-[11px] px-2 py-1 stat-mono">Updating...</span>
-        </div>
-      )}
       {error && <p className="text-sm text-red-500">{error}</p>}
 
       {model && (
@@ -231,13 +222,13 @@ export default function GamificationPanel() {
                 className="stat-mono font-bold leading-none text-sky-900"
                 style={{ fontSize: "clamp(6rem, 18vw, 16rem)" }}
               >
-                {model.combinedCurrentStreak}
+                <MorphingText text={`${model.combinedCurrentStreak}`} />
                 <span className="ml-2 text-2xl md:text-3xl align-baseline">days</span>
               </p>
               <div className="text-right">
                 <p className="text-[11px] text-sky-700">Longest combined</p>
                 <p className="stat-mono text-lg font-semibold text-sky-900">
-                  {model.combinedLongestStreak}d
+                  <MorphingText text={`${model.combinedLongestStreak}d`} />
                 </p>
               </div>
             </div>
@@ -246,15 +237,21 @@ export default function GamificationPanel() {
           <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
             <div className="rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2">
               <p className="text-[11px] text-zinc-500">Study streak</p>
-              <p className="font-semibold text-sm stat-mono">{model.studyCurrentStreak} days</p>
+              <p className="font-semibold text-sm stat-mono">
+                <MorphingText text={`${model.studyCurrentStreak} days`} />
+              </p>
             </div>
             <div className="rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2">
               <p className="text-[11px] text-zinc-500">Longest study streak</p>
-              <p className="font-semibold text-sm stat-mono">{model.studyLongestStreak} days</p>
+              <p className="font-semibold text-sm stat-mono">
+                <MorphingText text={`${model.studyLongestStreak} days`} />
+              </p>
             </div>
             <div className="rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2">
               <p className="text-[11px] text-zinc-500">Workout streak</p>
-              <p className="font-semibold text-sm stat-mono">{model.workoutCurrentStreak} days</p>
+              <p className="font-semibold text-sm stat-mono">
+                <MorphingText text={`${model.workoutCurrentStreak} days`} />
+              </p>
             </div>
           </div>
 
@@ -264,14 +261,19 @@ export default function GamificationPanel() {
               {model.individualHabitStreaks.map((habit) => (
                 <div key={habit.slug} className="rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2">
                   <p className="text-xs text-zinc-500">{habit.name}</p>
-                  <p className="text-sm font-semibold stat-mono">{habit.currentStreak}d current</p>
-                  <p className="text-[11px] text-zinc-500 stat-mono">{habit.longestStreak}d longest</p>
+                  <p className="text-sm font-semibold stat-mono">
+                    <MorphingText text={`${habit.currentStreak}d current`} />
+                  </p>
+                  <p className="text-[11px] text-zinc-500 stat-mono">
+                    <MorphingText text={`${habit.longestStreak}d longest`} />
+                  </p>
                 </div>
               ))}
             </div>
           </div>
         </div>
       )}
+      {!model && !error && <p className="text-sm text-zinc-500">Waiting for first sync...</p>}
     </div>
   );
 }

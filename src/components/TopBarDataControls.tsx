@@ -4,6 +4,7 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { formatTimeSince, readGlobalLastFetched } from "@/lib/client-cache";
 import { fetchJsonWithDedupe } from "@/lib/client-cache";
 import type { HabitDefinition, HabitTrackerData } from "@/lib/types";
+import MorphingText from "./MorphingText";
 
 const TRACKER_CALENDAR_STORAGE_KEY = "study-stats.tracker-calendar-id";
 const STUDY_HABIT_STORAGE_KEY = "study-stats.habit-tracker.study-habit";
@@ -165,14 +166,18 @@ export default function TopBarDataControls({
           className="pill-btn px-2 py-1 text-sm inline-flex flex-col items-center leading-none gap-0.5"
           aria-label="Open gamification"
         >
-          <span className="stat-mono">{mounted && gamificationReady ? allHabitsStreak : "--"}</span>
+          <span className="stat-mono inline-flex">
+            <MorphingText text={mounted && gamificationReady ? `${allHabitsStreak}` : "--"} />
+          </span>
           <span>🔥</span>
         </button>
       );
     }
     return (
       <span className="pill-btn px-2 py-1 text-sm inline-flex flex-col items-center leading-none gap-0.5">
-        <span className="stat-mono">{mounted && gamificationReady ? allHabitsStreak : "--"}</span>
+        <span className="stat-mono inline-flex">
+          <MorphingText text={mounted && gamificationReady ? `${allHabitsStreak}` : "--"} />
+        </span>
         <span>🔥</span>
       </span>
     );
@@ -186,7 +191,11 @@ export default function TopBarDataControls({
             <span className="pill-btn text-[11px] px-2 py-1 hidden md:inline-flex items-center gap-1.5">
               <span>All habits streak</span>
               <span className="text-zinc-400">:</span>
-              <span className="stat-mono leading-none">{mounted && gamificationReady ? `${allHabitsStreak}d` : "--"}</span>
+              <span className="stat-mono leading-none inline-flex">
+                <MorphingText
+                  text={mounted && gamificationReady ? `${allHabitsStreak}d` : "--"}
+                />
+              </span>
             </span>
           )}
         </div>

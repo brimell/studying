@@ -1,9 +1,11 @@
 export const CACHE_STALE_MS = 4 * 60 * 60 * 1000;
 export const GLOBAL_LAST_FETCHED_KEY = "study-stats:global-last-fetched";
+export const FETCH_ACTIVITY_EVENT = "study-stats:fetch-activity";
 
 declare global {
   interface Window {
     __studyStatsInFlightRequests?: Map<string, Promise<unknown>>;
+    __studyStatsPendingFetchCount?: number;
   }
 }
 
@@ -75,6 +77,34 @@ function getInFlightMap(): Map<string, Promise<unknown>> {
   return window.__studyStatsInFlightRequests;
 }
 
+function updatePendingFetchCount(delta: number): void {
+  if (typeof window === "undefined") return;
+  const next = Math.max(0, (window.__studyStatsPendingFetchCount || 0) + delta);
+  window.__studyStatsPendingFetchCount = next;
+  window.dispatchEvent(
+    new CustomEvent(FETCH_ACTIVITY_EVENT, {
+      detail: { pending: next },
+    })
+  );
+}
+
+export function readPendingFetchCount(): number {
+  if (typeof window === "undefined") return 0;
+  return Math.max(0, window.__studyStatsPendingFetchCount || 0);
+}
+
+export async function trackedFetch(
+  input: RequestInfo | URL,
+  init?: RequestInit
+): Promise<Response> {
+  updatePendingFetchCount(1);
+  try {
+    return await fetch(input, init);
+  } finally {
+    updatePendingFetchCount(-1);
+  }
+}
+
 export async function fetchJsonWithDedupe<T>(
   requestKey: string,
   fetcher: () => Promise<T>
@@ -89,10 +119,14 @@ export async function fetchJsonWithDedupe<T>(
     return existing as Promise<T>;
   }
 
-  const promise = fetcher()
-    .catch((error) => {
-      throw error;
-    })
+  const promise = (async () => {
+    updatePendingFetchCount(1);
+    try {
+      return await fetcher();
+    } finally {
+      updatePendingFetchCount(-1);
+    }
+  })()
     .finally(() => {
       inFlight.delete(requestKey);
     });

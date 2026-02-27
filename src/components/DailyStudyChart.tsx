@@ -11,8 +11,8 @@ import {
   ReferenceLine,
   ResponsiveContainer,
 } from "recharts";
-import LoadingIcon from "./LoadingIcon";
 import FancyDropdown from "./FancyDropdown";
+import MorphingText from "./MorphingText";
 import type { DailyStudyTimeData } from "@/lib/types";
 import { DEFAULT_SUBJECTS } from "@/lib/types";
 import {
@@ -41,7 +41,7 @@ function readStudyCalendarIds(): string[] {
 
 export default function DailyStudyChart() {
   const [data, setData] = useState<DailyStudyTimeData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [days, setDays] = useState(30);
   const [subject, setSubject] = useState<string>("");
@@ -168,30 +168,20 @@ export default function DailyStudyChart() {
           />
         </div>
       </div>
-      {loading && !data && (
-        <div className="h-64 flex items-center justify-center">
-          <LoadingIcon />
-        </div>
-      )}
       {data && (
         <>
-          {loading && (
-            <div className="mb-2 flex justify-end">
-              <span className="pill-btn text-[11px] px-2 py-1 stat-mono">Updating...</span>
-            </div>
-          )}
           {error && <p className="text-xs text-red-500 mb-2">{error}</p>}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-6 mb-4 text-sm">
             <span>
               Monthly avg:{" "}
-              <strong className="text-green-600 stat-mono">
-                {data.averageMonth.toFixed(1)}h
+              <strong className="text-green-600 stat-mono inline-flex">
+                <MorphingText text={`${data.averageMonth.toFixed(1)}h`} />
               </strong>
             </span>
             <span>
               Weekly avg:{" "}
-              <strong className="text-blue-600 stat-mono">
-                {data.averageWeek.toFixed(1)}h
+              <strong className="text-blue-600 stat-mono inline-flex">
+                <MorphingText text={`${data.averageWeek.toFixed(1)}h`} />
               </strong>
             </span>
           </div>
@@ -229,6 +219,7 @@ export default function DailyStudyChart() {
           </ResponsiveContainer>
         </>
       )}
+      {!data && !error && <p className="text-sm text-zinc-500">Waiting for first sync...</p>}
       {!data && error && <p className="text-sm text-red-500">{error}</p>}
     </div>
   );

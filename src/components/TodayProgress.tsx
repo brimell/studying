@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { TodayProgressData } from "@/lib/types";
+import MorphingText from "./MorphingText";
 import {
   fetchJsonWithDedupe,
   isStale,
@@ -101,7 +102,13 @@ export default function TodayProgress() {
     };
   }, [fetchData]);
 
-  if (loading && !data) return <CardSkeleton />;
+  if (loading && !data) {
+    return (
+      <div className="surface-card p-6">
+        <p className="text-sm text-zinc-500">Waiting for first sync...</p>
+      </div>
+    );
+  }
   if (error && !data) return <CardError error={error} />;
   if (!data) return null;
 
@@ -110,17 +117,14 @@ export default function TodayProgress() {
 
   return (
     <div className="surface-card p-6">
-      {loading && (
-        <div className="mb-2 flex justify-end">
-          <span className="pill-btn text-[11px] px-2 py-1 stat-mono">Updating...</span>
-        </div>
-      )}
       {error && <p className="text-xs text-red-500 mb-2">{error}</p>}
       <div className="flex items-center justify-between mb-2">
-        <span className="text-sm text-zinc-500 stat-mono">
-          {data.totalCompleted.toFixed(1)}h / {data.totalPlanned.toFixed(1)}h
+        <span className="text-sm text-zinc-500 stat-mono inline-flex">
+          <MorphingText text={`${data.totalCompleted.toFixed(1)}h / ${data.totalPlanned.toFixed(1)}h`} />
         </span>
-        <span className="text-sm font-medium stat-mono">{pct}%</span>
+        <span className="text-sm font-medium stat-mono inline-flex">
+          <MorphingText text={`${pct}%`} />
+        </span>
       </div>
       {/* Progress bar */}
       <div className="w-full h-6 bg-zinc-100 rounded-full overflow-hidden">
@@ -130,17 +134,13 @@ export default function TodayProgress() {
         />
       </div>
       <div className="flex justify-between mt-2 text-xs text-zinc-400">
-        <span className="stat-mono">Completed: {data.totalCompleted.toFixed(1)}h</span>
-        <span className="stat-mono">Remaining: {remaining.toFixed(1)}h</span>
+        <span className="stat-mono inline-flex">
+          Completed: <MorphingText text={`${data.totalCompleted.toFixed(1)}h`} />
+        </span>
+        <span className="stat-mono inline-flex">
+          Remaining: <MorphingText text={`${remaining.toFixed(1)}h`} />
+        </span>
       </div>
-    </div>
-  );
-}
-
-function CardSkeleton() {
-  return (
-    <div className="surface-card p-6 animate-pulse">
-      <div className="h-6 bg-zinc-200 rounded-full" />
     </div>
   );
 }

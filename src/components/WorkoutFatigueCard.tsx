@@ -2,7 +2,6 @@
 
 import { useMemo } from "react";
 import MuscleModel from "@/components/MuscleModel";
-import LoadingIcon from "@/components/LoadingIcon";
 import { useWorkoutData } from "@/components/WorkoutDataProvider";
 import { computeMuscleFatigue } from "@/lib/workouts";
 
@@ -34,15 +33,8 @@ export default function WorkoutFatigueCard() {
 
   return (
     <div className="surface-card p-6 relative">
-      {loading && (
-        <div className="absolute top-3 right-3 z-10">
-          <span className="pill-btn text-[11px] px-2 py-1 stat-mono">Updating...</span>
-        </div>
-      )}
-      {loading && !payload.logs.length && !payload.workouts.length ? (
-        <div className="h-28 flex items-center justify-center">
-          <LoadingIcon />
-        </div>
+      {!payload.logs.length && !payload.workouts.length && loading ? (
+        <p className="text-sm text-zinc-500">Waiting for first sync...</p>
       ) : (
         <MuscleModel scores={scores} title="Muscle Fatigue (Recovery-Weighted)" compact />
       )}

@@ -10,10 +10,15 @@ import type {
   TrackerCalendarOption,
 } from "@/lib/types";
 import { DEFAULT_SUBJECTS } from "@/lib/types";
-import { isStale, readCache, writeCache, writeGlobalLastFetched } from "@/lib/client-cache";
+import {
+  isStale,
+  readCache,
+  trackedFetch,
+  writeCache,
+  writeGlobalLastFetched,
+} from "@/lib/client-cache";
 import { lockBodyScroll, unlockBodyScroll } from "@/lib/scroll-lock";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
-import LoadingIcon from "@/components/LoadingIcon";
 import FancyDropdown from "@/components/FancyDropdown";
 
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -443,7 +448,7 @@ function updateHabitInData(
 export default function HabitTracker() {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const [data, setData] = useState<HabitTrackerData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [weeks, setWeeks] = useState(20);
   const [selectedStudyHabitSlug, setSelectedStudyHabitSlug] = useState<string | null>(null);
@@ -598,7 +603,7 @@ export default function HabitTracker() {
           const token = data.session?.access_token;
           if (!token) return;
 
-          const readResponse = await fetch("/api/account-sync", {
+          const readResponse = await trackedFetch("/api/account-sync", {
             method: "GET",
             headers: {
               Authorization: `Bearer ${token}`,
@@ -613,7 +618,7 @@ export default function HabitTracker() {
             return;
           }
 
-          const writeResponse = await fetch("/api/account-sync", {
+          const writeResponse = await trackedFetch("/api/account-sync", {
             method: "PUT",
             headers: {
               Authorization: `Bearer ${token}`,
@@ -894,7 +899,7 @@ export default function HabitTracker() {
         const token = data.session?.access_token;
         if (!token) return;
 
-        const readResponse = await fetch("/api/account-sync", {
+        const readResponse = await trackedFetch("/api/account-sync", {
           method: "GET",
           headers: {
             Authorization: `Bearer ${token}`,
@@ -918,7 +923,7 @@ export default function HabitTracker() {
             return;
           }
 
-          const writeResponse = await fetch("/api/account-sync", {
+          const writeResponse = await trackedFetch("/api/account-sync", {
             method: "PUT",
             headers: {
               Authorization: `Bearer ${token}`,
@@ -983,7 +988,7 @@ export default function HabitTracker() {
           const token = data.session?.access_token;
           if (!token) return;
 
-          const readResponse = await fetch("/api/account-sync", {
+          const readResponse = await trackedFetch("/api/account-sync", {
             method: "GET",
             headers: {
               Authorization: `Bearer ${token}`,
@@ -998,7 +1003,7 @@ export default function HabitTracker() {
             return;
           }
 
-          const writeResponse = await fetch("/api/account-sync", {
+          const writeResponse = await trackedFetch("/api/account-sync", {
             method: "PUT",
             headers: {
               Authorization: `Bearer ${token}`,
@@ -1075,7 +1080,7 @@ export default function HabitTracker() {
           }
         }
 
-        const response = await fetch("/api/habit-tracker/calendars");
+        const response = await trackedFetch("/api/habit-tracker/calendars");
         const payload = (await response.json()) as TrackerCalendarResponse | { error?: string };
 
         if (!response.ok) {
@@ -1171,7 +1176,7 @@ export default function HabitTracker() {
           params.set("trackerCalendarId", selectedTrackerCalendarId);
         }
 
-        const response = await fetch(`/api/habit-tracker?${params.toString()}`);
+        const response = await trackedFetch(`/api/habit-tracker?${params.toString()}`);
         const payload = (await response.json()) as HabitTrackerData | { error?: string };
 
         if (!response.ok) {
@@ -1433,7 +1438,7 @@ export default function HabitTracker() {
   };
 
   const runAction = async (input: RequestInit) => {
-    const response = await fetch("/api/habit-tracker", {
+    const response = await trackedFetch("/api/habit-tracker", {
       ...input,
       headers: {
         "Content-Type": "application/json",
@@ -1456,7 +1461,7 @@ export default function HabitTracker() {
         const next = habitDayQueueRef.current.shift();
         if (!next) continue;
 
-        const response = await fetch("/api/habit-tracker", {
+        const response = await trackedFetch("/api/habit-tracker", {
           method: "PATCH",
           headers: {
             "Content-Type": "application/json",
@@ -1843,7 +1848,7 @@ export default function HabitTracker() {
         params.set("trackerCalendarId", selectedTrackerCalendarId);
       }
 
-      const response = await fetch(`/api/habit-tracker?${params.toString()}`);
+      const response = await trackedFetch(`/api/habit-tracker?${params.toString()}`);
       const payload = (await response.json()) as HabitTrackerData | { error?: string };
 
       if (!response.ok) {
@@ -1901,7 +1906,7 @@ export default function HabitTracker() {
           return;
         }
 
-        const response = await fetch("/api/exam-countdown", {
+        const response = await trackedFetch("/api/exam-countdown", {
           method: "GET",
           headers: {
             Authorization: `Bearer ${token}`,
@@ -1954,16 +1959,6 @@ export default function HabitTracker() {
 
   return (
     <div className="surface-card px-6 pt-6 pb-2 relative">
-      {loading && !data && (
-        <div className="h-40 flex items-center justify-center">
-          <LoadingIcon />
-        </div>
-      )}
-      {loading && data && (
-        <div className="absolute top-3 right-3 z-10">
-          <span className="pill-btn text-[11px] px-2 py-1 stat-mono">Updating...</span>
-        </div>
-      )}
       {error && <p className="text-sm text-red-500 mb-3">{error}</p>}
 
       {data && (
@@ -3016,6 +3011,7 @@ export default function HabitTracker() {
             )}
         </div>
       )}
+      {!data && !error && <p className="text-sm text-zinc-500">Waiting for first sync...</p>}
     </div>
   );
 }

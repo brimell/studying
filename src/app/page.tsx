@@ -15,6 +15,10 @@ import {
 import { lockBodyScroll, unlockBodyScroll } from "@/lib/scroll-lock";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import {
+  FETCH_ACTIVITY_EVENT,
+  readPendingFetchCount,
+} from "@/lib/client-cache";
+import {
   advanceStudyTimerState,
   applyStudyTimerSettings,
   pauseStudyTimer,
@@ -62,6 +66,9 @@ function HomeContent() {
   const [studyTimerState, setStudyTimerState] = useState<StudyTimerState>(() =>
     readStudyTimerState()
   );
+  const [pendingFetchCount, setPendingFetchCount] = useState(() =>
+    typeof window === "undefined" ? 0 : readPendingFetchCount()
+  );
   const [accountDisplayName, setAccountDisplayName] = useState("John Doe");
   const menuRef = useRef<HTMLDivElement | null>(null);
 
@@ -86,6 +93,12 @@ function HomeContent() {
   useEffect(() => {
     writeStudyTimerState(studyTimerState);
   }, [studyTimerState]);
+
+  useEffect(() => {
+    const sync = () => setPendingFetchCount(readPendingFetchCount());
+    window.addEventListener(FETCH_ACTIVITY_EVENT, sync);
+    return () => window.removeEventListener(FETCH_ACTIVITY_EVENT, sync);
+  }, []);
 
   useEffect(() => {
     if (studyTimerState.status !== "running") return;
@@ -313,6 +326,14 @@ function HomeContent() {
                     mode="streakIconOnly"
                     onStreakClick={() => setGamificationOpen(true)}
                   />
+                  {pendingFetchCount > 0 && (
+                    <span
+                      className="stat-mono text-[10px] text-zinc-600 animate-pulse [writing-mode:vertical-rl] rotate-180"
+                      aria-live="polite"
+                    >
+                      Syncing {pendingFetchCount}
+                    </span>
+                  )}
                   {studyTimerLabel && !studyTimerOpen && (
                     <p className="text-[11px] text-zinc-600 stat-mono [writing-mode:vertical-rl] rotate-180">
                       {studyTimerLabel}
@@ -348,6 +369,11 @@ function HomeContent() {
               ) : (
                 <>
                   <TopBarDataControls mode="streakOnly" />
+                  {pendingFetchCount > 0 && (
+                    <span className="text-[11px] text-zinc-600 stat-mono animate-pulse">
+                      Syncing {pendingFetchCount}
+                    </span>
+                  )}
                   <button
                     type="button"
                     onClick={() => setStudyTimerOpen(true)}

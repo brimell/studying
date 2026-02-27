@@ -18,6 +18,7 @@ import {
   sanitizeWorkoutPayload,
 } from "@/lib/workouts";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
+import { trackedFetch } from "@/lib/client-cache";
 
 type WorkoutApiMethod = "GET" | "PUT";
 
@@ -77,7 +78,7 @@ export function WorkoutDataProvider({ children }: { children: ReactNode }) {
       const token = data.session?.access_token;
       if (!token) throw new Error("Sign in to Supabase to sync workouts.");
 
-      const response = await fetch("/api/workout-planner", {
+      const response = await trackedFetch("/api/workout-planner", {
         method,
         headers: {
           Authorization: `Bearer ${token}`,

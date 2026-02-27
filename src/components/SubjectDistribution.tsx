@@ -13,8 +13,8 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import LoadingIcon from "./LoadingIcon";
 import FancyDropdown from "./FancyDropdown";
+import MorphingText from "./MorphingText";
 import type { StudyDistributionData } from "@/lib/types";
 import {
   fetchJsonWithDedupe,
@@ -47,7 +47,7 @@ const COLORS = [
 
 export default function SubjectDistribution() {
   const [data, setData] = useState<StudyDistributionData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [days, setDays] = useState(365);
   const [calendarIds, setCalendarIds] = useState<string[]>([]);
@@ -149,24 +149,21 @@ export default function SubjectDistribution() {
         />
       </div>
 
-      {loading && !data && (
-        <div className="h-64 flex items-center justify-center">
-          <LoadingIcon />
-        </div>
-      )}
       {error && !data && <p className="text-sm text-red-500">{error}</p>}
 
       {data && (
         <>
-          {loading && (
-            <div className="mb-2 flex justify-end">
-              <span className="pill-btn text-[11px] px-2 py-1 stat-mono">Updating...</span>
-            </div>
-          )}
           {error && <p className="text-xs text-red-500 mb-2">{error}</p>}
           <p className="text-sm text-zinc-500 mb-4">
-            Total: <strong className="stat-mono">{data.totalHours.toFixed(1)}h</strong> over{" "}
-            <span className="stat-mono">{data.numDays}</span> days
+            Total:{" "}
+            <strong className="stat-mono inline-flex">
+              <MorphingText text={`${data.totalHours.toFixed(1)}h`} />
+            </strong>{" "}
+            over{" "}
+            <span className="stat-mono inline-flex">
+              <MorphingText text={`${data.numDays}`} />
+            </span>{" "}
+            days
           </p>
 
           {filteredSubjects.length === 0 ? (
@@ -257,6 +254,7 @@ export default function SubjectDistribution() {
           </div>
         </>
       )}
+      {!data && !error && <p className="text-sm text-zinc-500">Waiting for first sync...</p>}
     </div>
   );
 }

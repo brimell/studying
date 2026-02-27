@@ -1193,3 +1193,23 @@ h3 {
 .study-analog-label-number {
   display: inline-block;
 }
+
+.morph-text {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  min-width: 1ch;
+}
+
+.morph-text-layer {
+  grid-area: 1 / 1;
+  white-space: nowrap;
+  will-change: filter, opacity;
+}
+
+.morph-text-filter {
+  width: 0;
+  height: 0;
+  position: absolute;
+  pointer-events: none;
+}
