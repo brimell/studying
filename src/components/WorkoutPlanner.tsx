@@ -146,6 +146,13 @@ function formatEstimatedDuration(seconds: number): string {
   return `${minutes}m ${remSeconds}s`;
 }
 
+function formatRestTimer(seconds: number): string {
+  const safeSeconds = Math.max(0, Math.round(seconds));
+  const minutes = Math.floor(safeSeconds / 60);
+  const remainder = safeSeconds % 60;
+  return `${String(minutes).padStart(2, "0")}:${String(remainder).padStart(2, "0")}`;
+}
+
 interface KnownExerciseOption {
   id: string;
   name: string;
@@ -159,6 +166,42 @@ interface InjuryInsight {
   type: "warning" | "tip";
   title: string;
   detail: string;
+}
+
+type WorkoutRunnerPhase = "work" | "rest" | "complete";
+
+type WorkoutRunnerState = {
+  workoutId: string;
+  exerciseIndex: number;
+  setIndex: number;
+  phase: WorkoutRunnerPhase;
+  restRemaining: number;
+};
+
+function getNextWorkoutSetPosition(
+  workout: WorkoutTemplate,
+  currentExerciseIndex: number,
+  currentSetIndex: number
+): { exerciseIndex: number; setIndex: number } | null {
+  const currentExercise = workout.exercises[currentExerciseIndex];
+  if (!currentExercise) return null;
+
+  if (currentSetIndex + 1 < Math.max(1, currentExercise.sets)) {
+    return { exerciseIndex: currentExerciseIndex, setIndex: currentSetIndex + 1 };
+  }
+
+  for (
+    let exerciseIndex = currentExerciseIndex + 1;
+    exerciseIndex < workout.exercises.length;
+    exerciseIndex += 1
+  ) {
+    const candidate = workout.exercises[exerciseIndex];
+    if (!candidate) continue;
+    if (Math.max(1, candidate.sets) <= 0) continue;
+    return { exerciseIndex, setIndex: 0 };
+  }
+
+  return null;
 }
 
 function fuzzyScore(query: string, target: string): number {
@@ -220,6 +263,7 @@ export default function WorkoutPlanner() {
     []
   );
   const [previewHoveredExerciseKey, setPreviewHoveredExerciseKey] = useState<string | null>(null);
+  const [runnerState, setRunnerState] = useState<WorkoutRunnerState | null>(null);
   const [weeklyPlanName, setWeeklyPlanName] = useState("");
   const [weeklyPlanDays, setWeeklyPlanDays] = useState<Record<WorkoutWeekDay, string[]>>(
     emptyWeeklyPlanDays()
@@ -260,10 +304,10 @@ export default function WorkoutPlanner() {
   };
 
   useEffect(() => {
-    if (!showCreateWorkoutModal && !previewWorkoutId) return;
+    if (!showCreateWorkoutModal && !previewWorkoutId && !runnerState?.workoutId) return;
     lockBodyScroll();
     return () => unlockBodyScroll();
-  }, [previewWorkoutId, showCreateWorkoutModal]);
+  }, [previewWorkoutId, runnerState?.workoutId, showCreateWorkoutModal]);
 
   const getTrackerCalendarId = async (): Promise<string | null> => {
     const stored = window.localStorage.getItem(TRACKER_CALENDAR_STORAGE_KEY);
@@ -715,6 +759,75 @@ export default function WorkoutPlanner() {
     () => (previewWorkoutId ? workoutById.get(previewWorkoutId) || null : null),
     [previewWorkoutId, workoutById]
   );
+  const runnerWorkout = runnerState?.workoutId ? workoutById.get(runnerState.workoutId) || null : null;
+  const isRunnerResting = runnerState?.phase === "rest";
+
+  useEffect(() => {
+    if (!isRunnerResting) return;
+
+    const intervalId = window.setInterval(() => {
+      setRunnerState((previous) => {
+        if (!previous || previous.phase !== "rest") return previous;
+        if (previous.restRemaining <= 1) {
+          return {
+            ...previous,
+            phase: "work",
+            restRemaining: 0,
+          };
+        }
+        return {
+          ...previous,
+          restRemaining: previous.restRemaining - 1,
+        };
+      });
+    }, 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, [isRunnerResting]);
+
+  const startWorkoutRunner = (workout: WorkoutTemplate) => {
+    if (workout.exercises.length === 0) return;
+    setRunnerState({
+      workoutId: workout.id,
+      exerciseIndex: 0,
+      setIndex: 0,
+      phase: "work",
+      restRemaining: 0,
+    });
+  };
+
+  const completeCurrentRunnerSet = () => {
+    setRunnerState((previous) => {
+      if (!previous || previous.phase !== "work") return previous;
+      const workout = workoutById.get(previous.workoutId);
+      if (!workout) return null;
+
+      const currentExercise = workout.exercises[previous.exerciseIndex];
+      if (!currentExercise) return null;
+
+      const nextPosition = getNextWorkoutSetPosition(
+        workout,
+        previous.exerciseIndex,
+        previous.setIndex
+      );
+      if (!nextPosition) {
+        return {
+          ...previous,
+          phase: "complete",
+          restRemaining: 0,
+        };
+      }
+
+      const restSeconds = Math.max(0, currentExercise.restSeconds ?? DEFAULT_REST_SECONDS);
+      return {
+        ...previous,
+        exerciseIndex: nextPosition.exerciseIndex,
+        setIndex: nextPosition.setIndex,
+        phase: restSeconds > 0 ? "rest" : "work",
+        restRemaining: restSeconds,
+      };
+    });
+  };
   const nextScheduledWorkouts = useMemo(() => {
     if (!activeWeeklyPlan) return null;
 
@@ -1020,6 +1133,13 @@ export default function WorkoutPlanner() {
                       />
                       <button
                         type="button"
+                        onClick={() => startWorkoutRunner(workout)}
+                        className="px-2 py-1 rounded-md text-xs bg-indigo-500 hover:bg-indigo-600 text-white"
+                      >
+                        Start
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => {
                           setPreviewHoveredMuscles([]);
                           setPreviewHoveredExerciseKey(null);
@@ -1143,6 +1263,13 @@ export default function WorkoutPlanner() {
                       }
                       className="border rounded-md px-1 py-0.5 text-[11px] bg-zinc-50"
                     />
+                    <button
+                      type="button"
+                      onClick={() => startWorkoutRunner(workout)}
+                      className="px-1.5 py-0.5 rounded-md text-[11px] bg-indigo-500 hover:bg-indigo-600 text-white"
+                    >
+                      Start
+                    </button>
                     <button
                       type="button"
                       onClick={() => {
@@ -1822,6 +1949,160 @@ export default function WorkoutPlanner() {
                 })}
               </div>
                   </>
+                );
+              })()}
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {runnerState &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[96] bg-black/45 backdrop-blur-sm flex items-center justify-center p-4"
+            onMouseDown={(event) => {
+              if (event.target !== event.currentTarget) return;
+              setRunnerState(null);
+            }}
+          >
+            <div
+              className="w-full max-w-2xl rounded-2xl bg-white p-5 shadow-xl border border-zinc-200"
+              onMouseDown={(event) => event.stopPropagation()}
+            >
+              {(() => {
+                if (!runnerWorkout) {
+                  return (
+                    <div className="space-y-3">
+                      <p className="text-sm text-zinc-600">
+                        This workout is no longer available.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setRunnerState(null)}
+                        className="px-3 py-1.5 rounded-md text-xs bg-zinc-200 hover:bg-zinc-300"
+                      >
+                        Close
+                      </button>
+                    </div>
+                  );
+                }
+                const safeExercise = runnerWorkout.exercises[runnerState.exerciseIndex];
+                if (!safeExercise) {
+                  return (
+                    <div className="space-y-3">
+                      <p className="text-sm text-zinc-600">Unable to load this workout step.</p>
+                      <button
+                        type="button"
+                        onClick={() => setRunnerState(null)}
+                        className="px-3 py-1.5 rounded-md text-xs bg-zinc-200"
+                      >
+                        Close
+                      </button>
+                    </div>
+                  );
+                }
+
+                const totalSets = runnerWorkout.exercises.reduce(
+                  (sum, exercise) => sum + Math.max(1, exercise.sets),
+                  0
+                );
+                const completedBefore = runnerWorkout.exercises
+                  .slice(0, runnerState.exerciseIndex)
+                  .reduce((sum, exercise) => sum + Math.max(1, exercise.sets), 0);
+                const currentSetGlobal = completedBefore + runnerState.setIndex + 1;
+
+                return (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-[11px] uppercase tracking-wide text-zinc-500">
+                          Workout In Progress
+                        </p>
+                        <h3 className="text-lg font-semibold">{runnerWorkout.name}</h3>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setRunnerState(null)}
+                        className="px-2 py-1 rounded-md text-xs bg-zinc-200 hover:bg-zinc-300"
+                      >
+                        Close
+                      </button>
+                    </div>
+
+                    <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3">
+                      <p className="text-xs text-zinc-500">
+                        Exercise {runnerState.exerciseIndex + 1} of {runnerWorkout.exercises.length}
+                      </p>
+                      <p className="text-base font-semibold mt-1">{safeExercise.name}</p>
+                      <p className="text-xs text-zinc-600 mt-1 stat-mono">
+                        Set {runnerState.setIndex + 1}/{Math.max(1, safeExercise.sets)} •{" "}
+                        {safeExercise.reps} reps • Rest {safeExercise.restSeconds ?? DEFAULT_REST_SECONDS}s
+                      </p>
+                      <p className="text-xs text-zinc-500 mt-1 stat-mono">
+                        Total progress: {Math.min(currentSetGlobal, totalSets)}/{totalSets} sets
+                      </p>
+                    </div>
+
+                    {runnerState.phase === "work" && (
+                      <button
+                        type="button"
+                        onClick={completeCurrentRunnerSet}
+                        className="w-full px-4 py-2.5 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-medium"
+                      >
+                        Complete Set & Next
+                      </button>
+                    )}
+
+                    {runnerState.phase === "rest" && (
+                      <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 space-y-2">
+                        <p className="text-xs text-amber-800">Resting...</p>
+                        <p className="text-2xl font-semibold stat-mono text-amber-900">
+                          {formatRestTimer(runnerState.restRemaining)}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setRunnerState((previous) =>
+                              previous
+                                ? {
+                                    ...previous,
+                                    phase: "work",
+                                    restRemaining: 0,
+                                  }
+                                : previous
+                            )
+                          }
+                          className="px-3 py-1.5 rounded-md text-xs bg-amber-200 hover:bg-amber-300 text-amber-900"
+                        >
+                          Skip Rest
+                        </button>
+                      </div>
+                    )}
+
+                    {runnerState.phase === "complete" && (
+                      <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 space-y-2">
+                        <p className="text-sm font-semibold text-emerald-800">Workout complete.</p>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => logWorkout(runnerWorkout)}
+                            disabled={saving}
+                            className="px-3 py-1.5 rounded-md text-xs bg-emerald-500 hover:bg-emerald-600 text-white disabled:opacity-50"
+                          >
+                            Log Workout
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setRunnerState(null)}
+                            className="px-3 py-1.5 rounded-md text-xs bg-zinc-200 hover:bg-zinc-300"
+                          >
+                            Close
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 );
               })()}
             </div>
