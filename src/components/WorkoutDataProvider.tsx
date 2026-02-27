@@ -58,6 +58,10 @@ function writeLocalWorkoutPayload(payload: WorkoutPlannerPayload) {
   window.localStorage.setItem(WORKOUT_LOCAL_STORAGE_KEY, JSON.stringify(payload));
 }
 
+function normalizeWorkoutPayload(payload: WorkoutPlannerPayload): WorkoutPlannerPayload {
+  return forceApplyDefaultTemplates(sanitizeWorkoutPayload(payload)).payload;
+}
+
 export function WorkoutDataProvider({ children }: { children: ReactNode }) {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const [session, setSession] = useState<Session | null>(null);
@@ -100,7 +104,7 @@ export function WorkoutDataProvider({ children }: { children: ReactNode }) {
       setPayload(localPayload);
 
       if (session && supabase) {
-        const nextPayload = await callApi("GET");
+        const nextPayload = normalizeWorkoutPayload(await callApi("GET"));
         setPayload(nextPayload);
         writeLocalWorkoutPayload(nextPayload);
       }
@@ -113,7 +117,7 @@ export function WorkoutDataProvider({ children }: { children: ReactNode }) {
 
   const savePayload = useCallback(
     async (nextPayload: WorkoutPlannerPayload): Promise<WorkoutPlannerPayload> => {
-      const nextLocal = forceApplyDefaultTemplates(sanitizeWorkoutPayload(nextPayload)).payload;
+      const nextLocal = normalizeWorkoutPayload(nextPayload);
       nextLocal.updatedAt = new Date().toISOString();
       try {
         setSaving(true);
@@ -124,7 +128,7 @@ export function WorkoutDataProvider({ children }: { children: ReactNode }) {
         writeLocalWorkoutPayload(nextLocal);
 
         if (session && supabase) {
-          const saved = await callApi("PUT", nextLocal);
+          const saved = normalizeWorkoutPayload(await callApi("PUT", nextLocal));
           setPayload(saved);
           writeLocalWorkoutPayload(saved);
           return saved;
