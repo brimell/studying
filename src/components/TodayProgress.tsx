@@ -100,10 +100,10 @@ export default function TodayProgress() {
     <div className="surface-card p-6">
       <h2 className="text-lg font-semibold mb-4">Today&apos;s Study Progress</h2>
       <div className="flex items-center justify-between mb-2">
-        <span className="text-sm text-zinc-500">
+        <span className="text-sm text-zinc-500 stat-mono">
           {data.totalCompleted.toFixed(1)}h / {data.totalPlanned.toFixed(1)}h
         </span>
-        <span className="text-sm font-medium">{pct}%</span>
+        <span className="text-sm font-medium stat-mono">{pct}%</span>
       </div>
       {/* Progress bar */}
       <div className="w-full h-6 bg-zinc-100 rounded-full overflow-hidden">
@@ -113,8 +113,8 @@ export default function TodayProgress() {
         />
       </div>
       <div className="flex justify-between mt-2 text-xs text-zinc-400">
-        <span>Completed: {data.totalCompleted.toFixed(1)}h</span>
-        <span>Remaining: {remaining.toFixed(1)}h</span>
+        <span className="stat-mono">Completed: {data.totalCompleted.toFixed(1)}h</span>
+        <span className="stat-mono">Remaining: {remaining.toFixed(1)}h</span>
       </div>
     </div>
   );

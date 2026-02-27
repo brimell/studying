@@ -233,25 +233,25 @@ export default function AdvancedAnalytics() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div className="rounded-lg bg-zinc-50 border border-zinc-200 p-3">
               <p className="text-zinc-500">Study Efficiency</p>
-              <p className="text-xl font-semibold mt-1">{toPercent(analytics.efficiencyRatio)}</p>
+              <p className="text-xl font-semibold mt-1 stat-mono">{toPercent(analytics.efficiencyRatio)}</p>
               <p className="text-xs text-zinc-500 mt-1">
-                Productive-day ratio: {toPercent(analytics.productiveRatio)}
+                Productive-day ratio: <span className="stat-mono">{toPercent(analytics.productiveRatio)}</span>
               </p>
             </div>
             <div className="rounded-lg bg-zinc-50 border border-zinc-200 p-3">
               <p className="text-zinc-500">Study Trend</p>
-              <p className="text-xl font-semibold mt-1">
+              <p className="text-xl font-semibold mt-1 stat-mono">
                 {analytics.recentAvg.toFixed(1)}h/day
               </p>
               <p className="text-xs text-zinc-500 mt-1">
-                Vs previous: {(analytics.recentAvg - analytics.previousAvg).toFixed(1)}h/day
+                Vs previous: <span className="stat-mono">{(analytics.recentAvg - analytics.previousAvg).toFixed(1)}h/day</span>
               </p>
             </div>
             <div className="rounded-lg bg-zinc-50 border border-zinc-200 p-3">
               <p className="text-zinc-500">Next 7-Day Prediction</p>
-              <p className="text-xl font-semibold mt-1">{analytics.nextWeekPrediction.toFixed(1)}h</p>
+              <p className="text-xl font-semibold mt-1 stat-mono">{analytics.nextWeekPrediction.toFixed(1)}h</p>
               <p className="text-xs text-zinc-500 mt-1">
-                Daily trend slope: {analytics.trendSlope.toFixed(2)}h/day
+                Daily trend slope: <span className="stat-mono">{analytics.trendSlope.toFixed(2)}h/day</span>
               </p>
             </div>
           </div>
@@ -265,8 +265,8 @@ export default function AdvancedAnalytics() {
                   : "No subject data"}
               </p>
               <p className="text-xs text-zinc-500 mt-1">
-                Concentration: {toPercent(analytics.topShare)} • Balance score:{" "}
-                {toPercent(analytics.balanceScore)}
+                Concentration: <span className="stat-mono">{toPercent(analytics.topShare)}</span> • Balance score:{" "}
+                <span className="stat-mono">{toPercent(analytics.balanceScore)}</span>
               </p>
             </div>
             <div className="rounded-lg bg-zinc-50 border border-zinc-200 p-3">
@@ -277,13 +277,13 @@ export default function AdvancedAnalytics() {
                 </p>
               ) : (
                 <>
-                  <p className="font-semibold mt-1">Current mean fatigue: {analytics.fatigueNow.toFixed(1)}%</p>
+                  <p className="font-semibold mt-1">Current mean fatigue: <span className="stat-mono">{analytics.fatigueNow.toFixed(1)}%</span></p>
                   <p className="text-xs text-zinc-500 mt-1">
-                    7-day fatigue trend: {(analytics.fatigueTrend || 0).toFixed(2)}%/day
+                    7-day fatigue trend: <span className="stat-mono">{(analytics.fatigueTrend || 0).toFixed(2)}%/day</span>
                   </p>
                   <p className="text-xs text-zinc-500 mt-1">
                     Recovery to sub-30%:{" "}
-                    {analytics.recoveryDays ? `${analytics.recoveryDays} day(s)` : "beyond 14 days"}
+                    <span className="stat-mono">{analytics.recoveryDays ? `${analytics.recoveryDays} day(s)` : "beyond 14 days"}</span>
                   </p>
                 </>
               )}

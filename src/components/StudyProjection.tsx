@@ -494,19 +494,19 @@ export default function StudyProjection() {
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3 text-sm">
                   <div>
                     <p className="text-zinc-500">Projected weekly</p>
-                    <p className="font-semibold">{round1(subject.projectedWeeklyPerSubject).toFixed(1)}h</p>
+                    <p className="font-semibold stat-mono">{round1(subject.projectedWeeklyPerSubject).toFixed(1)}h</p>
                   </div>
                   <div>
                     <p className="text-zinc-500">Projected monthly</p>
-                    <p className="font-semibold">{round1(subject.projectedMonthlyPerSubject).toFixed(1)}h</p>
+                    <p className="font-semibold stat-mono">{round1(subject.projectedMonthlyPerSubject).toFixed(1)}h</p>
                   </div>
                   <div>
                     <p className="text-zinc-500">Weekly gap</p>
-                    <p className={`font-semibold ${weeklyGapClass}`}>{formatSignedHours(subject.weeklyGap)}</p>
+                    <p className={`font-semibold stat-mono ${weeklyGapClass}`}>{formatSignedHours(subject.weeklyGap)}</p>
                   </div>
                   <div>
                     <p className="text-zinc-500">Monthly gap</p>
-                    <p className={`font-semibold ${monthlyGapClass}`}>{formatSignedHours(subject.monthlyGap)}</p>
+                    <p className={`font-semibold stat-mono ${monthlyGapClass}`}>{formatSignedHours(subject.monthlyGap)}</p>
                   </div>
                 </div>
               </div>
@@ -524,19 +524,19 @@ export default function StudyProjection() {
               <p className="text-sm font-semibold mb-2">{subject.name}</p>
               <div className="space-y-1 text-sm">
                 <p>
-                  Required pace: <span className="font-semibold">{round1(subject.requiredDaily).toFixed(1)}h/day</span>
+                  Required pace: <span className="font-semibold stat-mono">{round1(subject.requiredDaily).toFixed(1)}h/day</span>
                 </p>
                 <p>
-                  Weekly equivalent: <span className="font-semibold">{round1(subject.requiredWeekly).toFixed(1)}h/week</span>
+                  Weekly equivalent: <span className="font-semibold stat-mono">{round1(subject.requiredWeekly).toFixed(1)}h/week</span>
                 </p>
                 <p>
-                  Monthly equivalent: <span className="font-semibold">{round1(subject.requiredMonthly).toFixed(1)}h/month</span>
+                  Monthly equivalent: <span className="font-semibold stat-mono">{round1(subject.requiredMonthly).toFixed(1)}h/month</span>
                 </p>
                 <p>
-                  Extra daily needed: <span className="font-semibold">{round1(subject.extraDailyNeeded).toFixed(1)}h/day</span>
+                  Extra daily needed: <span className="font-semibold stat-mono">{round1(subject.extraDailyNeeded).toFixed(1)}h/day</span>
                 </p>
                 <p>
-                  Gap to first exam: <span className="font-semibold">{round1(subject.examGapHours).toFixed(1)}h</span>
+                  Gap to first exam: <span className="font-semibold stat-mono">{round1(subject.examGapHours).toFixed(1)}h</span>
                 </p>
               </div>
             </div>
@@ -550,7 +550,7 @@ export default function StudyProjection() {
 function StatCard({ label, value }: { label: string; value: number }) {
   return (
     <div className="bg-zinc-50 rounded-xl p-4">
-      <p className="text-2xl font-bold">{value}</p>
+      <p className="text-2xl font-bold stat-mono">{value}</p>
       <p className="text-xs text-zinc-500 mt-1">{label}</p>
     </div>
   );

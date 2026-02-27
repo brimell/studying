@@ -166,13 +166,13 @@ export default function DailyStudyChart() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-6 mb-4 text-sm">
             <span>
               Monthly avg:{" "}
-              <strong className="text-green-600">
+              <strong className="text-green-600 stat-mono">
                 {data.averageMonth.toFixed(1)}h
               </strong>
             </span>
             <span>
               Weekly avg:{" "}
-              <strong className="text-blue-600">
+              <strong className="text-blue-600 stat-mono">
                 {data.averageWeek.toFixed(1)}h
               </strong>
             </span>

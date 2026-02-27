@@ -104,10 +104,10 @@ export default function TopBarDataControls() {
     <div className="flex items-center gap-2 shrink-0">
       <div className="hidden md:flex items-center gap-1.5">
         <span className="pill-btn text-[11px] px-2 py-1">
-          Level {mounted && gamificationReady ? topBarLevel : "--"}
+          Level <span className="stat-mono">{mounted && gamificationReady ? topBarLevel : "--"}</span>
         </span>
         <span className="pill-btn text-[11px] px-2 py-1">
-          All habits streak: {mounted && gamificationReady ? `${allHabitsStreak}d` : "--"}
+          All habits streak: <span className="stat-mono">{mounted && gamificationReady ? `${allHabitsStreak}d` : "--"}</span>
         </span>
       </div>
       <p className="soft-text text-[11px] hidden lg:block">

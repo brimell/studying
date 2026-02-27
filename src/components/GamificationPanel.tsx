@@ -261,11 +261,11 @@ export default function GamificationPanel() {
             <div className="flex items-end justify-between gap-3">
               <div>
                 <p className="text-xs text-emerald-700">Level</p>
-                <p className="text-2xl font-bold text-emerald-800">{model.level}</p>
+                <p className="text-2xl font-bold text-emerald-800 stat-mono">{model.level}</p>
               </div>
               <div className="text-right">
                 <p className="text-xs text-emerald-700">Reward Points</p>
-                <p className="text-lg font-semibold text-emerald-800">
+                <p className="text-lg font-semibold text-emerald-800 stat-mono">
                   {model.totalPoints}
                 </p>
               </div>
@@ -277,26 +277,26 @@ export default function GamificationPanel() {
               />
             </div>
             <p className="mt-1 text-[11px] text-emerald-700">
-              {model.pointsRemaining} points to next level
+              <span className="stat-mono">{model.pointsRemaining}</span> points to next level
             </p>
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
             <div className="rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2">
               <p className="text-[11px] text-zinc-500">Study streak</p>
-              <p className="font-semibold text-sm">{model.studyCurrentStreak} days</p>
+              <p className="font-semibold text-sm stat-mono">{model.studyCurrentStreak} days</p>
             </div>
             <div className="rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2">
               <p className="text-[11px] text-zinc-500">Longest study streak</p>
-              <p className="font-semibold text-sm">{model.studyLongestStreak} days</p>
+              <p className="font-semibold text-sm stat-mono">{model.studyLongestStreak} days</p>
             </div>
             <div className="rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2">
               <p className="text-[11px] text-zinc-500">Workout streak</p>
-              <p className="font-semibold text-sm">{model.workoutCurrentStreak} days</p>
+              <p className="font-semibold text-sm stat-mono">{model.workoutCurrentStreak} days</p>
             </div>
             <div className="rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2">
               <p className="text-[11px] text-zinc-500">Unlocked badges</p>
-              <p className="font-semibold text-sm">{model.unlockedBadgeCount}/{model.badges.length}</p>
+              <p className="font-semibold text-sm stat-mono">{model.unlockedBadgeCount}/{model.badges.length}</p>
             </div>
           </div>
 
@@ -317,7 +317,7 @@ export default function GamificationPanel() {
                   >
                     <div className="flex items-center justify-between gap-2">
                       <p className="text-sm font-medium">{badge.name}</p>
-                      <span className="text-[11px] text-zinc-500">+{badge.points} pts</span>
+                      <span className="text-[11px] text-zinc-500 stat-mono">+{badge.points} pts</span>
                     </div>
                     <p className="text-xs text-zinc-500 mt-0.5">{badge.description}</p>
                     <div className="mt-1 h-1.5 rounded-full bg-zinc-200 overflow-hidden">
@@ -326,7 +326,7 @@ export default function GamificationPanel() {
                         style={{ width: `${progress}%` }}
                       />
                     </div>
-                    <p className="mt-1 text-[11px] text-zinc-500">
+                    <p className="mt-1 text-[11px] text-zinc-500 stat-mono">
                       {Math.min(badge.metric, badge.target)}/{badge.target}
                     </p>
                   </div>
@@ -351,7 +351,7 @@ export default function GamificationPanel() {
                   >
                     <p className="text-sm font-medium">{reward.title}</p>
                     <p className="text-xs text-zinc-500 mt-0.5">{reward.description}</p>
-                    <p className="text-[11px] mt-1 text-zinc-500">
+                    <p className="text-[11px] mt-1 text-zinc-500 stat-mono">
                       {unlocked ? "Unlocked" : `${reward.threshold - model.totalPoints} pts to unlock`}
                     </p>
                   </div>

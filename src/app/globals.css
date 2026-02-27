@@ -142,6 +142,11 @@ body::before {
   letter-spacing: -0.01em;
 }
 
+.stat-mono {
+  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: -0.01em;
+}
+
 /* Global accent tuning for a softer palette on white surfaces. */
 :where(.bg-sky-500) {
   background-color: #3d8dac !important;

@@ -235,7 +235,7 @@ export default function FirstExamCountdown() {
 
       <div className="rounded-xl bg-zinc-50 p-4">
         <p className="text-sm text-zinc-500 mb-2">Until first exam</p>
-        <p className="text-2xl font-bold mb-3">
+        <p className="text-2xl font-bold mb-3 stat-mono">
           {weeksUntilExam} week{weeksUntilExam === 1 ? "" : "s"} {remainingDays} day
           {remainingDays === 1 ? "" : "s"}
         </p>
@@ -246,9 +246,9 @@ export default function FirstExamCountdown() {
           />
         </div>
         <div className="flex justify-between mt-2 text-xs text-zinc-500">
-          <span>Start: {countdownStartDate}</span>
-          <span>Exam: {firstExamDate}</span>
-          <span>{progressLabel}</span>
+          <span className="stat-mono">Start: {countdownStartDate}</span>
+          <span className="stat-mono">Exam: {firstExamDate}</span>
+          <span className="stat-mono">{progressLabel}</span>
         </div>
       </div>
 

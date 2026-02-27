@@ -147,8 +147,8 @@ export default function SubjectDistribution() {
       {data && !loading && (
         <>
           <p className="text-sm text-zinc-500 mb-4">
-            Total: <strong>{data.totalHours.toFixed(1)}h</strong> over{" "}
-            {data.numDays} days
+            Total: <strong className="stat-mono">{data.totalHours.toFixed(1)}h</strong> over{" "}
+            <span className="stat-mono">{data.numDays}</span> days
           </p>
 
           {filteredSubjects.length === 0 ? (
@@ -225,8 +225,8 @@ export default function SubjectDistribution() {
                       />
                       {s.subject}
                     </td>
-                    <td className="text-right py-1.5 pr-4">{s.hours.toFixed(1)}</td>
-                    <td className="text-right py-1.5">
+                    <td className="text-right py-1.5 pr-4 stat-mono">{s.hours.toFixed(1)}</td>
+                    <td className="text-right py-1.5 stat-mono">
                       {data.totalHours > 0
                         ? ((s.hours / data.totalHours) * 100).toFixed(1)
                         : 0}
