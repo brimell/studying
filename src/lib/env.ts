@@ -17,6 +17,8 @@ const serverEnvSchema = z.object({
   ALERT_TO_EMAIL: z.string().email().optional(),
   CALENDAR_IDS: z.string().optional(),
   HABIT_TRACKER_CALENDAR_ID: z.string().optional(),
+  UPSTASH_REDIS_REST_URL: z.string().url().optional(),
+  UPSTASH_REDIS_REST_TOKEN: z.string().min(1).optional(),
 });
 
 const parsedEnv = serverEnvSchema.safeParse(process.env);
@@ -59,6 +61,13 @@ export function getAlertEmailEnv() {
     resendApiKey: env.RESEND_API_KEY,
     alertFromEmail: env.ALERT_FROM_EMAIL,
     alertToEmail: env.ALERT_TO_EMAIL,
+  };
+}
+
+export function getUpstashRedisEnv() {
+  return {
+    url: env.UPSTASH_REDIS_REST_URL || null,
+    token: env.UPSTASH_REDIS_REST_TOKEN || null,
   };
 }
 

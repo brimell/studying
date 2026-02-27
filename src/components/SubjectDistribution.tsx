@@ -16,7 +16,13 @@ import {
 import LoadingIcon from "./LoadingIcon";
 import FancyDropdown from "./FancyDropdown";
 import type { StudyDistributionData } from "@/lib/types";
-import { isStale, readCache, writeCache, writeGlobalLastFetched } from "@/lib/client-cache";
+import {
+  fetchJsonWithDedupe,
+  isStale,
+  readCache,
+  writeCache,
+  writeGlobalLastFetched,
+} from "@/lib/client-cache";
 
 const DISTRIBUTION_DAYS_STORAGE_KEY = "study-stats.distribution.days";
 const STUDY_CALENDAR_IDS_STORAGE_KEY = "study-stats.study.calendar-ids";
@@ -82,14 +88,21 @@ export default function SubjectDistribution() {
       try {
         const params = new URLSearchParams({ days: String(days) });
         if (calendarIds.length > 0) params.set("calendarIds", calendarIds.join(","));
-        const res = await fetch(`/api/distribution?${params.toString()}`);
-        const payload = (await res.json()) as StudyDistributionData | { error?: string };
-        if (!res.ok) {
-          const message = "error" in payload ? payload.error : "Failed";
-          throw new Error(message || "Failed");
-        }
-        setData(payload as StudyDistributionData);
-        const fetchedAt = writeCache(cacheKey, payload as StudyDistributionData);
+        const query = params.toString();
+        const payload = await fetchJsonWithDedupe<StudyDistributionData>(
+          `api:distribution:${query}`,
+          async () => {
+            const res = await fetch(`/api/distribution?${query}`);
+            const json = (await res.json()) as StudyDistributionData | { error?: string };
+            if (!res.ok) {
+              const message = "error" in json ? json.error : "Failed";
+              throw new Error(message || "Failed");
+            }
+            return json as StudyDistributionData;
+          }
+        );
+        setData(payload);
+        const fetchedAt = writeCache(cacheKey, payload);
         writeGlobalLastFetched(fetchedAt);
       } catch (e: unknown) {
         const message = e instanceof Error ? e.message : "Failed";

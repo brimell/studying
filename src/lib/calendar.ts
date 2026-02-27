@@ -40,17 +40,34 @@ export async function fetchEvents(
   calendar: calendar_v3.Calendar,
   calendarId: string,
   timeMin: string,
-  timeMax: string
+  timeMax: string,
+  options?: {
+    pageSize?: number;
+    maxEvents?: number;
+  }
 ): Promise<CalendarEvent[]> {
-  const res = await calendar.events.list({
-    calendarId,
-    timeMin,
-    timeMax,
-    maxResults: 10000,
-    singleEvents: true,
-    orderBy: "startTime",
-  });
-  return (res.data.items || []) as CalendarEvent[];
+  const pageSize = Math.max(50, Math.min(1000, options?.pageSize || 500));
+  const maxEvents = Math.max(pageSize, options?.maxEvents || 5000);
+  const events: CalendarEvent[] = [];
+  let pageToken: string | undefined;
+
+  while (events.length < maxEvents) {
+    const res = await calendar.events.list({
+      calendarId,
+      timeMin,
+      timeMax,
+      maxResults: Math.min(pageSize, maxEvents - events.length),
+      pageToken,
+      singleEvents: true,
+      orderBy: "startTime",
+    });
+
+    events.push(...((res.data.items || []) as CalendarEvent[]));
+    pageToken = res.data.nextPageToken || undefined;
+    if (!pageToken) break;
+  }
+
+  return events;
 }
 
 export async function fetchEventsFromAllCalendars(

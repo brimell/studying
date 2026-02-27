@@ -104,7 +104,7 @@ export async function POST(req: NextRequest) {
       throw new ApiRouteError(401, "UNAUTHORIZED", "auth", "Unauthorized");
     }
 
-    assertRateLimit({
+    await assertRateLimit({
       key: `daily-tracker:post:${clientAddress(req)}`,
       limit: 20,
       windowMs: 60_000,

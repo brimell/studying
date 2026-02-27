@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { formatTimeSince, readGlobalLastFetched } from "@/lib/client-cache";
+import { fetchJsonWithDedupe } from "@/lib/client-cache";
 import type { HabitDefinition, HabitTrackerData } from "@/lib/types";
 
 const TRACKER_CALENDAR_STORAGE_KEY = "study-stats.tracker-calendar-id";
@@ -89,16 +90,24 @@ export default function TopBarDataControls({
         const params = new URLSearchParams({ weeks: "26" });
         if (trackerCalendarId) params.set("trackerCalendarId", trackerCalendarId);
 
-        const response = await fetch(`/api/habit-tracker?${params.toString()}`);
-        const payload = (await response.json()) as HabitTrackerData | { error?: string };
-        if (!response.ok) {
-          throw new Error(("error" in payload && payload.error) || "Failed to load gamification data.");
-        }
+        const query = params.toString();
+        const payload = await fetchJsonWithDedupe<HabitTrackerData>(
+          `api:habit-tracker:${query}`,
+          async () => {
+            const response = await fetch(`/api/habit-tracker?${query}`);
+            const json = (await response.json()) as HabitTrackerData | { error?: string };
+            if (!response.ok) {
+              throw new Error(
+                ("error" in json && json.error) || "Failed to load gamification data."
+              );
+            }
+            return json as HabitTrackerData;
+          }
+        );
 
         if (cancelled) return;
-        const data = payload as HabitTrackerData;
-        setAllHabitsStreak(computeAllHabitsStreak(data.habits));
-        setTopBarLevel(computeTopBarLevel(data.habits));
+        setAllHabitsStreak(computeAllHabitsStreak(payload.habits));
+        setTopBarLevel(computeTopBarLevel(payload.habits));
         setGamificationReady(true);
       } catch {
         if (cancelled) return;

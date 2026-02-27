@@ -2,18 +2,21 @@
 
 import { createPortal } from "react-dom";
 import { Suspense, useEffect, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import AuthButton from "@/components/AuthButton";
-import Dashboard from "@/components/Dashboard";
-import DailyTrackerPopup from "@/components/DailyTrackerPopup";
-import GamificationPanel from "@/components/GamificationPanel";
-import GlobalSettingsPanel from "@/components/GlobalSettingsPanel";
 import TopBarDataControls from "@/components/TopBarDataControls";
 import { lockBodyScroll, unlockBodyScroll } from "@/lib/scroll-lock";
 
 const WIDE_SCREEN_STORAGE_KEY = "study-stats.layout.wide-screen";
+const Dashboard = dynamic(() => import("@/components/Dashboard"), {
+  loading: () => <div className="surface-card p-6 animate-pulse h-40" />,
+});
+const DailyTrackerPopup = dynamic(() => import("@/components/DailyTrackerPopup"));
+const GamificationPanel = dynamic(() => import("@/components/GamificationPanel"));
+const GlobalSettingsPanel = dynamic(() => import("@/components/GlobalSettingsPanel"));
 
 function readWideScreenPreference(): boolean {
   if (typeof window === "undefined") return true;

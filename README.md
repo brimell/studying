@@ -43,6 +43,27 @@ SUPABASE_SYNC_TABLE=study_stats_user_sync
 - Back up local `study-stats*` settings to cloud
 - Restore those settings on another device
 
+## Optional: Upstash Redis (Production API Hardening)
+
+For distributed rate limiting and idempotency across server instances, add:
+
+```bash
+UPSTASH_REDIS_REST_URL=...
+UPSTASH_REDIS_REST_TOKEN=...
+```
+
+If not set, the app falls back to in-memory runtime limits (fine for local dev, not recommended for production).
+
+## Quality Gates
+
+Run the full local verification gate:
+
+```bash
+npm run test
+```
+
+This runs lint, typecheck, and production build.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

@@ -993,7 +993,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const { calendar, principal } = await ensureAuthenticatedCalendar();
-    assertRateLimit({
+    await assertRateLimit({
       key: `habit-tracker:post:${principal}:${clientAddress(req)}`,
       limit: 30,
       windowMs: 60_000,
@@ -1001,7 +1001,7 @@ export async function POST(req: NextRequest) {
     const body = await parseJsonBody(req, habitPostBodySchema);
     const idempotencyKey = req.headers.get("idempotency-key");
     const fingerprint = idempotencyFingerprint(body);
-    const replay = checkIdempotencyReplay(
+    const replay = await checkIdempotencyReplay(
       `habit-tracker:post:${principal}`,
       idempotencyKey,
       fingerprint
@@ -1076,7 +1076,7 @@ export async function POST(req: NextRequest) {
 
     await saveHabitConfig(calendar, trackerCalendarId, nextHabits, config.eventId);
     const responseBody = { ok: true };
-    storeIdempotencyResult({
+    await storeIdempotencyResult({
       scope: `habit-tracker:post:${principal}`,
       idempotencyKey,
       fingerprint,
@@ -1104,7 +1104,7 @@ export async function PUT(req: NextRequest) {
 
   try {
     const { calendar, principal } = await ensureAuthenticatedCalendar();
-    assertRateLimit({
+    await assertRateLimit({
       key: `habit-tracker:put:${principal}:${clientAddress(req)}`,
       limit: 30,
       windowMs: 60_000,
@@ -1112,7 +1112,7 @@ export async function PUT(req: NextRequest) {
     const body = await parseJsonBody(req, habitPutBodySchema);
     const idempotencyKey = req.headers.get("idempotency-key");
     const fingerprint = idempotencyFingerprint(body);
-    const replay = checkIdempotencyReplay(
+    const replay = await checkIdempotencyReplay(
       `habit-tracker:put:${principal}`,
       idempotencyKey,
       fingerprint
@@ -1185,7 +1185,7 @@ export async function PUT(req: NextRequest) {
 
     await saveHabitConfig(calendar, trackerCalendarId, nextHabits, config.eventId);
     const responseBody = { ok: true };
-    storeIdempotencyResult({
+    await storeIdempotencyResult({
       scope: `habit-tracker:put:${principal}`,
       idempotencyKey,
       fingerprint,
@@ -1216,7 +1216,7 @@ export async function PATCH(req: NextRequest) {
 
   try {
     const { calendar, principal } = await ensureAuthenticatedCalendar();
-    assertRateLimit({
+    await assertRateLimit({
       key: `habit-tracker:patch:${principal}:${clientAddress(req)}`,
       limit: 90,
       windowMs: 60_000,
@@ -1224,7 +1224,7 @@ export async function PATCH(req: NextRequest) {
     const body = await parseJsonBody(req, habitPatchBodySchema);
     const idempotencyKey = req.headers.get("idempotency-key");
     const fingerprint = idempotencyFingerprint(body);
-    const replay = checkIdempotencyReplay(
+    const replay = await checkIdempotencyReplay(
       `habit-tracker:patch:${principal}`,
       idempotencyKey,
       fingerprint
@@ -1293,7 +1293,7 @@ export async function PATCH(req: NextRequest) {
     const binaryCalendarId = habit.trackingCalendarId || trackerCalendarId;
     await upsertHabitCompletionEvent(calendar, binaryCalendarId, habit, date, completed ? 1 : 0);
     const responseBody = { ok: true };
-    storeIdempotencyResult({
+    await storeIdempotencyResult({
       scope: `habit-tracker:patch:${principal}`,
       idempotencyKey,
       fingerprint,
@@ -1326,7 +1326,7 @@ export async function DELETE(req: NextRequest) {
 
   try {
     const { calendar, principal } = await ensureAuthenticatedCalendar();
-    assertRateLimit({
+    await assertRateLimit({
       key: `habit-tracker:delete:${principal}:${clientAddress(req)}`,
       limit: 20,
       windowMs: 60_000,
@@ -1334,7 +1334,7 @@ export async function DELETE(req: NextRequest) {
     const body = await parseJsonBody(req, habitDeleteBodySchema);
     const idempotencyKey = req.headers.get("idempotency-key");
     const fingerprint = idempotencyFingerprint(body);
-    const replay = checkIdempotencyReplay(
+    const replay = await checkIdempotencyReplay(
       `habit-tracker:delete:${principal}`,
       idempotencyKey,
       fingerprint
@@ -1391,7 +1391,7 @@ export async function DELETE(req: NextRequest) {
     );
 
     const responseBody = { ok: true };
-    storeIdempotencyResult({
+    await storeIdempotencyResult({
       scope: `habit-tracker:delete:${principal}`,
       idempotencyKey,
       fingerprint,

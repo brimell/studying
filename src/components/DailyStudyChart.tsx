@@ -15,7 +15,13 @@ import LoadingIcon from "./LoadingIcon";
 import FancyDropdown from "./FancyDropdown";
 import type { DailyStudyTimeData } from "@/lib/types";
 import { DEFAULT_SUBJECTS } from "@/lib/types";
-import { isStale, readCache, writeCache, writeGlobalLastFetched } from "@/lib/client-cache";
+import {
+  fetchJsonWithDedupe,
+  isStale,
+  readCache,
+  writeCache,
+  writeGlobalLastFetched,
+} from "@/lib/client-cache";
 
 const DAILY_DAYS_STORAGE_KEY = "study-stats.daily-study.days";
 const DAILY_SUBJECT_STORAGE_KEY = "study-stats.daily-study.subject";
@@ -86,16 +92,23 @@ export default function DailyStudyChart() {
       const params = new URLSearchParams({ days: String(days) });
       if (subject) params.set("subject", subject);
       if (calendarIds.length > 0) params.set("calendarIds", calendarIds.join(","));
+      const query = params.toString();
 
       try {
-        const res = await fetch(`/api/daily-study-time?${params}`);
-        const payload = (await res.json()) as DailyStudyTimeData | { error?: string };
-        if (!res.ok) {
-          const message = "error" in payload ? payload.error : "Failed";
-          throw new Error(message || "Failed");
-        }
-        setData(payload as DailyStudyTimeData);
-        const fetchedAt = writeCache(cacheKey, payload as DailyStudyTimeData);
+        const payload = await fetchJsonWithDedupe<DailyStudyTimeData>(
+          `api:daily-study-time:${query}`,
+          async () => {
+            const res = await fetch(`/api/daily-study-time?${query}`);
+            const json = (await res.json()) as DailyStudyTimeData | { error?: string };
+            if (!res.ok) {
+              const message = "error" in json ? json.error : "Failed";
+              throw new Error(message || "Failed");
+            }
+            return json as DailyStudyTimeData;
+          }
+        );
+        setData(payload);
+        const fetchedAt = writeCache(cacheKey, payload);
         writeGlobalLastFetched(fetchedAt);
       } catch (e: unknown) {
         const message = e instanceof Error ? e.message : "Failed";

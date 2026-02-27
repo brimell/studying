@@ -7,7 +7,7 @@ const contentSecurityPolicy = [
   "object-src 'none'",
   "img-src 'self' data: blob: https:",
   "style-src 'self' 'unsafe-inline' https:",
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https:",
+  "script-src 'self' 'unsafe-inline' https:",
   "font-src 'self' data: https:",
   "connect-src 'self' https://*.googleapis.com https://oauth2.googleapis.com https://*.supabase.co https://api.resend.com",
   "form-action 'self'",

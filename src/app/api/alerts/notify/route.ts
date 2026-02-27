@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
       throw new ApiRouteError(401, "UNAUTHORIZED", "auth", "Unauthorized");
     }
 
-    assertRateLimit({
+    await assertRateLimit({
       key: `alerts:notify:${userEmail}:${clientAddress(req)}`,
       limit: 12,
       windowMs: 10 * 60 * 1000,
@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
     const body = await parseJsonBody(req, postBodySchema);
     const idempotencyKey = req.headers.get("idempotency-key");
     const fingerprint = idempotencyFingerprint(body);
-    const replay = checkIdempotencyReplay(`alerts:notify:${userEmail}`, idempotencyKey, fingerprint);
+    const replay = await checkIdempotencyReplay(`alerts:notify:${userEmail}`, idempotencyKey, fingerprint);
     if (replay) {
       replay.headers.set("x-request-id", context.requestId);
       return replay;
@@ -62,7 +62,7 @@ export async function POST(req: NextRequest) {
 
     if (!alertEnv.resendApiKey) {
       const skippedBody = { ok: false, skipped: true, reason: "RESEND_API_KEY not set" };
-      storeIdempotencyResult({
+      await storeIdempotencyResult({
         scope: `alerts:notify:${userEmail}`,
         idempotencyKey,
         fingerprint,
@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
     }
     if (!alertEnv.alertFromEmail) {
       const skippedBody = { ok: false, skipped: true, reason: "ALERT_FROM_EMAIL not set" };
-      storeIdempotencyResult({
+      await storeIdempotencyResult({
         scope: `alerts:notify:${userEmail}`,
         idempotencyKey,
         fingerprint,
@@ -86,7 +86,7 @@ export async function POST(req: NextRequest) {
     const warnings = body.warnings;
     if (warnings.length === 0) {
       const skippedBody = { ok: false, skipped: true, reason: "No warnings" };
-      storeIdempotencyResult({
+      await storeIdempotencyResult({
         scope: `alerts:notify:${userEmail}`,
         idempotencyKey,
         fingerprint,
@@ -107,7 +107,7 @@ export async function POST(req: NextRequest) {
     const lastSent = alertSendCacheByUser.get(userEmail);
     if (lastSent && lastSent.summary === warningSummary && now - lastSent.sentAt < ALERT_DEDUPE_WINDOW_MS) {
       const dedupedBody = { ok: true, skipped: true, deduped: true };
-      storeIdempotencyResult({
+      await storeIdempotencyResult({
         scope: `alerts:notify:${userEmail}`,
         idempotencyKey,
         fingerprint,
@@ -160,7 +160,7 @@ export async function POST(req: NextRequest) {
     });
 
     const responseBody = { ok: true, id: payload.id || null };
-    storeIdempotencyResult({
+    await storeIdempotencyResult({
       scope: `alerts:notify:${userEmail}`,
       idempotencyKey,
       fingerprint,

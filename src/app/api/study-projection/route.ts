@@ -106,7 +106,7 @@ export async function PUT(req: NextRequest) {
 
   try {
     const { client, userId } = await getUserFromRequest(req);
-    assertRateLimit({
+    await assertRateLimit({
       key: `study-projection:put:${userId}:${clientAddress(req)}`,
       limit: 30,
       windowMs: 60_000,
@@ -115,7 +115,7 @@ export async function PUT(req: NextRequest) {
     const body = await parseJsonBody(req, projectionPutBodySchema);
     const idempotencyKey = req.headers.get("idempotency-key");
     const fingerprint = idempotencyFingerprint(body);
-    const replay = checkIdempotencyReplay(
+    const replay = await checkIdempotencyReplay(
       `study-projection:put:${userId}`,
       idempotencyKey,
       fingerprint
@@ -146,7 +146,7 @@ export async function PUT(req: NextRequest) {
           updatedAt,
           cloudDisabled: true,
         };
-        storeIdempotencyResult({
+        await storeIdempotencyResult({
           scope: `study-projection:put:${userId}`,
           idempotencyKey,
           fingerprint,
@@ -170,7 +170,7 @@ export async function PUT(req: NextRequest) {
       hoursPerDay: roundedHoursPerDay,
       updatedAt,
     };
-    storeIdempotencyResult({
+    await storeIdempotencyResult({
       scope: `study-projection:put:${userId}`,
       idempotencyKey,
       fingerprint,

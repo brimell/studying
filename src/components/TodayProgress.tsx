@@ -2,7 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { TodayProgressData } from "@/lib/types";
-import { isStale, readCache, writeCache, writeGlobalLastFetched } from "@/lib/client-cache";
+import {
+  fetchJsonWithDedupe,
+  isStale,
+  readCache,
+  writeCache,
+  writeGlobalLastFetched,
+} from "@/lib/client-cache";
 
 const STUDY_CALENDAR_IDS_STORAGE_KEY = "study-stats.study.calendar-ids";
 
@@ -52,14 +58,20 @@ export default function TodayProgress() {
         const params = new URLSearchParams();
         if (calendarIds.length > 0) params.set("calendarIds", calendarIds.join(","));
         const query = params.toString();
-        const res = await fetch(`/api/today-progress${query ? `?${query}` : ""}`);
-        const payload = (await res.json()) as TodayProgressData | { error?: string };
-        if (!res.ok) {
-          const message = "error" in payload ? payload.error : "Failed";
-          throw new Error(message || "Failed");
-        }
-        setData(payload as TodayProgressData);
-        const fetchedAt = writeCache(cacheKey, payload as TodayProgressData);
+        const payload = await fetchJsonWithDedupe<TodayProgressData>(
+          `api:today-progress:${query || "default"}`,
+          async () => {
+            const res = await fetch(`/api/today-progress${query ? `?${query}` : ""}`);
+            const json = (await res.json()) as TodayProgressData | { error?: string };
+            if (!res.ok) {
+              const message = "error" in json ? json.error : "Failed";
+              throw new Error(message || "Failed");
+            }
+            return json as TodayProgressData;
+          }
+        );
+        setData(payload);
+        const fetchedAt = writeCache(cacheKey, payload);
         writeGlobalLastFetched(fetchedAt);
       } catch (e: unknown) {
         const message = e instanceof Error ? e.message : "Failed";

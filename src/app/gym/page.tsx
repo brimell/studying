@@ -1,15 +1,18 @@
 "use client";
 
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import AuthButton from "@/components/AuthButton";
-import SupabaseAccountSync from "@/components/SupabaseAccountSync";
 import { WorkoutDataProvider } from "@/components/WorkoutDataProvider";
-import WorkoutPlanner from "@/components/WorkoutPlanner";
 
 const WIDE_SCREEN_STORAGE_KEY = "study-stats.layout.wide-screen";
+const SupabaseAccountSync = dynamic(() => import("@/components/SupabaseAccountSync"));
+const WorkoutPlanner = dynamic(() => import("@/components/WorkoutPlanner"), {
+  loading: () => <div className="surface-card p-6 animate-pulse h-44" />,
+});
 
 function readWideScreenPreference(): boolean {
   if (typeof window === "undefined") return true;

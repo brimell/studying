@@ -1,6 +1,12 @@
 export const CACHE_STALE_MS = 4 * 60 * 60 * 1000;
 export const GLOBAL_LAST_FETCHED_KEY = "study-stats:global-last-fetched";
 
+declare global {
+  interface Window {
+    __studyStatsInFlightRequests?: Map<string, Promise<unknown>>;
+  }
+}
+
 interface CacheEntry<T> {
   data: T;
   fetchedAt: number;
@@ -59,6 +65,39 @@ export function writeGlobalLastFetched(fetchedAt: number = Date.now()): void {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(GLOBAL_LAST_FETCHED_KEY, String(fetchedAt));
   window.dispatchEvent(new CustomEvent("study-stats:last-fetched-updated"));
+}
+
+function getInFlightMap(): Map<string, Promise<unknown>> {
+  if (typeof window === "undefined") return new Map<string, Promise<unknown>>();
+  if (!window.__studyStatsInFlightRequests) {
+    window.__studyStatsInFlightRequests = new Map<string, Promise<unknown>>();
+  }
+  return window.__studyStatsInFlightRequests;
+}
+
+export async function fetchJsonWithDedupe<T>(
+  requestKey: string,
+  fetcher: () => Promise<T>
+): Promise<T> {
+  if (typeof window === "undefined") {
+    return fetcher();
+  }
+
+  const inFlight = getInFlightMap();
+  const existing = inFlight.get(requestKey);
+  if (existing) {
+    return existing as Promise<T>;
+  }
+
+  const promise = fetcher()
+    .catch((error) => {
+      throw error;
+    })
+    .finally(() => {
+      inFlight.delete(requestKey);
+    });
+  inFlight.set(requestKey, promise);
+  return promise;
 }
 
 export function readGlobalLastFetched(): number | null {

@@ -106,7 +106,7 @@ export async function PUT(req: NextRequest) {
 
   try {
     const { client, userId } = await getUserFromRequest(req);
-    assertRateLimit({
+    await assertRateLimit({
       key: `exam-countdown:put:${userId}:${clientAddress(req)}`,
       limit: 30,
       windowMs: 60_000,
@@ -115,7 +115,7 @@ export async function PUT(req: NextRequest) {
     const body = await parseJsonBody(req, examPutBodySchema);
     const idempotencyKey = req.headers.get("idempotency-key");
     const fingerprint = idempotencyFingerprint(body);
-    const replay = checkIdempotencyReplay(
+    const replay = await checkIdempotencyReplay(
       `exam-countdown:put:${userId}`,
       idempotencyKey,
       fingerprint
@@ -145,7 +145,7 @@ export async function PUT(req: NextRequest) {
           updatedAt,
           cloudDisabled: true,
         };
-        storeIdempotencyResult({
+        await storeIdempotencyResult({
           scope: `exam-countdown:put:${userId}`,
           idempotencyKey,
           fingerprint,
@@ -169,7 +169,7 @@ export async function PUT(req: NextRequest) {
       countdownStartDate: body.countdownStartDate,
       updatedAt,
     };
-    storeIdempotencyResult({
+    await storeIdempotencyResult({
       scope: `exam-countdown:put:${userId}`,
       idempotencyKey,
       fingerprint,

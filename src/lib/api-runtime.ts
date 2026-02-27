@@ -1,6 +1,8 @@
 import { createHash, randomUUID } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
+import { Redis } from "@upstash/redis";
 import { z, type ZodTypeAny } from "zod";
+import { getUpstashRedisEnv } from "@/lib/env";
 
 export type ApiErrorCategory =
   | "auth"
@@ -53,6 +55,7 @@ interface IdempotencyRecord {
 declare global {
   var __studyStatsRateLimitBuckets: Map<string, RateBucket> | undefined;
   var __studyStatsIdempotencyRecords: Map<string, IdempotencyRecord> | undefined;
+  var __studyStatsUpstashRedisClient: Redis | null | undefined;
 }
 
 const rateLimitBuckets = globalThis.__studyStatsRateLimitBuckets || new Map<string, RateBucket>();
@@ -61,6 +64,24 @@ globalThis.__studyStatsRateLimitBuckets = rateLimitBuckets;
 const idempotencyRecords =
   globalThis.__studyStatsIdempotencyRecords || new Map<string, IdempotencyRecord>();
 globalThis.__studyStatsIdempotencyRecords = idempotencyRecords;
+
+function getRedisClient(): Redis | null {
+  if (typeof globalThis.__studyStatsUpstashRedisClient !== "undefined") {
+    return globalThis.__studyStatsUpstashRedisClient;
+  }
+
+  const redisEnv = getUpstashRedisEnv();
+  if (!redisEnv.url || !redisEnv.token) {
+    globalThis.__studyStatsUpstashRedisClient = null;
+    return null;
+  }
+
+  globalThis.__studyStatsUpstashRedisClient = new Redis({
+    url: redisEnv.url,
+    token: redisEnv.token,
+  });
+  return globalThis.__studyStatsUpstashRedisClient;
+}
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -181,11 +202,34 @@ export function clientAddress(req: NextRequest): string {
   return "unknown";
 }
 
-export function assertRateLimit(options: {
+export async function assertRateLimit(options: {
   key: string;
   limit: number;
   windowMs: number;
-}): void {
+}): Promise<void> {
+  const redis = getRedisClient();
+  if (redis) {
+    const redisKey = `study-stats:ratelimit:${options.key}`;
+    const count = await redis.incr(redisKey);
+    if (count === 1) {
+      await redis.pexpire(redisKey, options.windowMs);
+      return;
+    }
+
+    if (count > options.limit) {
+      const ttlMs = await redis.pttl(redisKey);
+      const retryAfterSeconds = Math.max(1, Math.ceil(Math.max(0, ttlMs) / 1000));
+      throw new ApiRouteError(
+        429,
+        "RATE_LIMITED",
+        "rate_limit",
+        "Too many requests. Please retry later.",
+        { retryAfterSeconds }
+      );
+    }
+    return;
+  }
+
   const now = Date.now();
   const existing = rateLimitBuckets.get(options.key);
   if (!existing || existing.resetAt <= now) {
@@ -217,16 +261,43 @@ export function idempotencyFingerprint(value: unknown): string {
     .digest("hex");
 }
 
-export function checkIdempotencyReplay(
+export async function checkIdempotencyReplay(
   scope: string,
   idempotencyKey: string | null | undefined,
   fingerprint: string
-): NextResponse | null {
+): Promise<NextResponse | null> {
   if (!idempotencyKey) return null;
   const trimmed = idempotencyKey.trim();
   if (!trimmed) return null;
 
   const key = `${scope}:${trimmed}`;
+  const redis = getRedisClient();
+  if (redis) {
+    const redisKey = `study-stats:idempotency:${key}`;
+    const rawRecord = await redis.get<string>(redisKey);
+    if (!rawRecord) return null;
+
+    let record: IdempotencyRecord | null = null;
+    try {
+      record = JSON.parse(rawRecord) as IdempotencyRecord;
+    } catch {
+      return null;
+    }
+
+    if (!record) return null;
+    if (record.fingerprint !== fingerprint) {
+      throw new ApiRouteError(
+        409,
+        "IDEMPOTENCY_KEY_REUSED",
+        "conflict",
+        "Idempotency key already used with a different payload."
+      );
+    }
+    const response = NextResponse.json(record.body, { status: record.status });
+    response.headers.set("x-idempotent-replay", "true");
+    return response;
+  }
+
   const now = Date.now();
   const record = idempotencyRecords.get(key);
   if (!record) return null;
@@ -247,20 +318,36 @@ export function checkIdempotencyReplay(
   return response;
 }
 
-export function storeIdempotencyResult(options: {
+export async function storeIdempotencyResult(options: {
   scope: string;
   idempotencyKey: string | null | undefined;
   fingerprint: string;
   status: number;
   body: unknown;
   ttlMs?: number;
-}): void {
+}): Promise<void> {
   if (!options.idempotencyKey) return;
   const trimmed = options.idempotencyKey.trim();
   if (!trimmed) return;
 
   const key = `${options.scope}:${trimmed}`;
   const ttlMs = options.ttlMs ?? 10 * 60 * 1000;
+  const redis = getRedisClient();
+  if (redis) {
+    const redisKey = `study-stats:idempotency:${key}`;
+    await redis.set(
+      redisKey,
+      JSON.stringify({
+        fingerprint: options.fingerprint,
+        status: options.status,
+        body: options.body,
+        expiresAt: Date.now() + ttlMs,
+      } satisfies IdempotencyRecord),
+      { ex: Math.max(1, Math.ceil(ttlMs / 1000)) }
+    );
+    return;
+  }
+
   idempotencyRecords.set(key, {
     fingerprint: options.fingerprint,
     status: options.status,

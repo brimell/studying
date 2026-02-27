@@ -15,6 +15,7 @@ import {
 } from "@/lib/daily-tracker";
 import { computeMuscleFatigue } from "@/lib/workouts";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
+import { fetchJsonWithDedupe } from "@/lib/client-cache";
 import LoadingIcon from "./LoadingIcon";
 
 const STUDY_CALENDAR_IDS_STORAGE_KEY = "study-stats.study.calendar-ids";
@@ -491,23 +492,51 @@ export default function AdvancedAnalytics() {
       const distributionParams = new URLSearchParams(baseParams);
       distributionParams.set("days", "120");
 
-      const [todayRes, dailyRes, distributionRes] = await Promise.all([
-        fetch(`/api/today-progress${baseParams.toString() ? `?${baseParams.toString()}` : ""}`),
-        fetch(`/api/daily-study-time?${dailyParams.toString()}`),
-        fetch(`/api/distribution?${distributionParams.toString()}`),
+      const todayQuery = baseParams.toString();
+      const dailyQuery = dailyParams.toString();
+      const distributionQuery = distributionParams.toString();
+
+      const [todayJson, dailyJson, distributionJson] = await Promise.all([
+        fetchJsonWithDedupe<TodayProgressData>(
+          `api:today-progress:${todayQuery || "default"}`,
+          async () => {
+            const res = await fetch(
+              `/api/today-progress${todayQuery ? `?${todayQuery}` : ""}`
+            );
+            const payload = (await res.json()) as TodayProgressData | { error?: string };
+            if (!res.ok) {
+              throw new Error(
+                ("error" in payload && payload.error) || "Failed today progress."
+              );
+            }
+            return payload as TodayProgressData;
+          }
+        ),
+        fetchJsonWithDedupe<DailyStudyTimeData>(
+          `api:daily-study-time:${dailyQuery}`,
+          async () => {
+            const res = await fetch(`/api/daily-study-time?${dailyQuery}`);
+            const payload = (await res.json()) as DailyStudyTimeData | { error?: string };
+            if (!res.ok) {
+              throw new Error(("error" in payload && payload.error) || "Failed daily trend.");
+            }
+            return payload as DailyStudyTimeData;
+          }
+        ),
+        fetchJsonWithDedupe<StudyDistributionData>(
+          `api:distribution:${distributionQuery}`,
+          async () => {
+            const res = await fetch(`/api/distribution?${distributionQuery}`);
+            const payload = (await res.json()) as StudyDistributionData | { error?: string };
+            if (!res.ok) {
+              throw new Error(
+                ("error" in payload && payload.error) || "Failed subject distribution."
+              );
+            }
+            return payload as StudyDistributionData;
+          }
+        ),
       ]);
-
-      const todayJson = (await todayRes.json()) as TodayProgressData | { error?: string };
-      const dailyJson = (await dailyRes.json()) as DailyStudyTimeData | { error?: string };
-      const distributionJson = (await distributionRes.json()) as StudyDistributionData | { error?: string };
-
-      if (!todayRes.ok) throw new Error(("error" in todayJson && todayJson.error) || "Failed today progress.");
-      if (!dailyRes.ok) throw new Error(("error" in dailyJson && dailyJson.error) || "Failed daily trend.");
-      if (!distributionRes.ok) {
-        throw new Error(
-          ("error" in distributionJson && distributionJson.error) || "Failed subject distribution."
-        );
-      }
 
       let workoutPayload: WorkoutPlannerPayload | null = null;
       if (supabase) {

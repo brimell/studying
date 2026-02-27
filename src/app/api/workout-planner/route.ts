@@ -128,7 +128,7 @@ export async function PUT(req: NextRequest) {
   try {
     const auth = await getUserFromRequest(req);
     const { client, userId } = auth;
-    assertRateLimit({
+    await assertRateLimit({
       key: `workout-planner:put:${userId}:${clientAddress(req)}`,
       limit: 45,
       windowMs: 60_000,
@@ -136,7 +136,7 @@ export async function PUT(req: NextRequest) {
     const body = await parseJsonBody(req, workoutPutBodySchema);
     const idempotencyKey = req.headers.get("idempotency-key");
     const fingerprint = idempotencyFingerprint(body);
-    const replay = checkIdempotencyReplay(
+    const replay = await checkIdempotencyReplay(
       `workout-planner:put:${userId}`,
       idempotencyKey,
       fingerprint
@@ -170,7 +170,7 @@ export async function PUT(req: NextRequest) {
     }
 
     const responseBody = { ok: true, payload, updatedAt: payload.updatedAt };
-    storeIdempotencyResult({
+    await storeIdempotencyResult({
       scope: `workout-planner:put:${userId}`,
       idempotencyKey,
       fingerprint,

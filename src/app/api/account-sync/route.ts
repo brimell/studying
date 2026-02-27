@@ -18,8 +18,9 @@ import { getSupabaseAdminEnv } from "@/lib/env";
 
 const supabaseEnv = getSupabaseAdminEnv();
 const SYNC_TABLE = supabaseEnv.syncTable;
-const MAX_SYNC_KEYS = 500;
-const MAX_VALUE_LENGTH = 200_000;
+const MAX_SYNC_KEYS = 200;
+const MAX_VALUE_LENGTH = 50_000;
+const MAX_TOTAL_PAYLOAD_CHARS = 1_000_000;
 
 const syncPayloadSchema = z
   .record(z.string().min(1).max(120), z.string().max(MAX_VALUE_LENGTH))
@@ -28,6 +29,17 @@ const syncPayloadSchema = z
     context.addIssue({
       code: z.ZodIssueCode.custom,
       message: `Payload cannot exceed ${MAX_SYNC_KEYS} keys.`,
+    });
+  })
+  .superRefine((value, context) => {
+    const totalChars = Object.entries(value).reduce(
+      (sum, [key, item]) => sum + key.length + item.length,
+      0
+    );
+    if (totalChars <= MAX_TOTAL_PAYLOAD_CHARS) return;
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: `Payload size cannot exceed ${MAX_TOTAL_PAYLOAD_CHARS} characters.`,
     });
   });
 
@@ -118,7 +130,7 @@ export async function PUT(req: NextRequest) {
 
   try {
     const { client, userId } = await getUserFromRequest(req);
-    assertRateLimit({
+    await assertRateLimit({
       key: `account-sync:put:${userId}:${clientAddress(req)}`,
       limit: 45,
       windowMs: 60_000,
@@ -127,7 +139,7 @@ export async function PUT(req: NextRequest) {
     const body = await parseJsonBody(req, putBodySchema);
     const idempotencyKey = req.headers.get("idempotency-key");
     const fingerprint = idempotencyFingerprint(body);
-    const replay = checkIdempotencyReplay(`account-sync:put:${userId}`, idempotencyKey, fingerprint);
+    const replay = await checkIdempotencyReplay(`account-sync:put:${userId}`, idempotencyKey, fingerprint);
     if (replay) {
       replay.headers.set("x-request-id", context.requestId);
       return replay;
@@ -180,7 +192,7 @@ export async function PUT(req: NextRequest) {
     }
 
     const responseBody = { ok: true, updatedAt };
-    storeIdempotencyResult({
+    await storeIdempotencyResult({
       scope: `account-sync:put:${userId}`,
       idempotencyKey,
       fingerprint,
