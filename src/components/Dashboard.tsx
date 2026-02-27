@@ -1,6 +1,7 @@
 "use client";
 
 import { type CSSProperties, type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useSession } from "next-auth/react";
 import TodayProgress from "./TodayProgress";
 import DailyStudyChart from "./DailyStudyChart";
@@ -56,6 +57,10 @@ const CARD_SIZE_PRESETS: Record<CardSizePreset, { label: string; colRatio: numbe
   large: { label: "Large", colRatio: 0.58, rowSpan: 2 },
   full: { label: "Full Width", colRatio: 1, rowSpan: 2 },
 };
+
+const CONTEXT_MENU_MARGIN = 10;
+const CONTEXT_MENU_ESTIMATED_WIDTH = 230;
+const CONTEXT_MENU_ESTIMATED_HEIGHT = 340;
 
 function normalizeOrder(value: unknown): CardId[] | null {
   if (!Array.isArray(value)) return null;
@@ -224,6 +229,11 @@ export default function Dashboard() {
   );
   const [hiddenCards, setHiddenCards] = useState<CardId[]>(initialDashboardState.hiddenCards);
   const [openSettingsCardId, setOpenSettingsCardId] = useState<CardId | null>(null);
+  const [contextMenu, setContextMenu] = useState<{
+    cardId: CardId;
+    top: number;
+    left: number;
+  } | null>(null);
   const [showLayoutControls, setShowLayoutControls] = useState<boolean>(() => {
     if (typeof window === "undefined") return true;
     const value = window.localStorage.getItem(DASHBOARD_LAYOUT_CONTROLS_STORAGE_KEY);
@@ -287,6 +297,7 @@ export default function Dashboard() {
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       setOpenSettingsCardId(null);
+      setContextMenu(null);
     };
     document.addEventListener("keydown", closeOnEscape);
     return () => document.removeEventListener("keydown", closeOnEscape);
@@ -302,6 +313,27 @@ export default function Dashboard() {
     document.addEventListener("mousedown", handlePointerDown);
     return () => document.removeEventListener("mousedown", handlePointerDown);
   }, []);
+
+  useEffect(() => {
+    if (!contextMenu) return;
+
+    const closeMenu = () => setContextMenu(null);
+    const onClick = () => closeMenu();
+    const onBlur = () => closeMenu();
+    const onResize = () => closeMenu();
+
+    document.addEventListener("click", onClick);
+    window.addEventListener("blur", onBlur);
+    window.addEventListener("resize", onResize);
+    window.addEventListener("scroll", onResize, true);
+
+    return () => {
+      document.removeEventListener("click", onClick);
+      window.removeEventListener("blur", onBlur);
+      window.removeEventListener("resize", onResize);
+      window.removeEventListener("scroll", onResize, true);
+    };
+  }, [contextMenu]);
 
   useEffect(() => {
     const syncExamDates = () => {
@@ -429,6 +461,20 @@ export default function Dashboard() {
       return [...previous, cardId];
     });
     setOpenSettingsCardId((current) => (current === cardId ? null : current));
+    setContextMenu(null);
+  };
+
+  const contextCardId = contextMenu?.cardId || null;
+  const contextCardIndex = contextCardId ? renderedOrder.indexOf(contextCardId) : -1;
+
+  const applyContextCardSize = (cardId: CardId, size: CardSizePreset) => {
+    setCardSizes((previous) => ({ ...previous, [cardId]: size }));
+    setContextMenu(null);
+  };
+
+  const moveContextCard = (cardId: CardId, offset: -1 | 1) => {
+    setOrder((previous) => moveVisibleCardByOffset(previous, cardId, offset, hiddenCards));
+    setContextMenu(null);
   };
 
   if (status === "loading") {
@@ -465,6 +511,28 @@ export default function Dashboard() {
             key={id}
             className="h-full"
             style={getCardStyle(id)}
+            onContextMenu={(event) => {
+              event.preventDefault();
+              const left = Math.max(
+                CONTEXT_MENU_MARGIN,
+                Math.min(
+                  event.clientX,
+                  window.innerWidth - CONTEXT_MENU_ESTIMATED_WIDTH - CONTEXT_MENU_MARGIN
+                )
+              );
+              const top = Math.max(
+                CONTEXT_MENU_MARGIN,
+                Math.min(
+                  event.clientY,
+                  window.innerHeight - CONTEXT_MENU_ESTIMATED_HEIGHT - CONTEXT_MENU_MARGIN
+                )
+              );
+              setContextMenu({
+                cardId: id,
+                top,
+                left,
+              });
+            }}
             ref={(node) => {
               if (!node) {
                 cardRefs.current.delete(id);
@@ -607,6 +675,66 @@ export default function Dashboard() {
           </div>
         ))}
       </div>
+      {contextMenu &&
+        contextCardId &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <ul
+            className="contextMenu"
+            data-theme="light"
+            style={
+              {
+                "--top": `${contextMenu.top}px`,
+                "--left": `${contextMenu.left}px`,
+              } as CSSProperties
+            }
+          >
+            <li className="contextMenu-item">
+              <button
+                type="button"
+                className="contextMenu-button"
+                onClick={() => moveContextCard(contextCardId, -1)}
+                disabled={contextCardIndex <= 0}
+              >
+                Move Card Up
+              </button>
+            </li>
+            <li className="contextMenu-item" data-divider="bottom">
+              <button
+                type="button"
+                className="contextMenu-button"
+                onClick={() => moveContextCard(contextCardId, 1)}
+                disabled={contextCardIndex === -1 || contextCardIndex >= renderedOrder.length - 1}
+              >
+                Move Card Down
+              </button>
+            </li>
+            {Object.entries(CARD_SIZE_PRESETS).map(([sizeKey, preset]) => {
+              const size = sizeKey as CardSizePreset;
+              return (
+                <li className="contextMenu-item" key={`${contextCardId}-${size}`}>
+                  <button
+                    type="button"
+                    className="contextMenu-button"
+                    onClick={() => applyContextCardSize(contextCardId, size)}
+                  >
+                    {cardSizes[contextCardId] === size ? "✓ " : ""}Size: {preset.label}
+                  </button>
+                </li>
+              );
+            })}
+            <li className="contextMenu-item" data-divider="top">
+              <button
+                type="button"
+                className="contextMenu-button"
+                onClick={() => hideCard(contextCardId)}
+              >
+                Hide Card
+              </button>
+            </li>
+          </ul>,
+          document.body
+        )}
     </div>
   );
 }
