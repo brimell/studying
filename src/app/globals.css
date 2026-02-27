@@ -203,12 +203,12 @@ body * {
 }
 
 .dropdown-container {
-  --primary-bg-color: #333740;
+  --primary-bg-color: #ffffff;
   --primary-color: #2c62f6;
-  --text-color: #b1b8ca;
-  --text-active: #ffffff;
-  --button-hover-bg-color: #2b2e34;
-  --border-color: #494d59;
+  --text-color: #334155;
+  --text-active: #0f172a;
+  --button-hover-bg-color: #eef2ff;
+  --border-color: #cbd5e1;
   --dropdown-height: 0rem;
   --rotate-arrow: 0deg;
   --translate-value: 0%;
