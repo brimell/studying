@@ -31,6 +31,13 @@ function todayDateKey(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+function addDays(dateKey: string, amount: number): string {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  date.setUTCDate(date.getUTCDate() + amount);
+  return date.toISOString().slice(0, 10);
+}
+
 const TRACKER_CALENDAR_STORAGE_KEY = "study-stats.tracker-calendar-id";
 const HABIT_WORKOUT_LINKS_STORAGE_KEY = "study-stats.habit-tracker.workout-links";
 
@@ -82,6 +89,13 @@ interface KnownExerciseOption {
   name: string;
   muscles: MuscleGroup[];
   searchableName: string;
+}
+
+interface InjuryInsight {
+  id: string;
+  type: "warning" | "tip";
+  title: string;
+  detail: string;
 }
 
 function fuzzyScore(query: string, target: string): number {
@@ -648,6 +662,108 @@ export default function WorkoutPlanner() {
 
     return scoreMap;
   }, [workouts]);
+  const injuryInsights = useMemo<InjuryInsight[]>(() => {
+    const insights: InjuryInsight[] = [];
+    const today = todayDateKey();
+
+    // History-based signal: uninterrupted recent training streak.
+    const uniqueLogDates = [...new Set(logs.map((log) => log.performedOn))].sort();
+    let consecutiveTrainingDays = 0;
+    if (uniqueLogDates.length > 0) {
+      let cursor = uniqueLogDates[uniqueLogDates.length - 1];
+      const keySet = new Set(uniqueLogDates);
+      while (keySet.has(cursor)) {
+        consecutiveTrainingDays += 1;
+        cursor = addDays(cursor, -1);
+      }
+    }
+    if (consecutiveTrainingDays >= 4) {
+      insights.push({
+        id: "streak-recovery",
+        type: "warning",
+        title: "Recovery Window Needed",
+        detail: `You have trained ${consecutiveTrainingDays} consecutive days. Schedule a lower-load or recovery day to reduce overuse risk.`,
+      });
+    }
+
+    // History-based signal: highly fatigued muscle groups.
+    const highFatigueMuscles = Object.entries(fatigueScores)
+      .filter(([, score]) => score >= 70)
+      .sort((left, right) => right[1] - left[1])
+      .slice(0, 3)
+      .map(([muscle]) => muscle as MuscleGroup);
+    if (highFatigueMuscles.length > 0) {
+      insights.push({
+        id: "high-fatigue-muscles",
+        type: "warning",
+        title: "High Fatigue Detected",
+        detail: `Top high-fatigue muscles: ${highFatigueMuscles
+          .map((muscle) => MUSCLE_LABELS[muscle])
+          .join(", ")}. Reduce volume/intensity or shift to less-stressed groups.`,
+      });
+    }
+
+    // Exercise-selection signal: upcoming scheduled workout overlaps with current high fatigue.
+    if (nextScheduledWorkouts && nextScheduledWorkouts.workoutIds.length > 0) {
+      const nextWorkoutMuscles = new Set<MuscleGroup>();
+      for (const workoutId of nextScheduledWorkouts.workoutIds) {
+        const workout = workoutById.get(workoutId);
+        if (!workout) continue;
+        for (const exercise of workout.exercises) {
+          for (const muscle of exercise.muscles) {
+            nextWorkoutMuscles.add(muscle);
+          }
+        }
+      }
+      const overlap = [...nextWorkoutMuscles].filter(
+        (muscle) => (fatigueScores[muscle] || 0) >= 60
+      );
+      if (overlap.length > 0) {
+        insights.push({
+          id: "next-workout-overlap",
+          type: "warning",
+          title: "Upcoming Overlap Risk",
+          detail: `Next planned workout still targets fatigued muscles: ${overlap
+            .slice(0, 3)
+            .map((muscle) => MUSCLE_LABELS[muscle])
+            .join(", ")}.`,
+        });
+      }
+    }
+
+    // Exercise-selection signal: draft rest intervals.
+    const lowRestExercises = draftExercises.filter(
+      (exercise) => (exercise.restSeconds ?? DEFAULT_REST_SECONDS) < 45
+    );
+    if (lowRestExercises.length > 0) {
+      insights.push({
+        id: "low-rest-draft",
+        type: "warning",
+        title: "Very Short Rest Intervals",
+        detail: `${lowRestExercises.length} draft exercise(s) have rest below 45s. Consider longer rest for heavy compound movements.`,
+      });
+    } else if (draftExercises.length > 0) {
+      insights.push({
+        id: "draft-rest-ok",
+        type: "tip",
+        title: "Draft Rest Intervals Look Balanced",
+        detail: "Your current draft uses moderate rest. Keep heavier lifts at higher rest to protect form.",
+      });
+    }
+
+    // Generic preventive tip based on recent activity volume.
+    const logsLast7Days = logs.filter((log) => log.performedOn >= addDays(today, -6)).length;
+    if (logsLast7Days >= 5) {
+      insights.push({
+        id: "weekly-volume-tip",
+        type: "tip",
+        title: "High Weekly Frequency",
+        detail: `You logged ${logsLast7Days} workouts in the last 7 days. Prioritize sleep, hydration, and easier accessory work between intense days.`,
+      });
+    }
+
+    return insights.slice(0, 5);
+  }, [draftExercises, fatigueScores, logs, nextScheduledWorkouts, workoutById]);
   const weeklyPlanSummaries = useMemo(() => {
     if (!weeklyPlanSummariesVisible) return new Map();
     const summaries = new Map<
@@ -775,6 +891,32 @@ export default function WorkoutPlanner() {
                 </div>
               );
             })}
+          </div>
+        )}
+      </section>
+
+      <section className="surface-card p-5">
+        <h2 className="text-lg font-semibold mb-2">Injury Prevention</h2>
+        {injuryInsights.length === 0 && (
+          <p className="text-sm text-zinc-500">
+            Add workouts or logs to receive risk warnings and prevention tips.
+          </p>
+        )}
+        {injuryInsights.length > 0 && (
+          <div className="space-y-2">
+            {injuryInsights.map((insight) => (
+              <div
+                key={insight.id}
+                className={`rounded-md border px-3 py-2 ${
+                  insight.type === "warning"
+                    ? "border-amber-300 bg-amber-50/70"
+                    : "border-emerald-300 bg-emerald-50/70"
+                }`}
+              >
+                <p className="text-sm font-semibold">{insight.title}</p>
+                <p className="text-xs text-zinc-600 mt-0.5">{insight.detail}</p>
+              </div>
+            ))}
           </div>
         )}
       </section>
