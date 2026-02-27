@@ -109,6 +109,7 @@ export default function MoodTrackerPopup({ onClose }: MoodTrackerPopupProps) {
     if (latestEntry?.mood) return moodToRating(latestEntry.mood);
     return 7;
   });
+  const [sliderFaceAnimationTick, setSliderFaceAnimationTick] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -260,10 +261,13 @@ export default function MoodTrackerPopup({ onClose }: MoodTrackerPopupProps) {
             );
           }
 
-          const isActive = selectedRating === control.rating;
+          const isActive = selectedMood === control.mood;
           const mood = control.mood;
           return (
-            <li key={control.key} className={`${mood} ${isActive ? "active" : ""}`.trim()}>
+            <li
+              key={isActive ? `${control.key}-${sliderFaceAnimationTick}` : control.key}
+              className={`${mood} ${isActive ? "active" : ""}`.trim()}
+            >
               <button
                 type="button"
                 onClick={() => setSelectedRating(control.rating)}
@@ -293,6 +297,26 @@ export default function MoodTrackerPopup({ onClose }: MoodTrackerPopupProps) {
           );
         })}
       </ul>
+
+      <div className="space-y-1">
+        <label htmlFor="mood-slider" className="text-sm font-medium text-zinc-700">
+          Mood slider
+        </label>
+        <input
+          id="mood-slider"
+          type="range"
+          min={MOOD_RATING_MIN}
+          max={MOOD_RATING_MAX}
+          step={1}
+          value={selectedRating}
+          onChange={(event) => {
+            setSelectedRating(Number(event.target.value));
+            setSliderFaceAnimationTick((tick) => tick + 1);
+          }}
+          className="w-full"
+          disabled={busy}
+        />
+      </div>
 
       <svg xmlns="http://www.w3.org/2000/svg" style={{ display: "none" }}>
         <symbol viewBox="0 0 7 4" id="mood-eye">
