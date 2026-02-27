@@ -706,12 +706,46 @@ function repFactor(reps: number): number {
   return Math.max(0.7, Math.min(1.6, reps / 10));
 }
 
+const LOW_FATIGUE_EXERCISE_KEYWORDS = [
+  "stretch",
+  "mobility",
+  "warmup",
+  "warm-up",
+  "posture",
+  "cat-cow",
+  "chin tuck",
+  "thoracic rotation",
+  "arm circles",
+  "pull-apart",
+  "face pull",
+  "dislocate",
+];
+
+function isLowFatigueStretchingExercise(
+  exercise: WorkoutExercise,
+  workoutName: string,
+  mappedExerciseName: string | null
+): boolean {
+  if (exercise.id.startsWith("st-")) return true;
+
+  const text = `${workoutName} ${exercise.name} ${mappedExerciseName || ""}`.toLowerCase();
+  if (text.includes("stretching")) return true;
+  return LOW_FATIGUE_EXERCISE_KEYWORDS.some((keyword) => text.includes(keyword));
+}
+
 function getMuscleStimulusByLog(workout: WorkoutTemplate): Record<MuscleGroup, number> {
   const byMuscle = createMuscleNumberMap(0);
 
   for (const exercise of workout.exercises) {
-    const perExerciseStimulus = Math.max(0.6, exercise.sets * repFactor(exercise.reps));
     const mapped = EXERCISE_MUSCLE_MAP.get(exercise.id);
+    const baseStimulus = Math.max(0.6, exercise.sets * repFactor(exercise.reps));
+    const perExerciseStimulus = isLowFatigueStretchingExercise(
+      exercise,
+      workout.name,
+      mapped?.exerciseName || null
+    )
+      ? baseStimulus * 0.35
+      : baseStimulus;
 
     if (mapped && mapped.muscles.length > 0) {
       for (const weightedMuscle of mapped.muscles) {
