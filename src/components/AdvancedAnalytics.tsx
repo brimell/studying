@@ -9,6 +9,7 @@ import type {
 } from "@/lib/types";
 import { computeMuscleFatigue } from "@/lib/workouts";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
+import LoadingIcon from "./LoadingIcon";
 
 const STUDY_CALENDAR_IDS_STORAGE_KEY = "study-stats.study.calendar-ids";
 
@@ -225,7 +226,11 @@ export default function AdvancedAnalytics() {
 
   return (
     <div className="surface-card p-6">
-      {loading && <div className="h-32 flex items-center justify-center text-zinc-400 animate-pulse">Loading...</div>}
+      {loading && (
+        <div className="h-32 flex items-center justify-center">
+          <LoadingIcon />
+        </div>
+      )}
       {error && <p className="text-sm text-red-500">{error}</p>}
       {!loading && !error && analytics && (
         <div className="space-y-4 text-sm">

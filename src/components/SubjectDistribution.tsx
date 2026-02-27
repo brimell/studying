@@ -13,6 +13,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
+import LoadingIcon from "./LoadingIcon";
 import type { StudyDistributionData } from "@/lib/types";
 import { isStale, readCache, writeCache, writeGlobalLastFetched } from "@/lib/client-cache";
 
@@ -137,8 +138,8 @@ export default function SubjectDistribution() {
       </div>
 
       {loading && (
-        <div className="h-64 flex items-center justify-center text-zinc-400 animate-pulse">
-          Loading...
+        <div className="h-64 flex items-center justify-center">
+          <LoadingIcon />
         </div>
       )}
       {error && <p className="text-sm text-red-500">{error}</p>}

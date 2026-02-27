@@ -13,6 +13,7 @@ import { DEFAULT_SUBJECTS } from "@/lib/types";
 import { isStale, readCache, writeCache, writeGlobalLastFetched } from "@/lib/client-cache";
 import { lockBodyScroll, unlockBodyScroll } from "@/lib/scroll-lock";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
+import LoadingIcon from "@/components/LoadingIcon";
 
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const TRACKER_CALENDAR_STORAGE_KEY = "study-stats.tracker-calendar-id";
@@ -1924,8 +1925,8 @@ export default function HabitTracker() {
   return (
     <div className="surface-card px-6 pt-6 pb-2">
       {loading && (
-        <div className="h-40 flex items-center justify-center text-zinc-400 animate-pulse">
-          Loading...
+        <div className="h-40 flex items-center justify-center">
+          <LoadingIcon />
         </div>
       )}
       {error && <p className="text-sm text-red-500 mb-3">{error}</p>}

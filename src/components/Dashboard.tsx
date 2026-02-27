@@ -9,6 +9,7 @@ import FirstExamCountdown from "./FirstExamCountdown";
 import HabitTracker from "./HabitTracker";
 import AlertsPanel from "./AlertsPanel";
 import AdvancedAnalytics from "./AdvancedAnalytics";
+import LoadingIcon from "./LoadingIcon";
 
 const DASHBOARD_LAYOUT_STORAGE_KEY = "study-stats.dashboard.layout.v1";
 const DASHBOARD_SETTINGS_STORAGE_KEY = "study-stats.dashboard.settings.v1";
@@ -411,7 +412,7 @@ export default function Dashboard() {
   if (status === "loading") {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-teal-600" />
+        <LoadingIcon />
       </div>
     );
   }

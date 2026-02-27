@@ -4,6 +4,7 @@ import goalsConfig from "@/data/goals.json";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { HabitCompletionDay, HabitDefinition, HabitTrackerData, WorkoutPlannerPayload } from "@/lib/types";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
+import LoadingIcon from "./LoadingIcon";
 
 const TRACKER_CALENDAR_STORAGE_KEY = "study-stats.tracker-calendar-id";
 const STUDY_HABIT_STORAGE_KEY = "study-stats.habit-tracker.study-habit";
@@ -443,7 +444,9 @@ export default function GamificationPanel() {
   return (
     <div className="surface-card p-6">
       {loading && (
-        <div className="h-32 flex items-center justify-center text-zinc-400 animate-pulse">Loading...</div>
+        <div className="h-32 flex items-center justify-center">
+          <LoadingIcon />
+        </div>
       )}
       {error && <p className="text-sm text-red-500">{error}</p>}
 

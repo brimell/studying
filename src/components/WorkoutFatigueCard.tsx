@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import MuscleModel from "@/components/MuscleModel";
+import LoadingIcon from "@/components/LoadingIcon";
 import { useWorkoutData } from "@/components/WorkoutDataProvider";
 import { computeMuscleFatigue } from "@/lib/workouts";
 
@@ -25,7 +26,9 @@ export default function WorkoutFatigueCard() {
   if (loading) {
     return (
       <div className="surface-card p-6">
-        <div className="h-28 flex items-center justify-center text-zinc-400 animate-pulse">Loading...</div>
+        <div className="h-28 flex items-center justify-center">
+          <LoadingIcon />
+        </div>
       </div>
     );
   }
