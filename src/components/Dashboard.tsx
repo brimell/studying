@@ -8,6 +8,7 @@ import SubjectDistribution from "./SubjectDistribution";
 import FirstExamCountdown from "./FirstExamCountdown";
 import HabitTracker from "./HabitTracker";
 import AlertsPanel from "./AlertsPanel";
+import AdvancedAnalytics from "./AdvancedAnalytics";
 
 const DASHBOARD_LAYOUT_STORAGE_KEY = "study-stats.dashboard.layout.v1";
 const DASHBOARD_SETTINGS_STORAGE_KEY = "study-stats.dashboard.settings.v1";
@@ -17,6 +18,7 @@ const DEFAULT_ORDER = [
   "habit-tracker",
   "daily-study-chart",
   "subject-distribution",
+  "advanced-analytics",
 ] as const;
 const GRID_COLUMN_OPTIONS = [6, 8, 10, 12] as const;
 const GRID_ROW_OPTIONS = [3, 4, 5, 6, 7] as const;
@@ -30,6 +32,7 @@ const DEFAULT_CARD_SIZES: Record<CardId, CardSizePreset> = {
   "habit-tracker": "full",
   "daily-study-chart": "large",
   "subject-distribution": "standard",
+  "advanced-analytics": "large",
 };
 
 const CARD_SIZE_PRESETS: Record<CardSizePreset, { label: string; colRatio: number; rowSpan: number }> = {
@@ -216,6 +219,10 @@ export default function Dashboard() {
         "subject-distribution": {
           title: "Subject Distribution",
           content: <SubjectDistribution />,
+        },
+        "advanced-analytics": {
+          title: "Advanced Analytics",
+          content: <AdvancedAnalytics />,
         },
       }) as Record<CardId, { title: string; content: ReactNode }>,
     []
