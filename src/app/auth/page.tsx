@@ -39,11 +39,18 @@ export default function AuthPage() {
     if (!supabase) return;
 
     let mounted = true;
-    void supabase.auth.getSession().then(({ data }) => {
-      if (!mounted) return;
-      setSession(data.session);
-      setLoadingSession(false);
-    });
+    void supabase.auth
+      .getSession()
+      .then(({ data }) => {
+        if (!mounted) return;
+        setSession(data.session);
+        setLoadingSession(false);
+      })
+      .catch(() => {
+        if (!mounted) return;
+        setSession(null);
+        setLoadingSession(false);
+      });
 
     const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession);

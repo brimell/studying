@@ -1,5 +1,7 @@
 import type { NextConfig } from "next";
 
+const isDevelopment = process.env.NODE_ENV !== "production";
+
 const contentSecurityPolicy = [
   "default-src 'self'",
   "base-uri 'self'",
@@ -7,7 +9,7 @@ const contentSecurityPolicy = [
   "object-src 'none'",
   "img-src 'self' data: blob: https:",
   "style-src 'self' 'unsafe-inline' https:",
-  "script-src 'self' 'unsafe-inline' https:",
+  `script-src 'self' 'unsafe-inline' ${isDevelopment ? "'unsafe-eval' " : ""}https:`,
   "font-src 'self' data: https:",
   "connect-src 'self' https://*.googleapis.com https://oauth2.googleapis.com https://*.supabase.co https://api.resend.com",
   "form-action 'self'",
