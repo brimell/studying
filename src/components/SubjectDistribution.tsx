@@ -28,6 +28,7 @@ const DISTRIBUTION_DAYS_STORAGE_KEY = "study-stats.distribution.days";
 const STUDY_CALENDAR_IDS_STORAGE_KEY = "study-stats.study.calendar-ids";
 
 function readStudyCalendarIds(): string[] {
+  if (typeof window === "undefined") return [];
   const stored = window.localStorage.getItem(STUDY_CALENDAR_IDS_STORAGE_KEY);
   if (!stored) return [];
   try {
@@ -37,6 +38,13 @@ function readStudyCalendarIds(): string[] {
   } catch {
     return [];
   }
+}
+
+function readInitialDistributionDays(): number {
+  if (typeof window === "undefined") return 365;
+  const raw = window.localStorage.getItem(DISTRIBUTION_DAYS_STORAGE_KEY);
+  const parsed = Number(raw);
+  return [7, 30, 90, 365].includes(parsed) ? parsed : 365;
 }
 
 const COLORS = [
@@ -49,17 +57,8 @@ export default function SubjectDistribution() {
   const [data, setData] = useState<StudyDistributionData | null>(null);
   const [, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [days, setDays] = useState(365);
-  const [calendarIds, setCalendarIds] = useState<string[]>([]);
-
-  useEffect(() => {
-    const raw = window.localStorage.getItem(DISTRIBUTION_DAYS_STORAGE_KEY);
-    if (raw) {
-      const parsed = Number(raw);
-      if ([7, 30, 90, 365].includes(parsed)) setDays(parsed);
-    }
-    setCalendarIds(readStudyCalendarIds());
-  }, []);
+  const [days, setDays] = useState<number>(() => readInitialDistributionDays());
+  const [calendarIds, setCalendarIds] = useState<string[]>(() => readStudyCalendarIds());
 
   useEffect(() => {
     window.localStorage.setItem(DISTRIBUTION_DAYS_STORAGE_KEY, String(days));

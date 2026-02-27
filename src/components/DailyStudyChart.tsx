@@ -28,6 +28,7 @@ const DAILY_SUBJECT_STORAGE_KEY = "study-stats.daily-study.subject";
 const STUDY_CALENDAR_IDS_STORAGE_KEY = "study-stats.study.calendar-ids";
 
 function readStudyCalendarIds(): string[] {
+  if (typeof window === "undefined") return [];
   const stored = window.localStorage.getItem(STUDY_CALENDAR_IDS_STORAGE_KEY);
   if (!stored) return [];
   try {
@@ -39,26 +40,25 @@ function readStudyCalendarIds(): string[] {
   }
 }
 
+function readInitialDailyDays(): number {
+  if (typeof window === "undefined") return 30;
+  const rawDays = window.localStorage.getItem(DAILY_DAYS_STORAGE_KEY);
+  const parsed = Number(rawDays);
+  return [7, 14, 30, 60, 90].includes(parsed) ? parsed : 30;
+}
+
+function readInitialDailySubject(): string {
+  if (typeof window === "undefined") return "";
+  return window.localStorage.getItem(DAILY_SUBJECT_STORAGE_KEY) || "";
+}
+
 export default function DailyStudyChart() {
   const [data, setData] = useState<DailyStudyTimeData | null>(null);
   const [, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [days, setDays] = useState(30);
-  const [subject, setSubject] = useState<string>("");
-  const [calendarIds, setCalendarIds] = useState<string[]>([]);
-
-  useEffect(() => {
-    const rawDays = window.localStorage.getItem(DAILY_DAYS_STORAGE_KEY);
-    if (rawDays) {
-      const parsed = Number(rawDays);
-      if ([7, 14, 30, 60, 90].includes(parsed)) setDays(parsed);
-    }
-
-    const rawSubject = window.localStorage.getItem(DAILY_SUBJECT_STORAGE_KEY);
-    if (rawSubject !== null) setSubject(rawSubject);
-
-    setCalendarIds(readStudyCalendarIds());
-  }, []);
+  const [days, setDays] = useState<number>(() => readInitialDailyDays());
+  const [subject, setSubject] = useState<string>(() => readInitialDailySubject());
+  const [calendarIds, setCalendarIds] = useState<string[]>(() => readStudyCalendarIds());
 
   useEffect(() => {
     window.localStorage.setItem(DAILY_DAYS_STORAGE_KEY, String(days));
