@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import FancyDropdown from "./FancyDropdown";
+import { MOOD_TRACKER_CALENDAR_STORAGE_KEY } from "@/lib/mood-tracker";
+import type { TrackerCalendarOption } from "@/lib/types";
 
 const WIDE_SCREEN_STORAGE_KEY = "study-stats.layout.wide-screen";
 const DAILY_DAYS_STORAGE_KEY = "study-stats.daily-study.days";
@@ -12,6 +14,7 @@ const HABIT_FUTURE_PREVIEW_SETTINGS_STORAGE_KEY = "study-stats.habit-tracker.fut
 const PROJECTION_HOURS_STORAGE_KEY = "study-stats.projection.hours-per-day";
 const PROJECTION_DATE_STORAGE_KEY = "study-stats.projection.end-date";
 const DASHBOARD_LAYOUT_CONTROLS_STORAGE_KEY = "study-stats.dashboard.show-layout-controls";
+const TRACKER_CALENDAR_STORAGE_KEY = "study-stats.tracker-calendar-id";
 
 type FuturePreviewMode = "auto" | "custom";
 
@@ -92,6 +95,13 @@ export default function GlobalSettingsPanel() {
     if (typeof window === "undefined") return true;
     return parseBoolean(window.localStorage.getItem(DASHBOARD_LAYOUT_CONTROLS_STORAGE_KEY), true);
   });
+  const [moodCalendarId, setMoodCalendarId] = useState<string>(() => {
+    if (typeof window === "undefined") return "";
+    return window.localStorage.getItem(MOOD_TRACKER_CALENDAR_STORAGE_KEY) || "";
+  });
+  const [moodCalendars, setMoodCalendars] = useState<TrackerCalendarOption[]>([]);
+  const [moodCalendarsLoading, setMoodCalendarsLoading] = useState(false);
+  const [moodCalendarsError, setMoodCalendarsError] = useState<string | null>(null);
 
   useEffect(() => {
     window.localStorage.setItem(WIDE_SCREEN_STORAGE_KEY, String(wideScreen));
@@ -143,6 +153,59 @@ export default function GlobalSettingsPanel() {
   }, [showDashboardLayoutControls]);
 
   useEffect(() => {
+    if (moodCalendarId) {
+      window.localStorage.setItem(MOOD_TRACKER_CALENDAR_STORAGE_KEY, moodCalendarId);
+    } else {
+      window.localStorage.removeItem(MOOD_TRACKER_CALENDAR_STORAGE_KEY);
+    }
+  }, [moodCalendarId]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadMoodCalendars = async () => {
+      setMoodCalendarsLoading(true);
+      setMoodCalendarsError(null);
+      try {
+        const response = await fetch("/api/habit-tracker/calendars");
+        const payload = (await response.json()) as {
+          error?: string;
+          trackerCalendars?: TrackerCalendarOption[];
+        };
+        if (!response.ok) {
+          throw new Error(payload.error || "Failed to fetch writable calendars.");
+        }
+        if (cancelled) return;
+
+        const trackerCalendars = payload.trackerCalendars || [];
+        setMoodCalendars(trackerCalendars);
+
+        if (trackerCalendars.length > 0) {
+          const trackerCalendarId = window.localStorage.getItem(TRACKER_CALENDAR_STORAGE_KEY);
+          const preferred = trackerCalendars.find((entry) => entry.id === trackerCalendarId);
+          const fallback = preferred || trackerCalendars.find((entry) => entry.primary) || trackerCalendars[0];
+          setMoodCalendarId((current) => current || fallback?.id || "");
+        }
+      } catch (error: unknown) {
+        if (cancelled) return;
+        setMoodCalendarsError(
+          error instanceof Error ? error.message : "Failed to fetch writable calendars."
+        );
+        setMoodCalendars([]);
+      } finally {
+        if (!cancelled) {
+          setMoodCalendarsLoading(false);
+        }
+      }
+    };
+
+    void loadMoodCalendars();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     window.dispatchEvent(new CustomEvent("study-stats:settings-updated"));
     window.dispatchEvent(new CustomEvent("study-stats:refresh-all"));
     window.dispatchEvent(new CustomEvent("study-stats:milestones-updated"));
@@ -158,10 +221,21 @@ export default function GlobalSettingsPanel() {
     projectionHours,
     projectionEndDate,
     showDashboardLayoutControls,
+    moodCalendarId,
   ]);
 
   const dailyOptions = useMemo(() => [7, 14, 30, 60, 90], []);
   const distributionOptions = useMemo(() => [7, 30, 90, 365], []);
+  const moodCalendarOptions = useMemo(
+    () => [
+      { value: "", label: "No selected calendar" },
+      ...moodCalendars.map((calendarEntry) => ({
+        value: calendarEntry.id,
+        label: `${calendarEntry.summary}${calendarEntry.primary ? " (Primary)" : ""}`,
+      })),
+    ],
+    [moodCalendars]
+  );
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -284,6 +358,26 @@ export default function GlobalSettingsPanel() {
             className="field-select w-full"
           />
         </label>
+      </section>
+
+      <section className="surface-card p-5 space-y-3">
+        <h2 className="text-lg font-semibold">Mood Tracker</h2>
+        <label className="block space-y-1">
+          <span>Google Calendar for mood logging</span>
+          <FancyDropdown
+            value={moodCalendarId}
+            onChange={setMoodCalendarId}
+            options={moodCalendarOptions}
+            disabled={moodCalendarsLoading}
+          />
+        </label>
+        <p className="soft-text text-sm">
+          Mood logs are saved locally, synced to Supabase, and written into this calendar.
+        </p>
+        {moodCalendarsLoading ? (
+          <p className="soft-text text-sm">Loading writable calendars...</p>
+        ) : null}
+        {moodCalendarsError ? <p className="text-sm text-red-600">{moodCalendarsError}</p> : null}
       </section>
     </div>
   );

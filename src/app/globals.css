@@ -475,6 +475,355 @@ h3 {
   }
 }
 
+.mood-feedback {
+  --normal: #eceaf3;
+  --normal-shadow: #d9d8e3;
+  --normal-mouth: #9795a4;
+  --normal-eye: #595861;
+  --active: #f8da69;
+  --active-shadow: #f4b555;
+  --active-mouth: #f05136;
+  --active-eye: #313036;
+  --active-tear: #76b5e7;
+  --active-shadow-angry: #e94f1d;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 1rem;
+}
+
+.mood-feedback li {
+  position: relative;
+  border-radius: 50%;
+  background: var(--sb, var(--normal));
+  box-shadow: inset 3px -3px 4px var(--sh, var(--normal-shadow));
+  transition: background 0.4s, box-shadow 0.4s, transform 0.3s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mood-feedback li button {
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  border-radius: 50%;
+}
+
+.mood-feedback li button:disabled {
+  cursor: not-allowed;
+}
+
+.mood-feedback li div {
+  width: 40px;
+  height: 40px;
+  position: relative;
+  transform: perspective(240px) translateZ(4px);
+}
+
+.mood-feedback li div svg,
+.mood-feedback li div::before,
+.mood-feedback li div::after {
+  display: block;
+  position: absolute;
+  left: var(--l, 9px);
+  top: var(--t, 13px);
+  width: var(--w, 8px);
+  height: var(--h, 2px);
+  transform: rotate(var(--r, 0deg)) scale(var(--sc, 1)) translateZ(0);
+}
+
+.mood-feedback li div svg {
+  fill: none;
+  stroke: var(--s);
+  stroke-width: 2px;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: stroke 0.4s;
+}
+
+.mood-feedback li div svg.eye {
+  --s: var(--e, var(--normal-eye));
+  --t: 17px;
+  --w: 7px;
+  --h: 4px;
+}
+
+.mood-feedback li div svg.eye.right {
+  --l: 23px;
+}
+
+.mood-feedback li div svg.mouth {
+  --s: var(--m, var(--normal-mouth));
+  --l: 11px;
+  --t: 23px;
+  --w: 18px;
+  --h: 7px;
+}
+
+.mood-feedback li div::before,
+.mood-feedback li div::after {
+  content: "";
+  z-index: var(--zi, 1);
+  border-radius: var(--br, 1px);
+  background: var(--b, var(--e, var(--normal-eye)));
+  transition: background 0.4s;
+}
+
+.mood-feedback li.angry {
+  --step-1-rx: -24deg;
+  --step-1-ry: 20deg;
+  --step-2-rx: -24deg;
+  --step-2-ry: -20deg;
+}
+
+.mood-feedback li.angry div::before {
+  --r: 20deg;
+}
+
+.mood-feedback li.angry div::after {
+  --l: 23px;
+  --r: -20deg;
+}
+
+.mood-feedback li.angry div svg.eye {
+  stroke-dasharray: 4.55;
+  stroke-dashoffset: 8.15;
+}
+
+.mood-feedback li.angry.active {
+  animation: angry 1s linear;
+}
+
+.mood-feedback li.angry.active div::before {
+  --middle-y: -2px;
+  --middle-r: 22deg;
+  animation: toggle 0.8s linear forwards;
+}
+
+.mood-feedback li.angry.active div::after {
+  --middle-y: 1px;
+  --middle-r: -18deg;
+  animation: toggle 0.8s linear forwards;
+}
+
+.mood-feedback li.sad {
+  --step-1-rx: 20deg;
+  --step-1-ry: -12deg;
+  --step-2-rx: -18deg;
+  --step-2-ry: 14deg;
+}
+
+.mood-feedback li.sad div::before,
+.mood-feedback li.sad div::after {
+  --b: var(--active-tear);
+  --sc: 0;
+  --w: 5px;
+  --h: 5px;
+  --t: 15px;
+  --br: 50%;
+}
+
+.mood-feedback li.sad div::after {
+  --l: 25px;
+}
+
+.mood-feedback li.sad div svg.eye {
+  --t: 16px;
+}
+
+.mood-feedback li.sad div svg.mouth {
+  --t: 24px;
+  stroke-dasharray: 9.5;
+  stroke-dashoffset: 33.25;
+}
+
+.mood-feedback li.sad.active div::before,
+.mood-feedback li.sad.active div::after {
+  animation: tear 0.6s linear forwards;
+}
+
+.mood-feedback li.ok {
+  --step-1-rx: 4deg;
+  --step-1-ry: -22deg;
+  --step-1-rz: 6deg;
+  --step-2-rx: 4deg;
+  --step-2-ry: 22deg;
+  --step-2-rz: -6deg;
+}
+
+.mood-feedback li.ok div::before {
+  --l: 12px;
+  --t: 17px;
+  --h: 4px;
+  --w: 4px;
+  --br: 50%;
+  box-shadow: 12px 0 0 var(--e, var(--normal-eye));
+}
+
+.mood-feedback li.ok div::after {
+  --l: 13px;
+  --t: 26px;
+  --w: 14px;
+  --h: 2px;
+  --br: 1px;
+  --b: var(--m, var(--normal-mouth));
+}
+
+.mood-feedback li.ok.active div::before {
+  --middle-s-y: 0.35;
+  animation: toggle 0.2s linear forwards;
+}
+
+.mood-feedback li.ok.active div::after {
+  --middle-s-x: 0.5;
+  animation: toggle 0.7s linear forwards;
+}
+
+.mood-feedback li.good {
+  --step-1-rx: -14deg;
+  --step-1-rz: 10deg;
+  --step-2-rx: 10deg;
+  --step-2-rz: -8deg;
+}
+
+.mood-feedback li.good div::before {
+  --b: var(--m, var(--normal-mouth));
+  --w: 5px;
+  --h: 5px;
+  --br: 50%;
+  --t: 22px;
+  --zi: 0;
+  opacity: 0.5;
+  box-shadow: 16px 0 0 var(--b);
+  filter: blur(2px);
+}
+
+.mood-feedback li.good div::after {
+  --sc: 0;
+}
+
+.mood-feedback li.good div svg.eye {
+  --t: 15px;
+  --sc: -1;
+  stroke-dasharray: 4.55;
+  stroke-dashoffset: 8.15;
+}
+
+.mood-feedback li.good div svg.mouth {
+  --t: 22px;
+  --sc: -1;
+  stroke-dasharray: 13.3;
+  stroke-dashoffset: 23.75;
+}
+
+.mood-feedback li.good.active div svg.mouth {
+  --middle-y: 1px;
+  --middle-s: -1;
+  animation: toggle 0.8s linear forwards;
+}
+
+.mood-feedback li.happy div {
+  --step-1-rx: 18deg;
+  --step-1-ry: 24deg;
+  --step-2-rx: 18deg;
+  --step-2-ry: -24deg;
+}
+
+.mood-feedback li.happy div::before {
+  --sc: 0;
+}
+
+.mood-feedback li.happy div::after {
+  --b: var(--m, var(--normal-mouth));
+  --l: 11px;
+  --t: 23px;
+  --w: 18px;
+  --h: 8px;
+  --br: 0 0 8px 8px;
+}
+
+.mood-feedback li.happy div svg.eye {
+  --t: 14px;
+  --sc: -1;
+}
+
+.mood-feedback li.happy.active div::after {
+  --middle-s-x: 0.95;
+  --middle-s-y: 0.75;
+  animation: toggle 0.8s linear forwards;
+}
+
+.mood-feedback li:not(.active) button:not(:disabled) {
+  cursor: pointer;
+}
+
+.mood-feedback li:not(.active) button:not(:disabled):active {
+  transform: scale(0.925);
+}
+
+.mood-feedback li.active {
+  --sb: var(--active);
+  --sh: var(--active-shadow);
+  --m: var(--active-mouth);
+  --e: var(--active-eye);
+}
+
+.mood-feedback li.active div {
+  animation: shake 0.8s linear forwards;
+}
+
+@keyframes shake {
+  30% {
+    transform: perspective(240px) rotateX(var(--step-1-rx, 0deg)) rotateY(var(--step-1-ry, 0deg))
+      rotateZ(var(--step-1-rz, 0deg)) translateZ(10px);
+  }
+  60% {
+    transform: perspective(240px) rotateX(var(--step-2-rx, 0deg)) rotateY(var(--step-2-ry, 0deg))
+      rotateZ(var(--step-2-rz, 0deg)) translateZ(10px);
+  }
+  100% {
+    transform: perspective(240px) translateZ(4px);
+  }
+}
+
+@keyframes tear {
+  0% {
+    opacity: 0;
+    transform: translateY(-2px) scale(0) translateZ(0);
+  }
+  20%,
+  80% {
+    opacity: 1;
+  }
+  50% {
+    transform: translateY(12px) scale(0.6, 1.2) translateZ(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(24px) translateX(4px) rotateZ(-30deg) scale(0.7, 1.1) translateZ(0);
+  }
+}
+
+@keyframes toggle {
+  50% {
+    transform: translateY(var(--middle-y, 0))
+      scale(var(--middle-s-x, var(--middle-s, 1)), var(--middle-s-y, var(--middle-s, 1)))
+      rotate(var(--middle-r, 0deg));
+  }
+}
+
+@keyframes angry {
+  40% {
+    background: var(--active);
+  }
+  45% {
+    box-shadow: inset 3px -3px 4px var(--active-shadow), inset 0 8px 10px var(--active-shadow-angry);
+  }
+}
+
 .loader-wrap {
   display: grid;
   place-items: center;
