@@ -216,7 +216,7 @@ export default function Home() {
                       window.dispatchEvent(new CustomEvent("study-stats:open-add-milestone"));
                     }}
                   >
-                    Add exam/coursework
+                    Manage exam/coursework dates
                   </button>
                   <TopBarDataControls mode="refreshOnly" stacked showLastFetched={false} />
                   <AuthButton compact className="w-full text-left" />

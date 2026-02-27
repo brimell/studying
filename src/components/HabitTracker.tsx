@@ -1941,48 +1941,6 @@ export default function HabitTracker() {
 
       {data && !loading && (
         <div className="space-y-3">
-          <div className="border-t border-zinc-200 pt-6">
-            <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-              <h3 className="text-base font-semibold">🗓️ Exam and Coursework Dates</h3>
-              <span className="text-xs text-zinc-500">Outlined in red on the study calendar</span>
-            </div>
-
-            {milestones.length === 0 && (
-              <p className="text-sm text-zinc-500">No exam or coursework dates added yet.</p>
-            )}
-
-            {milestones.length > 0 && (
-              <div className="space-y-2">
-                {milestones.map((milestone) => (
-                  <div
-                    key={milestone.id}
-                    className="flex items-center justify-between gap-3 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2"
-                  >
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium truncate">{milestone.title}</p>
-                      <p className="text-xs text-zinc-500">
-                        {milestone.type === "exam" ? "🧪 Exam" : "📚 Coursework"} on{" "}
-                        {new Date(`${milestone.date}T12:00:00`).toLocaleDateString("en-GB", {
-                          weekday: "short",
-                          day: "numeric",
-                          month: "short",
-                          year: "numeric",
-                        })}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => removeMilestone(milestone.id)}
-                      className="px-2 py-1 rounded-md text-xs bg-zinc-200 hover:bg-zinc-300 transition-colors shrink-0"
-                    >
-                      Remove
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
           <div className="border-t border-zinc-200 pt-4">
             <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
               <h3 className="text-base font-semibold">✅ Habit Trackers</h3>
@@ -2731,6 +2689,42 @@ export default function HabitTracker() {
                   >
                     Close
                   </button>
+                </div>
+                <div className="mb-3">
+                  <p className="text-xs text-zinc-500 mb-2">Outlined in red on the study calendar.</p>
+                  {milestones.length === 0 && (
+                    <p className="text-sm text-zinc-500">No exam or coursework dates added yet.</p>
+                  )}
+                  {milestones.length > 0 && (
+                    <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
+                      {milestones.map((milestone) => (
+                        <div
+                          key={milestone.id}
+                          className="flex items-center justify-between gap-3 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2"
+                        >
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium truncate">{milestone.title}</p>
+                            <p className="text-xs text-zinc-500">
+                              {milestone.type === "exam" ? "🧪 Exam" : "📚 Coursework"} on{" "}
+                              {new Date(`${milestone.date}T12:00:00`).toLocaleDateString("en-GB", {
+                                weekday: "short",
+                                day: "numeric",
+                                month: "short",
+                                year: "numeric",
+                              })}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removeMilestone(milestone.id)}
+                            className="px-2 py-1 rounded-md text-xs bg-zinc-200 hover:bg-zinc-300 transition-colors shrink-0"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <form onSubmit={addMilestone} className="flex flex-wrap gap-2">
                   <select
