@@ -112,6 +112,19 @@ export default function FirstExamCountdown() {
   }, []);
 
   useEffect(() => {
+    const handleExternalDateUpdate = () => {
+      const storedExamDate = window.localStorage.getItem(PROJECTION_EXAM_DATE_STORAGE_KEY);
+      const storedCountdownStart = window.localStorage.getItem(
+        PROJECTION_COUNTDOWN_START_STORAGE_KEY
+      );
+      if (storedExamDate) setFirstExamDate(storedExamDate);
+      if (storedCountdownStart) setCountdownStartDate(storedCountdownStart);
+    };
+    window.addEventListener(EXAM_DATE_UPDATED_EVENT, handleExternalDateUpdate);
+    return () => window.removeEventListener(EXAM_DATE_UPDATED_EVENT, handleExternalDateUpdate);
+  }, []);
+
+  useEffect(() => {
     if (!session || !supabase || !localHydrated || hydratedFromCloudRef.current || cloudHydrationCompleteRef.current) return;
     let cancelled = false;
 
@@ -212,27 +225,6 @@ export default function FirstExamCountdown() {
           Project Future Studying
         </button>
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-        <label className="flex flex-col gap-1 text-sm">
-          First exam date
-          <input
-            type="date"
-            value={firstExamDate}
-            onChange={(e) => setFirstExamDate(e.target.value)}
-            className="border rounded-lg px-3 py-2 bg-zinc-50"
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-sm">
-          Countdown start date
-          <input
-            type="date"
-            value={countdownStartDate}
-            onChange={(e) => setCountdownStartDate(e.target.value)}
-            className="border rounded-lg px-3 py-2 bg-zinc-50"
-          />
-        </label>
-      </div>
-
       <div className="rounded-xl bg-zinc-50 p-4">
         <p className="text-sm text-zinc-500 mb-2">Until first exam</p>
         <p className="text-2xl font-bold mb-3 stat-mono">

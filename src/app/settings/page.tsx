@@ -11,8 +11,7 @@ const HABIT_SHOW_FUTURE_DAYS_STORAGE_KEY = "study-stats.habit-tracker.show-futur
 const HABIT_FUTURE_PREVIEW_SETTINGS_STORAGE_KEY = "study-stats.habit-tracker.future-preview";
 const PROJECTION_HOURS_STORAGE_KEY = "study-stats.projection.hours-per-day";
 const PROJECTION_DATE_STORAGE_KEY = "study-stats.projection.end-date";
-const PROJECTION_EXAM_DATE_STORAGE_KEY = "study-stats.projection.exam-date";
-const PROJECTION_COUNTDOWN_START_STORAGE_KEY = "study-stats.projection.countdown-start";
+const DASHBOARD_LAYOUT_CONTROLS_STORAGE_KEY = "study-stats.dashboard.show-layout-controls";
 
 type FuturePreviewMode = "auto" | "custom";
 
@@ -89,13 +88,9 @@ export default function SettingsPage() {
     if (typeof window === "undefined") return "";
     return parseDate(window.localStorage.getItem(PROJECTION_DATE_STORAGE_KEY));
   });
-  const [examDate, setExamDate] = useState<string>(() => {
-    if (typeof window === "undefined") return "";
-    return parseDate(window.localStorage.getItem(PROJECTION_EXAM_DATE_STORAGE_KEY));
-  });
-  const [countdownStartDate, setCountdownStartDate] = useState<string>(() => {
-    if (typeof window === "undefined") return "";
-    return parseDate(window.localStorage.getItem(PROJECTION_COUNTDOWN_START_STORAGE_KEY));
+  const [showDashboardLayoutControls, setShowDashboardLayoutControls] = useState<boolean>(() => {
+    if (typeof window === "undefined") return true;
+    return parseBoolean(window.localStorage.getItem(DASHBOARD_LAYOUT_CONTROLS_STORAGE_KEY), true);
   });
 
   useEffect(() => {
@@ -141,20 +136,11 @@ export default function SettingsPage() {
   }, [projectionEndDate]);
 
   useEffect(() => {
-    if (examDate) {
-      window.localStorage.setItem(PROJECTION_EXAM_DATE_STORAGE_KEY, examDate);
-    } else {
-      window.localStorage.removeItem(PROJECTION_EXAM_DATE_STORAGE_KEY);
-    }
-  }, [examDate]);
-
-  useEffect(() => {
-    if (countdownStartDate) {
-      window.localStorage.setItem(PROJECTION_COUNTDOWN_START_STORAGE_KEY, countdownStartDate);
-    } else {
-      window.localStorage.removeItem(PROJECTION_COUNTDOWN_START_STORAGE_KEY);
-    }
-  }, [countdownStartDate]);
+    window.localStorage.setItem(
+      DASHBOARD_LAYOUT_CONTROLS_STORAGE_KEY,
+      String(showDashboardLayoutControls)
+    );
+  }, [showDashboardLayoutControls]);
 
   useEffect(() => {
     window.dispatchEvent(new CustomEvent("study-stats:settings-updated"));
@@ -171,8 +157,7 @@ export default function SettingsPage() {
     futureCustomDays,
     projectionHours,
     projectionEndDate,
-    examDate,
-    countdownStartDate,
+    showDashboardLayoutControls,
   ]);
 
   const dailyOptions = useMemo(() => [7, 14, 30, 60, 90], []);
@@ -197,6 +182,14 @@ export default function SettingsPage() {
                 type="checkbox"
                 checked={wideScreen}
                 onChange={(event) => setWideScreen(event.target.checked)}
+              />
+            </label>
+            <label className="flex items-center justify-between gap-3">
+              <span>Show card drag/reorder controls</span>
+              <input
+                type="checkbox"
+                checked={showDashboardLayoutControls}
+                onChange={(event) => setShowDashboardLayoutControls(event.target.checked)}
               />
             </label>
           </section>
@@ -303,24 +296,6 @@ export default function SettingsPage() {
                 type="date"
                 value={projectionEndDate}
                 onChange={(event) => setProjectionEndDate(event.target.value)}
-                className="field-select w-full"
-              />
-            </label>
-            <label className="block space-y-1">
-              <span>Exam date</span>
-              <input
-                type="date"
-                value={examDate}
-                onChange={(event) => setExamDate(event.target.value)}
-                className="field-select w-full"
-              />
-            </label>
-            <label className="block space-y-1">
-              <span>Countdown start date</span>
-              <input
-                type="date"
-                value={countdownStartDate}
-                onChange={(event) => setCountdownStartDate(event.target.value)}
                 className="field-select w-full"
               />
             </label>

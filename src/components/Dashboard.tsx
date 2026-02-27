@@ -13,6 +13,10 @@ import GamificationPanel from "./GamificationPanel";
 
 const DASHBOARD_LAYOUT_STORAGE_KEY = "study-stats.dashboard.layout.v1";
 const DASHBOARD_SETTINGS_STORAGE_KEY = "study-stats.dashboard.settings.v1";
+const DASHBOARD_LAYOUT_CONTROLS_STORAGE_KEY = "study-stats.dashboard.show-layout-controls";
+const PROJECTION_EXAM_DATE_STORAGE_KEY = "study-stats.projection.exam-date";
+const PROJECTION_COUNTDOWN_START_STORAGE_KEY = "study-stats.projection.countdown-start";
+const EXAM_DATE_UPDATED_EVENT = "study-stats:exam-date-updated";
 const DEFAULT_ORDER = [
   "today-progress",
   "first-exam-countdown",
@@ -27,6 +31,12 @@ const GRID_ROW_OPTIONS = [3, 4, 5, 6, 7] as const;
 
 type CardId = (typeof DEFAULT_ORDER)[number];
 type CardSizePreset = "compact" | "standard" | "large" | "full";
+type DashboardSettingsState = {
+  columns?: number;
+  rows?: number;
+  cardSizes?: Partial<Record<CardId, unknown>>;
+  hiddenCards?: unknown;
+};
 
 const DEFAULT_CARD_SIZES: Record<CardId, CardSizePreset> = {
   "today-progress": "standard",
@@ -75,18 +85,6 @@ function reorderCards(current: CardId[], sourceId: CardId, targetId: CardId): Ca
   return next;
 }
 
-function moveCardByOffset(current: CardId[], cardId: CardId, offset: -1 | 1): CardId[] {
-  const index = current.indexOf(cardId);
-  if (index === -1) return current;
-  const targetIndex = index + offset;
-  if (targetIndex < 0 || targetIndex >= current.length) return current;
-
-  const next = [...current];
-  const [card] = next.splice(index, 1);
-  next.splice(targetIndex, 0, card);
-  return next;
-}
-
 function resolveCardLayout(size: CardSizePreset, gridColumns: number): { colSpan: number; rowSpan: number } {
   const preset = CARD_SIZE_PRESETS[size];
   const colSpan = Math.max(1, Math.min(gridColumns, Math.round(gridColumns * preset.colRatio)));
@@ -96,17 +94,51 @@ function resolveCardLayout(size: CardSizePreset, gridColumns: number): { colSpan
   };
 }
 
+function toDateInputValue(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function defaultExamDate(): string {
+  const date = new Date();
+  date.setMonth(date.getMonth() + 3);
+  return toDateInputValue(date);
+}
+
+function defaultCountdownStartDate(): string {
+  const now = new Date();
+  return toDateInputValue(new Date(now.getFullYear(), now.getMonth(), now.getDate()));
+}
+
+function moveVisibleCardByOffset(
+  current: CardId[],
+  cardId: CardId,
+  offset: -1 | 1,
+  hiddenCardIds: CardId[]
+): CardId[] {
+  const visible = current.filter((id) => !hiddenCardIds.includes(id));
+  const index = visible.indexOf(cardId);
+  if (index === -1) return current;
+  const targetIndex = index + offset;
+  if (targetIndex < 0 || targetIndex >= visible.length) return current;
+  return reorderCards(current, cardId, visible[targetIndex]);
+}
+
 function loadInitialDashboardState(): {
   order: CardId[];
   gridColumns: (typeof GRID_COLUMN_OPTIONS)[number];
   gridRows: (typeof GRID_ROW_OPTIONS)[number];
   cardSizes: Record<CardId, CardSizePreset>;
+  hiddenCards: CardId[];
 } {
   const fallback = {
     order: [...DEFAULT_ORDER],
     gridColumns: 12 as (typeof GRID_COLUMN_OPTIONS)[number],
     gridRows: 4 as (typeof GRID_ROW_OPTIONS)[number],
     cardSizes: { ...DEFAULT_CARD_SIZES },
+    hiddenCards: [] as CardId[],
   };
 
   if (typeof window === "undefined") return fallback;
@@ -115,6 +147,7 @@ function loadInitialDashboardState(): {
   let gridColumns = fallback.gridColumns;
   let gridRows = fallback.gridRows;
   let cardSizes = fallback.cardSizes;
+  let hiddenCards = fallback.hiddenCards;
 
   const rawLayout = window.localStorage.getItem(DASHBOARD_LAYOUT_STORAGE_KEY);
   if (rawLayout) {
@@ -129,11 +162,7 @@ function loadInitialDashboardState(): {
   const rawSettings = window.localStorage.getItem(DASHBOARD_SETTINGS_STORAGE_KEY);
   if (rawSettings) {
     try {
-      const parsed = JSON.parse(rawSettings) as {
-        columns?: unknown;
-        rows?: unknown;
-        cardSizes?: Partial<Record<CardId, unknown>>;
-      };
+      const parsed = JSON.parse(rawSettings) as DashboardSettingsState;
 
       if (typeof parsed.columns === "number" && isValidColumns(parsed.columns)) {
         gridColumns = parsed.columns;
@@ -149,12 +178,17 @@ function loadInitialDashboardState(): {
         }
         cardSizes = merged;
       }
+      if (Array.isArray(parsed.hiddenCards)) {
+        hiddenCards = parsed.hiddenCards.filter(
+          (id): id is CardId => typeof id === "string" && DEFAULT_ORDER.includes(id as CardId)
+        );
+      }
     } catch {
       // Ignore malformed localStorage value.
     }
   }
 
-  return { order, gridColumns, gridRows, cardSizes };
+  return { order, gridColumns, gridRows, cardSizes, hiddenCards };
 }
 
 export default function Dashboard() {
@@ -172,6 +206,24 @@ export default function Dashboard() {
   const [cardSizes, setCardSizes] = useState<Record<CardId, CardSizePreset>>(
     initialDashboardState.cardSizes
   );
+  const [hiddenCards, setHiddenCards] = useState<CardId[]>(initialDashboardState.hiddenCards);
+  const [openSettingsCardId, setOpenSettingsCardId] = useState<CardId | null>(null);
+  const [showLayoutControls, setShowLayoutControls] = useState<boolean>(() => {
+    if (typeof window === "undefined") return true;
+    const value = window.localStorage.getItem(DASHBOARD_LAYOUT_CONTROLS_STORAGE_KEY);
+    return value === null ? true : value === "true";
+  });
+  const [firstExamDateSetting, setFirstExamDateSetting] = useState<string>(() => {
+    if (typeof window === "undefined") return defaultExamDate();
+    return window.localStorage.getItem(PROJECTION_EXAM_DATE_STORAGE_KEY) || defaultExamDate();
+  });
+  const [countdownStartDateSetting, setCountdownStartDateSetting] = useState<string>(() => {
+    if (typeof window === "undefined") return defaultCountdownStartDate();
+    return (
+      window.localStorage.getItem(PROJECTION_COUNTDOWN_START_STORAGE_KEY) ||
+      defaultCountdownStartDate()
+    );
+  });
   const [isDesktop, setIsDesktop] = useState(false);
 
   const cardRefs = useRef(new Map<CardId, HTMLDivElement>());
@@ -188,9 +240,10 @@ export default function Dashboard() {
         columns: gridColumns,
         rows: gridRows,
         cardSizes,
+        hiddenCards,
       })
     );
-  }, [gridColumns, gridRows, cardSizes]);
+  }, [gridColumns, gridRows, cardSizes, hiddenCards]);
 
   useEffect(() => {
     const media = window.matchMedia("(min-width: 1280px)");
@@ -198,6 +251,54 @@ export default function Dashboard() {
     onChange();
     media.addEventListener("change", onChange);
     return () => media.removeEventListener("change", onChange);
+  }, []);
+
+  useEffect(() => {
+    const syncLayoutControls = () => {
+      const value = window.localStorage.getItem(DASHBOARD_LAYOUT_CONTROLS_STORAGE_KEY);
+      setShowLayoutControls(value === null ? true : value === "true");
+    };
+    syncLayoutControls();
+    window.addEventListener("study-stats:settings-updated", syncLayoutControls);
+    window.addEventListener("storage", syncLayoutControls);
+    return () => {
+      window.removeEventListener("study-stats:settings-updated", syncLayoutControls);
+      window.removeEventListener("storage", syncLayoutControls);
+    };
+  }, []);
+
+  useEffect(() => {
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setOpenSettingsCardId(null);
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, []);
+
+  useEffect(() => {
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (!target) return;
+      if (target.closest("[data-card-settings-root='true']")) return;
+      setOpenSettingsCardId(null);
+    };
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, []);
+
+  useEffect(() => {
+    const syncExamDates = () => {
+      setFirstExamDateSetting(
+        window.localStorage.getItem(PROJECTION_EXAM_DATE_STORAGE_KEY) || defaultExamDate()
+      );
+      setCountdownStartDateSetting(
+        window.localStorage.getItem(PROJECTION_COUNTDOWN_START_STORAGE_KEY) ||
+          defaultCountdownStartDate()
+      );
+    };
+    window.addEventListener(EXAM_DATE_UPDATED_EVENT, syncExamDates);
+    return () => window.removeEventListener(EXAM_DATE_UPDATED_EVENT, syncExamDates);
   }, []);
 
   const cards = useMemo(
@@ -236,9 +337,10 @@ export default function Dashboard() {
   );
 
   const renderedOrder = useMemo(() => {
-    if (!draggingId || !dropTargetId) return order;
-    return reorderCards(order, draggingId, dropTargetId);
-  }, [order, draggingId, dropTargetId]);
+    const visibleOrder = order.filter((id) => !hiddenCards.includes(id));
+    if (!draggingId || !dropTargetId) return visibleOrder;
+    return reorderCards(visibleOrder, draggingId, dropTargetId);
+  }, [order, hiddenCards, draggingId, dropTargetId]);
 
   const gridStyle = useMemo<CSSProperties | undefined>(() => {
     if (!isDesktop) return undefined;
@@ -294,6 +396,30 @@ export default function Dashboard() {
     previousRects.current = nextRects;
   }, [renderedOrder, isDesktop, gridColumns, gridRows, cardSizes]);
 
+  const updateFirstExamSetting = (key: "exam" | "start", value: string) => {
+    if (!value) return;
+    if (key === "exam") {
+      setFirstExamDateSetting(value);
+      window.localStorage.setItem(PROJECTION_EXAM_DATE_STORAGE_KEY, value);
+    } else {
+      setCountdownStartDateSetting(value);
+      window.localStorage.setItem(PROJECTION_COUNTDOWN_START_STORAGE_KEY, value);
+    }
+    window.dispatchEvent(new CustomEvent(EXAM_DATE_UPDATED_EVENT));
+  };
+
+  const hideCard = (cardId: CardId) => {
+    setHiddenCards((previous) => {
+      if (previous.includes(cardId)) return previous;
+      return [...previous, cardId];
+    });
+    setOpenSettingsCardId((current) => (current === cardId ? null : current));
+  };
+
+  const restoreCard = (cardId: CardId) => {
+    setHiddenCards((previous) => previous.filter((id) => id !== cardId));
+  };
+
   if (status === "loading") {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -347,9 +473,29 @@ export default function Dashboard() {
             ))}
           </select>
         </label>
+        {hiddenCards.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-zinc-500">Hidden cards:</span>
+            {hiddenCards.map((cardId) => (
+              <button
+                key={`restore-${cardId}`}
+                type="button"
+                onClick={() => restoreCard(cardId)}
+                className="pill-btn px-2 py-0.5"
+              >
+                Restore {cards[cardId].title}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 gap-6" style={gridStyle}>
+        {renderedOrder.length === 0 && (
+          <div className="surface-card p-6 text-sm text-zinc-600">
+            All cards are hidden. Use the restore buttons in `Dashboard Grid` to show cards again.
+          </div>
+        )}
         {renderedOrder.map((id) => (
           <div
             key={id}
@@ -377,62 +523,116 @@ export default function Dashboard() {
               setDropTargetId(null);
             }}
           >
-            <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs soft-text">
+            <div className="relative mb-2 flex flex-wrap items-center justify-between gap-2 text-xs soft-text">
               <span className="font-medium text-zinc-700">{cards[id].title}</span>
               <div className="flex items-center gap-2">
+                {showLayoutControls && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setOrder((previous) => moveVisibleCardByOffset(previous, id, -1, hiddenCards))
+                      }
+                      disabled={renderedOrder.indexOf(id) <= 0}
+                      className="pill-btn px-2 py-0.5 disabled:opacity-40"
+                      aria-label={`Move ${cards[id].title} up`}
+                    >
+                      ↑
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setOrder((previous) => moveVisibleCardByOffset(previous, id, 1, hiddenCards))
+                      }
+                      disabled={renderedOrder.indexOf(id) >= renderedOrder.length - 1}
+                      className="pill-btn px-2 py-0.5 disabled:opacity-40"
+                      aria-label={`Move ${cards[id].title} down`}
+                    >
+                      ↓
+                    </button>
+                    <span
+                      draggable
+                      onDragStart={(event) => {
+                        setDraggingId(id);
+                        setDropTargetId(id);
+                        event.dataTransfer.effectAllowed = "move";
+                        event.dataTransfer.setData("text/plain", id);
+                      }}
+                      onDragEnd={() => {
+                        setDraggingId(null);
+                        setDropTargetId(null);
+                      }}
+                      className="pill-btn hidden sm:inline-flex px-2 py-0.5 cursor-grab active:cursor-grabbing"
+                    >
+                      Drag
+                    </span>
+                  </>
+                )}
                 <button
                   type="button"
-                  onClick={() => setOrder((previous) => moveCardByOffset(previous, id, -1))}
-                  disabled={order.indexOf(id) <= 0}
-                  className="pill-btn px-2 py-0.5 disabled:opacity-40"
-                  aria-label={`Move ${cards[id].title} up`}
+                  onClick={() => setOpenSettingsCardId((current) => (current === id ? null : id))}
+                  className="pill-btn px-2 py-0.5"
+                  aria-expanded={openSettingsCardId === id}
+                  aria-label={`Card settings for ${cards[id].title}`}
+                  data-card-settings-root="true"
                 >
-                  ↑
+                  ⚙
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setOrder((previous) => moveCardByOffset(previous, id, 1))}
-                  disabled={order.indexOf(id) >= order.length - 1}
-                  className="pill-btn px-2 py-0.5 disabled:opacity-40"
-                  aria-label={`Move ${cards[id].title} down`}
-                >
-                  ↓
-                </button>
-                <label className="hidden sm:inline-flex items-center gap-1">
-                  <span>Size</span>
-                  <select
-                    value={cardSizes[id]}
-                    onChange={(event) => {
-                      const value = event.target.value;
-                      if (!isValidCardSize(value)) return;
-                      setCardSizes((previous) => ({ ...previous, [id]: value }));
-                    }}
-                    className="field-select"
-                  >
-                    {Object.entries(CARD_SIZE_PRESETS).map(([key, preset]) => (
-                      <option key={key} value={key}>
-                        {preset.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <span
-                  draggable
-                  onDragStart={(event) => {
-                    setDraggingId(id);
-                    setDropTargetId(id);
-                    event.dataTransfer.effectAllowed = "move";
-                    event.dataTransfer.setData("text/plain", id);
-                  }}
-                  onDragEnd={() => {
-                    setDraggingId(null);
-                    setDropTargetId(null);
-                  }}
-                  className="pill-btn hidden sm:inline-flex px-2 py-0.5 cursor-grab active:cursor-grabbing"
-                >
-                  Drag
-                </span>
               </div>
+              {openSettingsCardId === id && (
+                <div
+                  className="surface-card-strong absolute right-0 top-7 z-20 w-72 p-3 space-y-3"
+                  data-card-settings-root="true"
+                >
+                  <label className="block space-y-1">
+                    <span className="text-xs text-zinc-600">Card size</span>
+                    <select
+                      value={cardSizes[id]}
+                      onChange={(event) => {
+                        const value = event.target.value;
+                        if (!isValidCardSize(value)) return;
+                        setCardSizes((previous) => ({ ...previous, [id]: value }));
+                      }}
+                      className="field-select w-full"
+                    >
+                      {Object.entries(CARD_SIZE_PRESETS).map(([key, preset]) => (
+                        <option key={key} value={key}>
+                          {preset.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {id === "first-exam-countdown" && (
+                    <div className="space-y-2">
+                      <label className="block space-y-1">
+                        <span className="text-xs text-zinc-600">First exam date</span>
+                        <input
+                          type="date"
+                          value={firstExamDateSetting}
+                          onChange={(event) => updateFirstExamSetting("exam", event.target.value)}
+                          className="field-select w-full"
+                        />
+                      </label>
+                      <label className="block space-y-1">
+                        <span className="text-xs text-zinc-600">Countdown start date</span>
+                        <input
+                          type="date"
+                          value={countdownStartDateSetting}
+                          onChange={(event) => updateFirstExamSetting("start", event.target.value)}
+                          className="field-select w-full"
+                        />
+                      </label>
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => hideCard(id)}
+                    className="pill-btn w-full text-left text-red-700"
+                  >
+                    🗑 Hide card
+                  </button>
+                </div>
+              )}
             </div>
             <div
               className={`transition-all duration-200 ${
