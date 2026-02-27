@@ -110,6 +110,18 @@ export default function AuthPage() {
     setBusy(false);
   };
 
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (busy) return;
+    if (!email.trim() || !password) return;
+    if (mode === "signup" && !displayName.trim()) return;
+    if (mode === "signin") {
+      await handleSignIn();
+      return;
+    }
+    await handleSignUp();
+  };
+
   if (!supabase) {
     return (
       <div className="min-h-[100dvh] flex items-center justify-center px-6">
@@ -165,7 +177,7 @@ export default function AuthPage() {
           </button>
         </div>
 
-        <div className="space-y-2">
+        <form className="space-y-2" onSubmit={handleSubmit}>
           <input
             type="email"
             value={email}
@@ -189,16 +201,14 @@ export default function AuthPage() {
               className="field-select w-full border rounded-lg px-3 py-2 text-sm"
             />
           )}
-        </div>
-
-        <button
-          type="button"
-          disabled={busy || !email.trim() || !password || (mode === "signup" && !displayName.trim())}
-          onClick={mode === "signin" ? handleSignIn : handleSignUp}
-          className="pill-btn pill-btn-primary w-full px-3 py-2"
-        >
-          {busy ? "Working..." : mode === "signin" ? "Sign In" : "Create Account"}
-        </button>
+          <button
+            type="submit"
+            disabled={busy || !email.trim() || !password || (mode === "signup" && !displayName.trim())}
+            className="pill-btn pill-btn-primary w-full px-3 py-2"
+          >
+            {busy ? "Working..." : mode === "signin" ? "Sign In" : "Create Account"}
+          </button>
+        </form>
 
         <p className="text-[11px] text-zinc-500">
           After signing in, you can optionally link Google Calendar separately inside the app.
