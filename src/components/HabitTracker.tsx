@@ -477,6 +477,7 @@ export default function HabitTracker() {
   const [newMilestoneTitle, setNewMilestoneTitle] = useState("");
   const [newMilestoneDate, setNewMilestoneDate] = useState("");
   const [projectionExamDate, setProjectionExamDate] = useState<string | null>(null);
+  const [cloudExamDate, setCloudExamDate] = useState<string | null>(null);
   const [showAddMilestoneModal, setShowAddMilestoneModal] = useState(false);
   const [showAddHabitModal, setShowAddHabitModal] = useState(false);
   const [editingBinaryHabitSlug, setEditingBinaryHabitSlug] = useState<string | null>(null);
@@ -1283,8 +1284,9 @@ export default function HabitTracker() {
       dates.add(milestone.date);
     }
     if (projectionExamDate) dates.add(projectionExamDate);
+    if (cloudExamDate) dates.add(cloudExamDate);
     return dates;
-  }, [milestones, projectionExamDate]);
+  }, [cloudExamDate, milestones, projectionExamDate]);
 
   const latestExamDate = useMemo(() => {
     let latest = "";
@@ -1794,6 +1796,50 @@ export default function HabitTracker() {
     window.addEventListener("study-stats:exam-date-updated", onExamDateUpdated);
     return () => window.removeEventListener("study-stats:exam-date-updated", onExamDateUpdated);
   }, []);
+
+  useEffect(() => {
+    if (!supabase) return;
+    let cancelled = false;
+
+    const loadCloudExamDate = async () => {
+      try {
+        const { data } = await supabase.auth.getSession();
+        const token = data.session?.access_token;
+        if (!token) {
+          if (!cancelled) setCloudExamDate(null);
+          return;
+        }
+
+        const response = await fetch("/api/exam-countdown", {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        if (!response.ok) return;
+
+        const payload = (await response.json()) as { examDate?: string | null };
+        if (cancelled) return;
+        setCloudExamDate(
+          payload.examDate && isValidDateInput(payload.examDate) ? payload.examDate : null
+        );
+      } catch {
+        // Keep local exam dates if cloud fetch fails.
+      }
+    };
+
+    void loadCloudExamDate();
+    const onRefresh = () => {
+      void loadCloudExamDate();
+    };
+    window.addEventListener("study-stats:refresh-all", onRefresh);
+    window.addEventListener("study-stats:exam-date-updated", onRefresh);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("study-stats:refresh-all", onRefresh);
+      window.removeEventListener("study-stats:exam-date-updated", onRefresh);
+    };
+  }, [supabase]);
 
   useEffect(() => {
     if (!data) return;
