@@ -22,7 +22,7 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: "Reckless Display", Reckless, "Times New Roman", serif;
+  font-family: var(--font-cormorant), "Times New Roman", serif;
   min-height: 100vh;
   background-image:
     radial-gradient(circle at 8% 12%, rgba(45, 212, 191, 0.22), transparent 45%),
