@@ -10,8 +10,6 @@ import HabitTracker from "./HabitTracker";
 import AlertsPanel from "./AlertsPanel";
 import AdvancedAnalytics from "./AdvancedAnalytics";
 import GamificationPanel from "./GamificationPanel";
-import WorkoutPlanner from "./WorkoutPlanner";
-import { WorkoutDataProvider } from "./WorkoutDataProvider";
 
 const DASHBOARD_LAYOUT_STORAGE_KEY = "study-stats.dashboard.layout.v1";
 const DASHBOARD_SETTINGS_STORAGE_KEY = "study-stats.dashboard.settings.v1";
@@ -19,7 +17,6 @@ const DEFAULT_ORDER = [
   "today-progress",
   "first-exam-countdown",
   "habit-tracker",
-  "workout-section",
   "daily-study-chart",
   "subject-distribution",
   "advanced-analytics",
@@ -35,7 +32,6 @@ const DEFAULT_CARD_SIZES: Record<CardId, CardSizePreset> = {
   "today-progress": "standard",
   "first-exam-countdown": "standard",
   "habit-tracker": "full",
-  "workout-section": "full",
   "daily-study-chart": "large",
   "subject-distribution": "standard",
   "advanced-analytics": "large",
@@ -223,14 +219,6 @@ export default function Dashboard() {
           title: "Daily Study Chart",
           content: <DailyStudyChart />,
         },
-        "workout-section": {
-          title: "Workout Section",
-          content: (
-            <WorkoutDataProvider>
-              <WorkoutPlanner />
-            </WorkoutDataProvider>
-          ),
-        },
         "subject-distribution": {
           title: "Subject Distribution",
           content: <SubjectDistribution />,
@@ -365,7 +353,6 @@ export default function Dashboard() {
         {renderedOrder.map((id) => (
           <div
             key={id}
-            id={id === "workout-section" ? "workout-section" : undefined}
             style={getCardStyle(id)}
             ref={(node) => {
               if (!node) {

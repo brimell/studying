@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import AuthButton from "@/components/AuthButton";
 import Dashboard from "@/components/Dashboard";
 import TopBarDataControls from "@/components/TopBarDataControls";
@@ -31,10 +32,10 @@ export default function Home() {
             Study Stats
           </h1>
           <div className="flex flex-wrap items-center gap-2 sm:gap-3 sm:justify-end">
-            <a href="#workout-section" className="pill-btn">
+            <Link href="/workouts" className="pill-btn">
               <span className="sm:hidden">Workout</span>
               <span className="hidden sm:inline">Workout Section</span>
-            </a>
+            </Link>
             <button
               type="button"
               aria-pressed={wideScreen}
