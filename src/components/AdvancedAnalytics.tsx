@@ -161,26 +161,29 @@ export default function AdvancedAnalytics() {
 
   const analytics = useMemo(() => {
     if (!state.today || !state.daily || !state.distribution) return null;
+    const today = state.today;
+    const daily = state.daily;
+    const distribution = state.distribution;
 
-    const recentHours = state.daily.entries.slice(-14).map((entry) => entry.hours);
-    const previousHours = state.daily.entries.slice(-28, -14).map((entry) => entry.hours);
+    const recentHours = daily.entries.slice(-14).map((entry) => entry.hours);
+    const previousHours = daily.entries.slice(-28, -14).map((entry) => entry.hours);
     const recentAvg = mean(recentHours);
     const previousAvg = mean(previousHours);
-    const trendSlope = linearSlope(state.daily.entries.slice(-21).map((entry) => entry.hours));
+    const trendSlope = linearSlope(daily.entries.slice(-21).map((entry) => entry.hours));
     const nextWeekPrediction = Math.max(0, recentAvg * 7 + trendSlope * 21);
 
     const efficiencyRatio =
-      state.today.totalPlanned > 0 ? (state.today.totalCompleted / state.today.totalPlanned) * 100 : 0;
-    const productiveDays = state.daily.entries.filter((entry) => entry.hours >= state.daily.averageWeek).length;
+      today.totalPlanned > 0 ? (today.totalCompleted / today.totalPlanned) * 100 : 0;
+    const productiveDays = daily.entries.filter((entry) => entry.hours >= daily.averageWeek).length;
     const productiveRatio =
-      state.daily.entries.length > 0 ? (productiveDays / state.daily.entries.length) * 100 : 0;
+      daily.entries.length > 0 ? (productiveDays / daily.entries.length) * 100 : 0;
 
-    const subjectPairs = [...state.distribution.subjectTimes]
+    const subjectPairs = [...distribution.subjectTimes]
       .filter((entry) => entry.hours > 0)
       .sort((left, right) => right.hours - left.hours);
     const topSubject = subjectPairs[0] || null;
-    const topShare = topSubject && state.distribution.totalHours > 0
-      ? (topSubject.hours / state.distribution.totalHours) * 100
+    const topShare = topSubject && distribution.totalHours > 0
+      ? (topSubject.hours / distribution.totalHours) * 100
       : 0;
     const balanceScore = Math.max(0, 100 - topShare);
 
@@ -291,4 +294,3 @@ export default function AdvancedAnalytics() {
     </div>
   );
 }
-
