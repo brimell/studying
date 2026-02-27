@@ -7,9 +7,9 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import AuthButton from "@/components/AuthButton";
 import Dashboard from "@/components/Dashboard";
+import DailyTrackerPopup from "@/components/DailyTrackerPopup";
 import GamificationPanel from "@/components/GamificationPanel";
 import GlobalSettingsPanel from "@/components/GlobalSettingsPanel";
-import MoodTrackerPopup from "@/components/MoodTrackerPopup";
 import TopBarDataControls from "@/components/TopBarDataControls";
 import { lockBodyScroll, unlockBodyScroll } from "@/lib/scroll-lock";
 
@@ -37,7 +37,7 @@ function HomeContent() {
   const [useLeftSidebar, setUseLeftSidebar] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [gamificationOpen, setGamificationOpen] = useState(false);
-  const [moodTrackerOpen, setMoodTrackerOpen] = useState(false);
+  const [dailyTrackerOpen, setDailyTrackerOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -68,10 +68,10 @@ function HomeContent() {
   const settingsOpen = searchParams.get("settings") === "1";
 
   useEffect(() => {
-    if (!settingsOpen && !gamificationOpen && !moodTrackerOpen) return;
+    if (!settingsOpen && !gamificationOpen && !dailyTrackerOpen) return;
     lockBodyScroll();
     return () => unlockBodyScroll();
-  }, [gamificationOpen, moodTrackerOpen, settingsOpen]);
+  }, [dailyTrackerOpen, gamificationOpen, settingsOpen]);
 
   useEffect(() => {
     if (!settingsOpen) return;
@@ -100,14 +100,14 @@ function HomeContent() {
   }, [gamificationOpen]);
 
   useEffect(() => {
-    if (!moodTrackerOpen) return;
+    if (!dailyTrackerOpen) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
-      setMoodTrackerOpen(false);
+      setDailyTrackerOpen(false);
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [moodTrackerOpen]);
+  }, [dailyTrackerOpen]);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -188,11 +188,11 @@ function HomeContent() {
                   />
                   <button
                     type="button"
-                    onClick={() => setMoodTrackerOpen(true)}
+                    onClick={() => setDailyTrackerOpen(true)}
                     className="pill-btn px-2 py-1 text-sm"
-                    aria-label="Open mood tracker"
+                    aria-label="Open daily tracker"
                   >
-                    🙂
+                    📝
                   </button>
                   <button
                     type="button"
@@ -210,11 +210,11 @@ function HomeContent() {
                   <TopBarDataControls mode="streakOnly" />
                   <button
                     type="button"
-                    onClick={() => setMoodTrackerOpen(true)}
+                    onClick={() => setDailyTrackerOpen(true)}
                     className="pill-btn px-2.5 py-2"
-                    aria-label="Open mood tracker"
+                    aria-label="Open daily tracker"
                   >
-                    🙂
+                    📝
                   </button>
                   <button
                     type="button"
@@ -339,20 +339,20 @@ function HomeContent() {
           document.body
         )}
 
-      {moodTrackerOpen &&
+      {dailyTrackerOpen &&
         typeof document !== "undefined" &&
         createPortal(
           <div
             className="fixed inset-0 z-[180] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
             onMouseDown={(event) => {
-              if (event.target === event.currentTarget) setMoodTrackerOpen(false);
+              if (event.target === event.currentTarget) setDailyTrackerOpen(false);
             }}
           >
             <div
               className="surface-card-strong w-full max-w-3xl max-h-[90vh] overflow-y-auto p-4 sm:p-5"
               onMouseDown={(event) => event.stopPropagation()}
             >
-              <MoodTrackerPopup onClose={() => setMoodTrackerOpen(false)} />
+              <DailyTrackerPopup onClose={() => setDailyTrackerOpen(false)} />
             </div>
           </div>,
           document.body

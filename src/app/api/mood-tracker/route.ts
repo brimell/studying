@@ -12,39 +12,18 @@ import {
 } from "@/lib/api-runtime";
 import { fetchTrackerCalendars, getCalendarClient } from "@/lib/calendar";
 import {
-  MOOD_RATING_MAX,
-  MOOD_RATING_MIN,
-  MOOD_VALUES,
-  moodToRating,
-  type MoodValue,
-} from "@/lib/mood-tracker";
+  defaultDailyTrackerFormData,
+  parseDailyTrackerFormData,
+  serializeDailyTrackerForDescription,
+  type DailyTrackerFormData,
+} from "@/lib/daily-tracker";
 
-const moodPostSchema = z.object({
-  mood: z.enum(MOOD_VALUES),
-  rating: z.number().int().min(MOOD_RATING_MIN).max(MOOD_RATING_MAX).optional(),
+const trackerPostSchema = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  form: z.unknown().optional(),
+  description: z.string().trim().optional(),
   calendarId: z.string().trim().min(1).optional(),
-  loggedAt: z
-    .string()
-    .datetime({ offset: true })
-    .optional(),
 });
-
-function moodLabel(mood: MoodValue): string {
-  switch (mood) {
-    case "angry":
-      return "Angry";
-    case "sad":
-      return "Sad";
-    case "ok":
-      return "OK";
-    case "good":
-      return "Good";
-    case "happy":
-      return "Happy";
-    default:
-      return "Mood";
-  }
-}
 
 function normalizeCalendarError(error: unknown): ApiRouteError {
   if (error instanceof ApiRouteError) return error;
@@ -72,10 +51,40 @@ function normalizeCalendarError(error: unknown): ApiRouteError {
 
   return new ApiRouteError(
     500,
-    "MOOD_TRACKER_POST_FAILED",
+    "DAILY_TRACKER_POST_FAILED",
     "internal",
-    error instanceof Error ? error.message : "Failed to log mood."
+    error instanceof Error ? error.message : "Failed to log daily tracker."
   );
+}
+
+function buildDailyTrackerSummary(date: string, form: DailyTrackerFormData): string {
+  return `Daily Tracker ${date} | Sleep ${form.morningSleepRating}/10 | Mood ${form.moodRating}/10`;
+}
+
+function addDays(dateKey: string, amount: number): string {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  date.setUTCDate(date.getUTCDate() + amount);
+  return date.toISOString().slice(0, 10);
+}
+
+async function findExistingDailyTrackerEvent(
+  calendar: ReturnType<typeof getCalendarClient>,
+  calendarId: string,
+  date: string
+): Promise<string | null> {
+  const response = await calendar.events.list({
+    calendarId,
+    timeMin: `${date}T00:00:00.000Z`,
+    timeMax: `${addDays(date, 1)}T00:00:00.000Z`,
+    singleEvents: true,
+    showDeleted: false,
+    maxResults: 20,
+    privateExtendedProperty: [`studyStatsType=daily-tracker`, `trackerDate=${date}`],
+  });
+
+  const match = (response.data.items || []).find((event) => Boolean(event.id));
+  return match?.id || null;
 }
 
 export async function POST(req: NextRequest) {
@@ -89,12 +98,15 @@ export async function POST(req: NextRequest) {
     }
 
     assertRateLimit({
-      key: `mood-tracker:post:${clientAddress(req)}`,
+      key: `daily-tracker:post:${clientAddress(req)}`,
       limit: 20,
       windowMs: 60_000,
     });
 
-    const body = await parseJsonBody(req, moodPostSchema);
+    const body = await parseJsonBody(req, trackerPostSchema);
+    const form = parseDailyTrackerFormData(body.form || defaultDailyTrackerFormData(body.date), body.date);
+    const description = body.description?.trim() || serializeDailyTrackerForDescription(form);
+
     const calendar = getCalendarClient(accessToken);
     const writableCalendars = await fetchTrackerCalendars(calendar);
 
@@ -120,44 +132,50 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const loggedAt = body.loggedAt ? new Date(body.loggedAt) : new Date();
-    if (Number.isNaN(loggedAt.getTime())) {
-      throw new ApiRouteError(400, "INVALID_LOGGED_AT", "validation", "Invalid loggedAt date.");
-    }
-
-    const endAt = new Date(loggedAt.getTime() + 15 * 60 * 1000);
-    const rating = body.rating ?? moodToRating(body.mood);
-
-    const inserted = await calendar.events.insert({
-      calendarId: selectedCalendar.id,
-      requestBody: {
-        summary: `Mood: ${moodLabel(body.mood)} (${rating}/10)`,
-        description: `Logged from Dashboard mood tracker at ${loggedAt.toISOString()}`,
-        start: { dateTime: loggedAt.toISOString() },
-        end: { dateTime: endAt.toISOString() },
-        visibility: "private",
-        transparency: "transparent",
-        extendedProperties: {
-          private: {
-            studyStatsType: "mood-log",
-            mood: body.mood,
-            rating: String(rating),
-          },
+    const requestBody = {
+      summary: buildDailyTrackerSummary(body.date, form),
+      description,
+      start: { date: body.date },
+      end: { date: addDays(body.date, 1) },
+      visibility: "private" as const,
+      transparency: "transparent" as const,
+      extendedProperties: {
+        private: {
+          studyStatsType: "daily-tracker",
+          trackerDate: body.date,
         },
       },
-    });
+    };
+
+    const existingEventId = await findExistingDailyTrackerEvent(calendar, selectedCalendar.id, body.date);
+    let eventId: string | null = null;
+
+    if (existingEventId) {
+      const patched = await calendar.events.patch({
+        calendarId: selectedCalendar.id,
+        eventId: existingEventId,
+        requestBody,
+      });
+      eventId = patched.data.id || existingEventId;
+    } else {
+      const inserted = await calendar.events.insert({
+        calendarId: selectedCalendar.id,
+        requestBody,
+      });
+      eventId = inserted.data.id || null;
+    }
 
     return apiJson(
       {
         ok: true,
         calendarId: selectedCalendar.id,
         calendarSummary: selectedCalendar.summary,
-        eventId: inserted.data.id || null,
-        loggedAt: loggedAt.toISOString(),
+        eventId,
+        date: body.date,
       },
       context
     );
   } catch (error: unknown) {
-    return handleApiError(normalizeCalendarError(error), context, "Failed to log mood.");
+    return handleApiError(normalizeCalendarError(error), context, "Failed to log daily tracker.");
   }
 }
