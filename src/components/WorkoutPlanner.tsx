@@ -481,12 +481,13 @@ export default function WorkoutPlanner() {
             if (!entry || typeof entry !== "object" || Array.isArray(entry)) return null;
             const value = entry as { name?: unknown; enabled?: unknown };
             if (typeof value.name !== "string") return null;
-            if (value.enabled !== true) return null;
+            // Backward compatibility: missing `enabled` means enabled.
+            if (typeof value.enabled === "boolean" && value.enabled === false) return null;
             const normalized = value.name.trim();
             return normalized || null;
           })
           .filter((name): name is string => Boolean(name));
-        return names.length > 0 ? [...new Set(names)] : [];
+        return names.length > 0 ? [...new Set(names)] : ["Gym"];
       } catch {
         return ["Gym"];
       }
@@ -499,8 +500,15 @@ export default function WorkoutPlanner() {
       return { synced: 0, failed: linkedHabitNames };
     }
 
+    const fallbackHabitName = (() => {
+      const fallbackByKeyword = linkedHabitNames.find((name) =>
+        /(gym|workout|training)/i.test(name)
+      );
+      return fallbackByKeyword || linkedHabitNames[0] || "Gym";
+    })();
+
     const results = await Promise.allSettled(
-      linkedHabitNames.map(async (habitName) => {
+      [...new Set([fallbackHabitName, ...linkedHabitNames])].map(async (habitName) => {
         const response = await fetch("/api/habit-tracker", {
           method: "PATCH",
           headers: {
