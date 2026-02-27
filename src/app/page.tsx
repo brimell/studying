@@ -373,7 +373,7 @@ function HomeContent() {
             }}
           >
             <div
-              className="surface-card-strong w-full max-w-3xl max-h-[90vh] overflow-hidden p-4 sm:p-5"
+              className="surface-card-strong w-full max-w-3xl h-[90vh] max-h-[90vh] overflow-hidden p-4 sm:p-5"
               onMouseDown={(event) => event.stopPropagation()}
             >
               <DailyTrackerPopup onClose={closeDailyTracker} />

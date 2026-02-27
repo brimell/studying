@@ -773,6 +773,7 @@ export default function DailyTrackerPopup({ onClose }: DailyTrackerPopupProps) {
         </section>
       </div>
 
+      <div className="mt-auto border-t border-zinc-200 bg-white/95 pt-3">
       <div className="flex items-center justify-between gap-3">
         <p className="soft-text text-sm">One calendar event per date is updated with all logs for that date.</p>
         <div className="flex items-center gap-2">
@@ -793,6 +794,7 @@ export default function DailyTrackerPopup({ onClose }: DailyTrackerPopupProps) {
             {busy ? "Saving..." : "Save log"}
           </button>
         </div>
+      </div>
       </div>
 
       {message ? <p className="text-sm text-emerald-700">{message}</p> : null}
