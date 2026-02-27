@@ -312,7 +312,7 @@ function HomeContent() {
                     className="pill-btn w-full text-left"
                     onClick={signOutAccount}
                   >
-                    Sign out dashboard account
+                    Sign out
                   </button>
                 </div>
               </div>
