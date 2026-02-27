@@ -145,6 +145,41 @@ body::before {
 .stat-mono {
   font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
   letter-spacing: -0.01em;
+  font-size: 1.18em;
+  font-weight: 700;
+}
+
+/* Make key/important text significantly larger across the UI. */
+h1 {
+  font-size: clamp(2rem, 3.4vw, 2.8rem);
+  line-height: 1.12;
+  letter-spacing: -0.02em;
+}
+
+h2 {
+  font-size: clamp(1.5rem, 2.8vw, 2.1rem);
+  line-height: 1.15;
+  letter-spacing: -0.015em;
+}
+
+h3 {
+  font-size: clamp(1.28rem, 2.2vw, 1.72rem);
+  line-height: 1.18;
+}
+
+.text-2xl {
+  font-size: clamp(1.8rem, 3vw, 2.4rem);
+  line-height: 1.15;
+}
+
+.text-xl {
+  font-size: clamp(1.45rem, 2.4vw, 2rem);
+  line-height: 1.18;
+}
+
+.text-lg {
+  font-size: clamp(1.28rem, 2vw, 1.7rem);
+  line-height: 1.22;
 }
 
 /* Global accent tuning for a softer palette on white surfaces. */
