@@ -473,67 +473,64 @@ export default function Dashboard() {
               setDropTargetId(null);
             }}
           >
-            <div className="relative mb-2 flex flex-wrap items-center justify-between gap-2 text-xs soft-text">
-              <span className="font-medium text-zinc-700">{cards[id].title}</span>
-              <div className="flex items-center gap-2">
-                {showLayoutControls && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setOrder((previous) => moveVisibleCardByOffset(previous, id, -1, hiddenCards))
-                      }
-                      disabled={renderedOrder.indexOf(id) <= 0}
-                      className="pill-btn px-2 py-0.5 disabled:opacity-40"
-                      aria-label={`Move ${cards[id].title} up`}
-                    >
-                      ↑
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setOrder((previous) => moveVisibleCardByOffset(previous, id, 1, hiddenCards))
-                      }
-                      disabled={renderedOrder.indexOf(id) >= renderedOrder.length - 1}
-                      className="pill-btn px-2 py-0.5 disabled:opacity-40"
-                      aria-label={`Move ${cards[id].title} down`}
-                    >
-                      ↓
-                    </button>
-                    <span
-                      draggable
-                      onDragStart={(event) => {
-                        setDraggingId(id);
-                        setDropTargetId(id);
-                        event.dataTransfer.effectAllowed = "move";
-                        event.dataTransfer.setData("text/plain", id);
-                      }}
-                      onDragEnd={() => {
-                        setDraggingId(null);
-                        setDropTargetId(null);
-                      }}
-                      className="pill-btn hidden sm:inline-flex px-2 py-0.5 cursor-grab active:cursor-grabbing"
-                    >
-                      Drag
-                    </span>
-                  </>
-                )}
-                <button
-                  type="button"
-                  onClick={() => setOpenSettingsCardId((current) => (current === id ? null : id))}
-                  className="pill-btn px-2 py-0.5"
-                  aria-expanded={openSettingsCardId === id}
-                  aria-label={`Card settings for ${cards[id].title}`}
-                  data-card-settings-root="true"
-                >
-                  ⚙
-                </button>
-              </div>
-              {openSettingsCardId === id && (
-                <div
-                  className="surface-card-strong absolute right-0 top-7 z-20 w-72 p-3 space-y-3"
-                  data-card-settings-root="true"
-                >
+            {showLayoutControls && (
+              <div className="relative mb-2 flex flex-wrap items-center justify-between gap-2 text-xs soft-text">
+                <span className="font-medium text-zinc-700">{cards[id].title}</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setOrder((previous) => moveVisibleCardByOffset(previous, id, -1, hiddenCards))
+                    }
+                    disabled={renderedOrder.indexOf(id) <= 0}
+                    className="pill-btn px-2 py-0.5 disabled:opacity-40"
+                    aria-label={`Move ${cards[id].title} up`}
+                  >
+                    ↑
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setOrder((previous) => moveVisibleCardByOffset(previous, id, 1, hiddenCards))
+                    }
+                    disabled={renderedOrder.indexOf(id) >= renderedOrder.length - 1}
+                    className="pill-btn px-2 py-0.5 disabled:opacity-40"
+                    aria-label={`Move ${cards[id].title} down`}
+                  >
+                    ↓
+                  </button>
+                  <span
+                    draggable
+                    onDragStart={(event) => {
+                      setDraggingId(id);
+                      setDropTargetId(id);
+                      event.dataTransfer.effectAllowed = "move";
+                      event.dataTransfer.setData("text/plain", id);
+                    }}
+                    onDragEnd={() => {
+                      setDraggingId(null);
+                      setDropTargetId(null);
+                    }}
+                    className="pill-btn hidden sm:inline-flex px-2 py-0.5 cursor-grab active:cursor-grabbing"
+                  >
+                    Drag
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setOpenSettingsCardId((current) => (current === id ? null : id))}
+                    className="pill-btn px-2 py-0.5"
+                    aria-expanded={openSettingsCardId === id}
+                    aria-label={`Card settings for ${cards[id].title}`}
+                    data-card-settings-root="true"
+                  >
+                    ⚙
+                  </button>
+                </div>
+                {openSettingsCardId === id && (
+                  <div
+                    className="surface-card-strong absolute right-0 top-7 z-20 w-72 p-3 space-y-3"
+                    data-card-settings-root="true"
+                  >
                   <label className="block space-y-1">
                     <span className="text-xs text-zinc-600">Card size</span>
                     <select
@@ -581,9 +578,10 @@ export default function Dashboard() {
                   >
                     🗑 Hide card
                   </button>
-                </div>
-              )}
-            </div>
+                  </div>
+                )}
+              </div>
+            )}
             <div
               className={`transition-all duration-200 ${
                 draggingId === id ? "opacity-65 scale-[0.99]" : "opacity-100 scale-100"
