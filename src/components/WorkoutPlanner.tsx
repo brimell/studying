@@ -209,7 +209,13 @@ export default function WorkoutPlanner() {
   const [highlightedMusclesByWorkout, setHighlightedMusclesByWorkout] = useState<
     Record<string, MuscleGroup[]>
   >({});
+  const [hoveredExerciseMusclesByWorkout, setHoveredExerciseMusclesByWorkout] = useState<
+    Record<string, MuscleGroup[]>
+  >({});
   const [previewHighlightedMuscles, setPreviewHighlightedMuscles] = useState<MuscleGroup[]>([]);
+  const [previewHoveredExerciseMuscles, setPreviewHoveredExerciseMuscles] = useState<MuscleGroup[]>(
+    []
+  );
   const [weeklyPlanName, setWeeklyPlanName] = useState("");
   const [weeklyPlanDays, setWeeklyPlanDays] = useState<Record<WorkoutWeekDay, string[]>>(
     emptyWeeklyPlanDays()
@@ -228,6 +234,24 @@ export default function WorkoutPlanner() {
         ...previous,
         [workoutId]: muscles,
       };
+    });
+  };
+
+  const setWorkoutHoveredMuscles = (workoutId: string, muscles: MuscleGroup[]) => {
+    setHoveredExerciseMusclesByWorkout((previous) => {
+      const current = previous[workoutId] || [];
+      if (sameMuscleList(current, muscles)) return previous;
+      return {
+        ...previous,
+        [workoutId]: muscles,
+      };
+    });
+  };
+
+  const setPreviewHoveredMuscles = (muscles: MuscleGroup[]) => {
+    setPreviewHoveredExerciseMuscles((previous) => {
+      if (sameMuscleList(previous, muscles)) return previous;
+      return muscles;
     });
   };
 
@@ -972,7 +996,11 @@ export default function WorkoutPlanner() {
                       />
                       <button
                         type="button"
-                        onClick={() => setPreviewWorkoutId(workout.id)}
+                        onClick={() => {
+                          setPreviewHoveredMuscles([]);
+                          setPreviewHighlightedMuscles([]);
+                          setPreviewWorkoutId(workout.id);
+                        }}
                         className="px-2 py-1 rounded-md text-xs bg-zinc-200 hover:bg-zinc-300"
                       >
                         Preview
@@ -1062,8 +1090,14 @@ export default function WorkoutPlanner() {
             {payload.workouts.length === 0 && (
               <p className="text-sm text-zinc-500">No workouts saved yet.</p>
             )}
-            {payload.workouts.map((workout) => (
-              <div key={workout.id} className="rounded-lg border border-zinc-200 p-2">
+            {payload.workouts.map((workout) => {
+              const activeHighlightedMuscles =
+                (hoveredExerciseMusclesByWorkout[workout.id] || []).length > 0
+                  ? hoveredExerciseMusclesByWorkout[workout.id] || []
+                  : highlightedMusclesByWorkout[workout.id] || [];
+
+              return (
+                <div key={workout.id} className="rounded-lg border border-zinc-200 p-2">
                 <div className="flex flex-wrap items-center justify-between gap-1.5">
                   <div className="min-w-0">
                     <p className="text-xs font-semibold truncate">{workout.name}</p>
@@ -1086,7 +1120,11 @@ export default function WorkoutPlanner() {
                     />
                     <button
                       type="button"
-                      onClick={() => setPreviewWorkoutId(workout.id)}
+                      onClick={() => {
+                        setPreviewHoveredMuscles([]);
+                        setPreviewHighlightedMuscles([]);
+                        setPreviewWorkoutId(workout.id);
+                      }}
                       className="px-1.5 py-0.5 rounded-md text-[11px] bg-zinc-200 hover:bg-zinc-300"
                     >
                       Preview
@@ -1116,6 +1154,7 @@ export default function WorkoutPlanner() {
                       title="Workout Muscle Targets"
                       compact
                       showOrganPanel={false}
+                      highlightedMuscles={activeHighlightedMuscles}
                       onHighlightedMusclesChange={(muscles) =>
                         setWorkoutHighlightedMuscles(workout.id, muscles)
                       }
@@ -1126,9 +1165,14 @@ export default function WorkoutPlanner() {
                       {workout.exercises.map((exercise) => (
                         <div
                           key={exercise.id}
+                          onMouseEnter={() => setWorkoutHoveredMuscles(workout.id, exercise.muscles)}
+                          onMouseLeave={() => setWorkoutHoveredMuscles(workout.id, [])}
+                          onFocus={() => setWorkoutHoveredMuscles(workout.id, exercise.muscles)}
+                          onBlur={() => setWorkoutHoveredMuscles(workout.id, [])}
+                          tabIndex={0}
                           className={`rounded-md border px-2 py-1 transition-colors ${
                             exercise.muscles.some((muscle) =>
-                              (highlightedMusclesByWorkout[workout.id] || []).includes(muscle)
+                              activeHighlightedMuscles.includes(muscle)
                             )
                               ? "border-sky-300 bg-sky-50/70"
                               : "border-zinc-200 bg-zinc-50/70"
@@ -1168,8 +1212,9 @@ export default function WorkoutPlanner() {
                     </div>
                   </div>
                 </div>
-              </div>
-            ))}
+                </div>
+              );
+            })}
           </div>
         </section>
 
@@ -1605,18 +1650,33 @@ export default function WorkoutPlanner() {
           <div
             className="fixed inset-0 z-[95] bg-black/45 backdrop-blur-sm flex items-center justify-center p-4"
             onMouseDown={(event) => {
-              if (event.target === event.currentTarget) setPreviewWorkoutId(null);
+              if (event.target === event.currentTarget) {
+                setPreviewHoveredMuscles([]);
+                setPreviewHighlightedMuscles([]);
+                setPreviewWorkoutId(null);
+              }
             }}
           >
             <div
               className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white p-5 shadow-xl border border-zinc-200"
               onMouseDown={(event) => event.stopPropagation()}
             >
+              {(() => {
+                const previewActiveHighlightedMuscles =
+                  previewHoveredExerciseMuscles.length > 0
+                    ? previewHoveredExerciseMuscles
+                    : previewHighlightedMuscles;
+                return (
+                  <>
               <div className="flex items-center justify-between gap-3 mb-3">
                 <h2 className="text-lg font-semibold">{previewWorkout.name}</h2>
                 <button
                   type="button"
-                  onClick={() => setPreviewWorkoutId(null)}
+                  onClick={() => {
+                    setPreviewHoveredMuscles([]);
+                    setPreviewHighlightedMuscles([]);
+                    setPreviewWorkoutId(null);
+                  }}
                   className="px-2 py-1 rounded-md text-xs bg-zinc-200 hover:bg-zinc-300"
                 >
                   Close
@@ -1629,6 +1689,7 @@ export default function WorkoutPlanner() {
                 title="Workout Muscle Targets"
                 compact
                 showOrganPanel={false}
+                highlightedMuscles={previewActiveHighlightedMuscles}
                 onHighlightedMusclesChange={setPreviewHighlightedMuscles}
               />
 
@@ -1636,8 +1697,15 @@ export default function WorkoutPlanner() {
                 {previewWorkout.exercises.map((exercise) => (
                   <div
                     key={`preview-exercise-${exercise.id}`}
+                    onMouseEnter={() => setPreviewHoveredMuscles(exercise.muscles)}
+                    onMouseLeave={() => setPreviewHoveredMuscles([])}
+                    onFocus={() => setPreviewHoveredMuscles(exercise.muscles)}
+                    onBlur={() => setPreviewHoveredMuscles([])}
+                    tabIndex={0}
                     className={`rounded-lg border p-2 text-xs transition-colors ${
-                      exercise.muscles.some((muscle) => previewHighlightedMuscles.includes(muscle))
+                      exercise.muscles.some((muscle) =>
+                        previewActiveHighlightedMuscles.includes(muscle)
+                      )
                         ? "border-sky-300 bg-sky-50/70"
                         : "border-zinc-200 bg-zinc-50"
                     }`}
@@ -1672,6 +1740,9 @@ export default function WorkoutPlanner() {
                   </div>
                 ))}
               </div>
+                  </>
+                );
+              })()}
             </div>
           </div>,
           document.body

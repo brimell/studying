@@ -592,13 +592,13 @@ function OverlayPanel({
   baseSrc,
   alt,
   overlays,
-  hoveredEntryKey,
+  hoveredEntryKeys,
   hasHover,
 }: {
   baseSrc: string;
   alt: string;
   overlays: OverlayRenderEntry[];
-  hoveredEntryKey: string | null;
+  hoveredEntryKeys: Set<string>;
   hasHover: boolean;
 }) {
   const panelRef = useRef<HTMLDivElement | null>(null);
@@ -646,7 +646,8 @@ function OverlayPanel({
       {isVisible &&
         overlays.map((overlay) => {
           const highlighted =
-            hoveredEntryKey !== null && overlay.hoverKeys.includes(hoveredEntryKey);
+            hoveredEntryKeys.size > 0 &&
+            overlay.hoverKeys.some((hoverKey) => hoveredEntryKeys.has(hoverKey));
           const dimmed = hasHover && !highlighted;
           return (
             <RedOnlyOverlay
@@ -672,6 +673,7 @@ interface MuscleModelProps {
   showOrganPanel?: boolean;
   organOnly?: boolean;
   onHighlightedMusclesChange?: (muscles: MuscleGroup[]) => void;
+  highlightedMuscles?: MuscleGroup[];
 }
 
 interface DisplayMuscleEntry {
@@ -689,6 +691,7 @@ export default function MuscleModel({
   showOrganPanel = true,
   organOnly = false,
   onHighlightedMusclesChange,
+  highlightedMuscles = [],
 }: MuscleModelProps) {
   const [simplifyLabels, setSimplifyLabels] = useState(false);
   const [hoveredEntryKey, setHoveredEntryKey] = useState<string | null>(null);
@@ -799,7 +802,23 @@ export default function MuscleModel({
     }
     return normalizeRegionScores(raw);
   }, [commonGroupGrade]);
-  const hasHover = hoveredEntryKey !== null;
+  const externalHoveredKeys = useMemo(() => {
+    const keys = new Set<string>();
+    for (const muscle of highlightedMuscles) {
+      keys.add(muscle);
+      keys.add(String(getCommonGroupKey(muscle)));
+    }
+    return keys;
+  }, [highlightedMuscles]);
+  const activeHoveredKeys = useMemo(() => {
+    const keys = new Set<string>();
+    if (hoveredEntryKey) keys.add(hoveredEntryKey);
+    for (const key of externalHoveredKeys) {
+      keys.add(key);
+    }
+    return keys;
+  }, [externalHoveredKeys, hoveredEntryKey]);
+  const hasHover = activeHoveredKeys.size > 0;
   const overlayPanels = useMemo(
     () =>
       (
@@ -964,14 +983,14 @@ export default function MuscleModel({
       <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-3">
         <p className="text-sm font-medium mb-2">{title}</p>
         <div className="w-full max-w-[420px] mx-auto rounded-lg border border-zinc-200 bg-white p-2">
-          <OverlayPanel
-            key={organPanel.key}
-            baseSrc={organPanel.baseSrc}
-            alt="Organ system support model"
-            overlays={organPanel.overlays}
-            hoveredEntryKey={null}
-            hasHover={false}
-          />
+              <OverlayPanel
+                key={organPanel.key}
+                baseSrc={organPanel.baseSrc}
+                alt="Organ system support model"
+                overlays={organPanel.overlays}
+                hoveredEntryKeys={new Set<string>()}
+                hasHover={false}
+              />
         </div>
       </div>
     );
@@ -1005,7 +1024,7 @@ export default function MuscleModel({
                     baseSrc={panel.baseSrc}
                     alt={`${panel.view === "anterior" ? "Anterior" : "Posterior"} ${panel.dissection.toLowerCase()} muscle model`}
                     overlays={panel.overlays}
-                    hoveredEntryKey={hoveredEntryKey}
+                    hoveredEntryKeys={activeHoveredKeys}
                     hasHover={hasHover}
                   />
                 ))}
@@ -1024,7 +1043,7 @@ export default function MuscleModel({
                     baseSrc={panel.baseSrc}
                     alt={`${panel.view === "anterior" ? "Anterior" : "Posterior"} skeletal model`}
                     overlays={panel.overlays}
-                    hoveredEntryKey={hoveredEntryKey}
+                    hoveredEntryKeys={activeHoveredKeys}
                     hasHover={hasHover}
                   />
                 ))}
@@ -1045,7 +1064,7 @@ export default function MuscleModel({
                   baseSrc={organPanel.baseSrc}
                   alt="Organ system support model"
                   overlays={organPanel.overlays}
-                  hoveredEntryKey={null}
+                  hoveredEntryKeys={new Set<string>()}
                   hasHover={false}
                 />
                 <div className="grid grid-cols-2 gap-x-3 gap-y-1 mt-2">
@@ -1067,7 +1086,7 @@ export default function MuscleModel({
             <div
               key={entry.key}
               className={`rounded-md border bg-white px-2 py-1.5 transition-colors ${
-                hoveredEntryKey === entry.key
+                activeHoveredKeys.has(entry.key)
                   ? "border-red-400/70 bg-red-50/60"
                   : "border-zinc-200"
               }`}
