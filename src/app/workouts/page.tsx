@@ -45,22 +45,22 @@ export default function WorkoutsPage() {
     : "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8";
 
   return (
-    <div className={`app-shell ${useLeftSidebar ? "pl-32" : ""}`}>
+    <div className={`app-shell ${useLeftSidebar ? "pl-[4.5rem]" : ""}`}>
       <header
         className={
           useLeftSidebar
-            ? "top-nav fixed left-0 top-0 z-50 h-[100dvh] w-32 border-r border-zinc-200"
+            ? "top-nav fixed left-0 top-0 z-50 h-[100dvh] w-[4.5rem] border-r border-zinc-200"
             : "top-nav sticky top-0 z-50"
         }
       >
         <div
           className={
             useLeftSidebar
-              ? "h-full px-2 py-3 flex flex-col gap-2"
+              ? "h-full px-1.5 py-3 flex flex-col items-center gap-2"
               : `${containerClass} py-2 flex flex-col gap-2 sm:h-16 sm:flex-row sm:items-center sm:justify-between`
           }
         >
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className={`flex items-center gap-2 sm:gap-3 ${useLeftSidebar ? "flex-col" : ""}`}>
             <Link
               href="/"
               className={`pill-btn ${useLeftSidebar ? "[writing-mode:vertical-rl] rotate-180" : ""}`}
@@ -69,7 +69,7 @@ export default function WorkoutsPage() {
             </Link>
             <h1 className={`text-xl font-bold tracking-tight ${useLeftSidebar ? "[writing-mode:vertical-rl] rotate-180" : ""}`}>Gym</h1>
           </div>
-          <div className={`flex items-center gap-2 sm:gap-3 ${useLeftSidebar ? "flex-col items-stretch mt-1" : "w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0"}`}>
+          <div className={`flex items-center gap-2 sm:gap-3 ${useLeftSidebar ? "flex-col items-center mt-1" : "w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0"}`}>
             <Link href="/?settings=1" className="pill-btn">
               Settings
             </Link>

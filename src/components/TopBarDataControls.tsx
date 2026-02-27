@@ -130,8 +130,9 @@ export default function TopBarDataControls({
 
   if (showStreakIconOnly) {
     return (
-      <span className="pill-btn px-2 py-1 text-sm">
-        🔥 <span className="stat-mono">{mounted && gamificationReady ? allHabitsStreak : "--"}</span>
+      <span className="pill-btn px-2 py-1 text-sm inline-flex flex-col items-center leading-none gap-0.5">
+        <span className="stat-mono">{mounted && gamificationReady ? allHabitsStreak : "--"}</span>
+        <span>🔥</span>
       </span>
     );
   }

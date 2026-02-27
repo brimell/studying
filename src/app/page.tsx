@@ -117,19 +117,19 @@ function HomeContent() {
   }
 
   return (
-    <div className={`app-shell ${useLeftSidebar ? "pl-32" : ""}`}>
+    <div className={`app-shell ${useLeftSidebar ? "pl-[4.5rem]" : ""}`}>
       {/* Header */}
       <header
         className={
           useLeftSidebar
-            ? "top-nav fixed left-0 top-0 z-50 h-[100dvh] w-32 border-r border-zinc-200"
+            ? "top-nav fixed left-0 top-0 z-50 h-[100dvh] w-[4.5rem] border-r border-zinc-200"
             : "top-nav sticky top-0 z-50"
         }
       >
         <div
           className={
             useLeftSidebar
-              ? "h-full px-2 py-3 flex flex-col gap-2"
+              ? "h-full px-1.5 py-3 flex flex-col items-center gap-2"
               : `${containerClass} py-2 flex flex-col gap-2 sm:h-16 sm:flex-row sm:items-center`
           }
         >
@@ -140,7 +140,7 @@ function HomeContent() {
               window.scrollTo({ top: 0, behavior: "smooth" });
             }}
             className={`text-left text-lg sm:text-xl font-bold tracking-tight text-zinc-900 ${
-              useLeftSidebar ? "[writing-mode:vertical-rl] rotate-180 self-start" : ""
+              useLeftSidebar ? "[writing-mode:vertical-rl] rotate-180" : ""
             }`}
           >
             Dashboard
@@ -148,14 +148,14 @@ function HomeContent() {
           <Link
             href="/workouts"
             className={`text-sm font-medium text-zinc-700 hover:text-zinc-900 underline underline-offset-4 decoration-zinc-300 hover:decoration-zinc-600 ${
-              useLeftSidebar ? "[writing-mode:vertical-rl] rotate-180 self-start" : ""
+              useLeftSidebar ? "[writing-mode:vertical-rl] rotate-180" : ""
             }`}
           >
             Gym
           </Link>
 
-          <div className={`relative ${useLeftSidebar ? "mt-auto self-start" : "ml-auto"}`} ref={menuRef}>
-            <div className={`flex items-center gap-2 ${useLeftSidebar ? "flex-col items-start" : ""}`}>
+          <div className={`relative ${useLeftSidebar ? "mt-auto" : "ml-auto"}`} ref={menuRef}>
+            <div className={`flex items-center gap-2 ${useLeftSidebar ? "flex-col items-center" : ""}`}>
               {useLeftSidebar ? (
                 <>
                   <TopBarDataControls mode="streakIconOnly" />
