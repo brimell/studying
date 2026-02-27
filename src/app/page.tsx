@@ -109,12 +109,12 @@ export default function Home() {
   }
 
   return (
-    <div className={`app-shell ${useLeftSidebar ? "pl-72" : ""}`}>
+    <div className={`app-shell ${useLeftSidebar ? "pl-56" : ""}`}>
       {/* Header */}
       <header
         className={
           useLeftSidebar
-            ? "top-nav fixed left-0 top-0 z-50 h-[100dvh] w-72 border-r border-zinc-200"
+            ? "top-nav fixed left-0 top-0 z-50 h-[100dvh] w-56 border-r border-zinc-200"
             : "top-nav sticky top-0 z-50"
         }
       >
