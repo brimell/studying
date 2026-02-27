@@ -1123,53 +1123,53 @@ h3 {
 .study-analog-clockface {
   border: 2px solid #111827;
   border-radius: 50%;
-  width: min(20em, 100%);
+  width: min(20rem, 100%);
   aspect-ratio: 1 / 1;
   margin: 0 auto;
   position: relative;
   background: #ffffff;
   font-family: var(--font-inter), "Inter", sans-serif;
+  font-size: 16px;
 }
 
 .study-analog-clockface::after {
   background: #111827;
   border-radius: 50%;
   content: "";
-  height: 1em;
-  width: 1em;
+  height: 0.9em;
+  width: 0.9em;
   position: absolute;
-  left: 9.5em;
-  top: 9.5em;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 5;
 }
 
 .study-analog-hand {
   position: absolute;
+  left: 50%;
+  bottom: 50%;
   transform-origin: 50% 100%;
+  z-index: 3;
 }
 
 .study-analog-second {
   background: #ef4444;
   width: 2px;
-  height: 9em;
-  left: calc(50% - 1px);
-  top: 1em;
+  height: 44%;
 }
 
 .study-analog-minute {
   background: #111827;
   border-radius: 3px;
-  width: 6px;
-  height: 7.5em;
-  left: calc(50% - 3px);
-  top: 2.5em;
+  width: 5px;
+  height: 36%;
 }
 
 .study-analog-hour {
   background: #111827;
-  width: 10px;
-  height: 4.5em;
-  left: calc(50% - 5px);
-  top: 5.5em;
+  width: 8px;
+  height: 24%;
 }
 
 .study-analog-hour::after {
@@ -1182,12 +1182,13 @@ h3 {
 }
 
 .study-analog-label {
-  font-size: 2em;
+  font-size: clamp(0.75rem, 1.45vw, 1.45rem);
   position: absolute;
   text-align: center;
-  transform-origin: 50% 9.5em;
-  top: 0.5em;
-  width: 100%;
+  transform: translate(-50%, -50%);
+  width: 2ch;
+  line-height: 1;
+  z-index: 2;
 }
 
 .study-analog-label-number {

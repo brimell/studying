@@ -39,30 +39,28 @@ function AnalogClock() {
     <div className="study-analog-clockface" aria-label="Analog clock">
       <div
         className="study-analog-hand study-analog-second"
-        style={{ transform: `rotate(${secondAngle}deg)` }}
+        style={{ transform: `translateX(-50%) rotate(${secondAngle}deg)` }}
       />
       <div
         className="study-analog-hand study-analog-minute"
-        style={{ transform: `rotate(${minuteAngle}deg)` }}
+        style={{ transform: `translateX(-50%) rotate(${minuteAngle}deg)` }}
       />
       <div
         className="study-analog-hand study-analog-hour"
-        style={{ transform: `rotate(${hourAngle}deg)` }}
+        style={{ transform: `translateX(-50%) rotate(${hourAngle}deg)` }}
       />
       {Array.from({ length: 12 }, (_, index) => {
-        const rotation = (index + 1) * 30;
+        const number = index + 1;
+        const angle = ((number - 3) * 30 * Math.PI) / 180;
+        const x = 50 + Math.cos(angle) * 42;
+        const y = 50 + Math.sin(angle) * 42;
         return (
           <div
-            key={`label-${index + 1}`}
+            key={`label-${number}`}
             className="study-analog-label"
-            style={{ transform: `rotate(${rotation}deg)` }}
+            style={{ left: `${x}%`, top: `${y}%` }}
           >
-            <span
-              className="study-analog-label-number"
-              style={{ transform: `rotate(${-rotation}deg)` }}
-            >
-              {index + 1}
-            </span>
+            <span className="study-analog-label-number">{number}</span>
           </div>
         );
       })}
