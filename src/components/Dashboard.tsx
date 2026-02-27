@@ -9,6 +9,7 @@ import FirstExamCountdown from "./FirstExamCountdown";
 import HabitTracker from "./HabitTracker";
 import AlertsPanel from "./AlertsPanel";
 import AdvancedAnalytics from "./AdvancedAnalytics";
+import DailyTrackerCorrelations from "./DailyTrackerCorrelations";
 import LoadingIcon from "./LoadingIcon";
 import FancyDropdown from "./FancyDropdown";
 
@@ -25,6 +26,7 @@ const DEFAULT_ORDER = [
   "daily-study-chart",
   "subject-distribution",
   "advanced-analytics",
+  "daily-tracker-correlations",
 ] as const;
 const GRID_COLUMN_OPTIONS = [6, 8, 10, 12] as const;
 const GRID_ROW_OPTIONS = [3, 4, 5, 6, 7] as const;
@@ -45,6 +47,7 @@ const DEFAULT_CARD_SIZES: Record<CardId, CardSizePreset> = {
   "daily-study-chart": "large",
   "subject-distribution": "standard",
   "advanced-analytics": "large",
+  "daily-tracker-correlations": "large",
 };
 
 const CARD_SIZE_PRESETS: Record<CardSizePreset, { label: string; colRatio: number; rowSpan: number }> = {
@@ -54,11 +57,24 @@ const CARD_SIZE_PRESETS: Record<CardSizePreset, { label: string; colRatio: numbe
   full: { label: "Full Width", colRatio: 1, rowSpan: 2 },
 };
 
-function isValidOrder(value: unknown): value is CardId[] {
-  if (!Array.isArray(value) || value.length !== DEFAULT_ORDER.length) return false;
-  const unique = new Set(value);
-  if (unique.size !== DEFAULT_ORDER.length) return false;
-  return DEFAULT_ORDER.every((id) => unique.has(id));
+function normalizeOrder(value: unknown): CardId[] | null {
+  if (!Array.isArray(value)) return null;
+  const seen = new Set<CardId>();
+  const normalized: CardId[] = [];
+  for (const item of value) {
+    if (typeof item !== "string") continue;
+    if (!DEFAULT_ORDER.includes(item as CardId)) continue;
+    const id = item as CardId;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    normalized.push(id);
+  }
+  if (normalized.length === 0) return null;
+  for (const id of DEFAULT_ORDER) {
+    if (seen.has(id)) continue;
+    normalized.push(id);
+  }
+  return normalized;
 }
 
 function isValidCardSize(value: unknown): value is CardSizePreset {
@@ -152,7 +168,8 @@ function loadInitialDashboardState(): {
   if (rawLayout) {
     try {
       const parsed = JSON.parse(rawLayout) as unknown;
-      if (isValidOrder(parsed)) order = parsed;
+      const normalized = normalizeOrder(parsed);
+      if (normalized) order = normalized;
     } catch {
       // Ignore malformed localStorage value.
     }
@@ -326,6 +343,10 @@ export default function Dashboard() {
         "advanced-analytics": {
           title: "Advanced Analytics",
           content: <AdvancedAnalytics />,
+        },
+        "daily-tracker-correlations": {
+          title: "Daily Tracker Correlations",
+          content: <DailyTrackerCorrelations />,
         },
       }) as Record<CardId, { title: string; content: ReactNode }>,
     []
