@@ -305,7 +305,7 @@ export default function Dashboard() {
   if (!session) {
     return (
       <div className="surface-card-strong text-center py-20 px-6">
-        <h2 className="text-2xl font-semibold mb-3">Welcome to Study Stats</h2>
+        <h2 className="text-2xl font-semibold mb-3">Welcome to Dashboard</h2>
         <p className="soft-text mb-6 max-w-md mx-auto">
           Sign in with your Google account to view your study statistics from
           Google Calendar.

@@ -20,7 +20,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Study Stats",
+  title: "Dashboard",
   description: "Track your study time from Google Calendar",
 };
 

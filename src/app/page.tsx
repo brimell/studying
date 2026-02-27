@@ -64,7 +64,7 @@ export default function Home() {
       {/* Header */}
       <header className="top-nav sticky top-0 z-50">
         <div className={`${containerClass} py-2 flex flex-col gap-2 sm:h-16 sm:flex-row sm:items-center sm:justify-between`}>
-          <h1 className="text-lg sm:text-xl font-bold tracking-tight text-zinc-900">Study Stats</h1>
+          <h1 className="text-lg sm:text-xl font-bold tracking-tight text-zinc-900">Dashboard</h1>
 
           <div className="relative" ref={menuRef}>
             <div className="flex items-center gap-2">
