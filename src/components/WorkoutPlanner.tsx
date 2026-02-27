@@ -143,6 +143,9 @@ export default function WorkoutPlanner() {
   const [showCreateWorkoutModal, setShowCreateWorkoutModal] = useState(false);
   const [previewWorkoutId, setPreviewWorkoutId] = useState<string | null>(null);
   const [exerciseInfoVisible, setExerciseInfoVisible] = useState<Record<string, boolean>>({});
+  const [highlightedMusclesByWorkout, setHighlightedMusclesByWorkout] = useState<
+    Record<string, MuscleGroup[]>
+  >({});
   const [previewHighlightedMuscles, setPreviewHighlightedMuscles] = useState<MuscleGroup[]>([]);
   const [weeklyPlanName, setWeeklyPlanName] = useState("");
   const [weeklyPlanDays, setWeeklyPlanDays] = useState<Record<WorkoutWeekDay, string[]>>(
@@ -1004,10 +1007,10 @@ export default function WorkoutPlanner() {
               <p className="text-sm text-zinc-500">No workouts saved yet.</p>
             )}
             {payload.workouts.map((workout) => (
-              <div key={workout.id} className="rounded-lg border border-zinc-200 p-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
+              <div key={workout.id} className="rounded-lg border border-zinc-200 p-2.5">
+                <div className="flex flex-wrap items-center justify-between gap-1.5">
                   <div className="min-w-0">
-                    <p className="text-base font-semibold truncate">{workout.name}</p>
+                    <p className="text-sm font-semibold truncate">{workout.name}</p>
                     <p className="text-[11px] text-zinc-500">
                       {workout.exercises.length} exercise{workout.exercises.length === 1 ? "" : "s"}
                     </p>
@@ -1022,12 +1025,12 @@ export default function WorkoutPlanner() {
                           [workout.id]: event.target.value,
                         }))
                       }
-                      className="border rounded-md px-1.5 py-1 text-[11px] bg-zinc-50"
+                      className="border rounded-md px-1 py-0.5 text-[11px] bg-zinc-50"
                     />
                     <button
                       type="button"
                       onClick={() => setPreviewWorkoutId(workout.id)}
-                      className="px-2 py-1 rounded-md text-[11px] bg-zinc-200 hover:bg-zinc-300"
+                      className="px-1.5 py-0.5 rounded-md text-[11px] bg-zinc-200 hover:bg-zinc-300"
                     >
                       Preview
                     </button>
@@ -1035,53 +1038,76 @@ export default function WorkoutPlanner() {
                       type="button"
                       onClick={() => logWorkout(workout)}
                       disabled={saving}
-                      className="px-2 py-1 rounded-md text-[11px] bg-emerald-500 hover:bg-emerald-600 text-white disabled:opacity-50"
+                      className="px-1.5 py-0.5 rounded-md text-[11px] bg-emerald-500 hover:bg-emerald-600 text-white disabled:opacity-50"
                     >
                       Log
                     </button>
                     <button
                       type="button"
                       onClick={() => removeWorkout(workout.id)}
-                      className="px-2 py-1 rounded-md text-[11px] bg-zinc-200"
+                      className="px-1.5 py-0.5 rounded-md text-[11px] bg-zinc-200"
                     >
                       Delete
                     </button>
                   </div>
                 </div>
-                <div className="mt-2 space-y-1 max-h-52 overflow-y-auto pr-1">
-                  {workout.exercises.map((exercise) => (
-                    <div
-                      key={exercise.id}
-                      className="rounded-md border border-zinc-200 bg-zinc-50/70 px-2 py-1.5 transition-colors"
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <p className="text-sm font-semibold leading-tight">{exercise.name}</p>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setExerciseInfoVisible((previous) => ({
-                              ...previous,
-                              [`saved-${workout.id}-${exercise.id}`]:
-                                !previous[`saved-${workout.id}-${exercise.id}`],
-                            }))
-                          }
-                          className="pill-btn px-2 py-0.5 text-[11px]"
-                          aria-label={`Toggle muscle info for ${exercise.name}`}
-                        >
-                          i
-                        </button>
-                      </div>
-                      <p className="text-[11px] text-zinc-500 mt-0.5 stat-mono">
-                        {exercise.sets} sets x {exercise.reps} reps • Rest{" "}
-                        {exercise.restSeconds ?? DEFAULT_REST_SECONDS}s
-                      </p>
-                      {exerciseInfoVisible[`saved-${workout.id}-${exercise.id}`] && (
-                        <p className="text-[11px] text-zinc-500 mt-0.5">
-                          Hits: {exercise.muscles.map((muscle) => MUSCLE_LABELS[muscle]).join(", ")}
+                <div className="mt-1.5 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-2.5 items-start">
+                  <div className="space-y-1 max-h-48 overflow-y-auto pr-1">
+                    {workout.exercises.map((exercise) => (
+                      <div
+                        key={exercise.id}
+                        className={`rounded-md border px-2 py-1 transition-colors ${
+                          exercise.muscles.some((muscle) =>
+                            (highlightedMusclesByWorkout[workout.id] || []).includes(muscle)
+                          )
+                            ? "border-sky-300 bg-sky-50/70"
+                            : "border-zinc-200 bg-zinc-50/70"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="text-sm font-semibold leading-tight">{exercise.name}</p>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setExerciseInfoVisible((previous) => ({
+                                ...previous,
+                                [`saved-${workout.id}-${exercise.id}`]:
+                                  !previous[`saved-${workout.id}-${exercise.id}`],
+                              }))
+                            }
+                            className="pill-btn px-1.5 py-0 text-[11px]"
+                            aria-label={`Toggle muscle info for ${exercise.name}`}
+                          >
+                            i
+                          </button>
+                        </div>
+                        <p className="text-[11px] text-zinc-500 mt-0.5 stat-mono">
+                          {exercise.sets} sets x {exercise.reps} reps • Rest{" "}
+                          {exercise.restSeconds ?? DEFAULT_REST_SECONDS}s
                         </p>
-                      )}
-                    </div>
-                  ))}
+                        {exerciseInfoVisible[`saved-${workout.id}-${exercise.id}`] && (
+                          <p className="text-[11px] text-zinc-500 mt-0.5">
+                            Hits: {exercise.muscles.map((muscle) => MUSCLE_LABELS[muscle]).join(", ")}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="rounded-md border border-zinc-200 bg-zinc-50/50 p-1.5">
+                    <MuscleModel
+                      scores={workoutScoresById.get(workout.id) || fatigueScores}
+                      loadPoints={workoutLoadById.get(workout.id)}
+                      title="Workout Muscle Targets"
+                      compact
+                      showOrganPanel={false}
+                      onHighlightedMusclesChange={(muscles) =>
+                        setHighlightedMusclesByWorkout((previous) => ({
+                          ...previous,
+                          [workout.id]: muscles,
+                        }))
+                      }
+                    />
+                  </div>
                 </div>
               </div>
             ))}
