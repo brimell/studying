@@ -135,7 +135,10 @@ export default function Home() {
           >
             Dashboard
           </button>
-          <Link href="/workouts" className="pill-btn">
+          <Link
+            href="/workouts"
+            className="text-sm font-medium text-zinc-700 hover:text-zinc-900 underline underline-offset-4 decoration-zinc-300 hover:decoration-zinc-600"
+          >
             Gym
           </Link>
 
