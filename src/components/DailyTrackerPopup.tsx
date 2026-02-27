@@ -17,7 +17,7 @@ import {
   defaultDailyTrackerFormData,
   parseDailyTrackerEntries,
   parseDailyTrackerFormData,
-  serializeDailyTrackerForDescription,
+  serializeDailyTrackerDayDescription,
   todayDateKey,
   type DailyTrackerEntry,
   type DailyTrackerFormData,
@@ -38,6 +38,12 @@ function formatDate(dateKey: string): string {
   const parsed = new Date(`${dateKey}T00:00:00.000Z`);
   if (Number.isNaN(parsed.getTime())) return dateKey;
   return parsed.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}
+
+function formatLogTime(iso: string): string {
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) return iso;
+  return parsed.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
 async function syncEntriesToCloud(entries: DailyTrackerEntry[]): Promise<void> {
@@ -103,8 +109,8 @@ function NumberScale({
   label: string;
   min: number;
   max: number;
-  value: number;
-  onChange: (value: number) => void;
+  value: number | null;
+  onChange: (value: number | null) => void;
   lowLabel?: string;
   highLabel?: string;
 }) {
@@ -119,7 +125,7 @@ function NumberScale({
           <span>{highLabel || ""}</span>
         </div>
       )}
-      <div className="flex flex-wrap gap-1">
+      <div className="flex flex-wrap gap-1 items-center">
         {options.map((option) => {
           const active = option === value;
           return (
@@ -135,6 +141,15 @@ function NumberScale({
             </button>
           );
         })}
+        <button
+          type="button"
+          onClick={() => onChange(null)}
+          className={`px-2 py-1 rounded-md text-xs border ${
+            value === null ? "border-zinc-500 bg-zinc-100 text-zinc-700" : "border-zinc-200 bg-white"
+          }`}
+        >
+          Clear
+        </button>
       </div>
     </div>
   );
@@ -181,25 +196,26 @@ export default function DailyTrackerPopup({ onClose }: DailyTrackerPopupProps) {
     return parseDailyTrackerEntries(window.localStorage.getItem(DAILY_TRACKER_ENTRIES_STORAGE_KEY));
   });
   const [selectedDate, setSelectedDate] = useState<string>(() => todayDateKey());
-  const [form, setForm] = useState<DailyTrackerFormData>(() => {
-    if (typeof window === "undefined") return defaultDailyTrackerFormData();
-    const allEntries = parseDailyTrackerEntries(window.localStorage.getItem(DAILY_TRACKER_ENTRIES_STORAGE_KEY));
-    const existing = allEntries.find((entry) => entry.date === todayDateKey());
-    return existing ? parseDailyTrackerFormData(existing.form, todayDateKey()) : defaultDailyTrackerFormData();
-  });
+  const [form, setForm] = useState<DailyTrackerFormData>(() => defaultDailyTrackerFormData(todayDateKey()));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
-  const currentEntry = useMemo(
-    () => entries.find((entry) => entry.date === selectedDate) || null,
+  const logsForDate = useMemo(
+    () =>
+      entries
+        .filter((entry) => entry.date === selectedDate)
+        .sort((left, right) => right.loggedAt.localeCompare(left.loggedAt)),
     [entries, selectedDate]
   );
 
   const loadDate = (date: string) => {
     setSelectedDate(date);
-    const existing = entries.find((entry) => entry.date === date);
-    setForm(existing ? parseDailyTrackerFormData(existing.form, date) : defaultDailyTrackerFormData(date));
+    setForm(defaultDailyTrackerFormData(date));
+  };
+
+  const resetDraft = () => {
+    setForm(defaultDailyTrackerFormData(selectedDate));
   };
 
   const handleFileChange = (files: FileList | null) => {
@@ -219,6 +235,20 @@ export default function DailyTrackerPopup({ onClose }: DailyTrackerPopupProps) {
     const selectedCalendarId = window.localStorage.getItem(DAILY_TRACKER_CALENDAR_STORAGE_KEY);
     const nextForm = parseDailyTrackerFormData({ ...form, date: selectedDate }, selectedDate);
 
+    const nextEntry: DailyTrackerEntry = {
+      id: `tracker-${selectedDate}-${Date.now()}`,
+      date: selectedDate,
+      loggedAt: nowIso,
+      calendarId: null,
+      calendarEventId: null,
+      form: nextForm,
+    };
+
+    const nextEntries = [nextEntry, ...entries].sort((left, right) =>
+      right.loggedAt.localeCompare(left.loggedAt)
+    );
+    const entriesForDay = nextEntries.filter((entry) => entry.date === selectedDate);
+
     let calendarEventId: string | null = null;
     let calendarId: string | null = null;
     let calendarError: string | null = null;
@@ -232,7 +262,7 @@ export default function DailyTrackerPopup({ onClose }: DailyTrackerPopupProps) {
         body: JSON.stringify({
           date: selectedDate,
           form: nextForm,
-          description: serializeDailyTrackerForDescription(nextForm),
+          description: serializeDailyTrackerDayDescription(entriesForDay),
           calendarId: selectedCalendarId || undefined,
         }),
       });
@@ -253,43 +283,40 @@ export default function DailyTrackerPopup({ onClose }: DailyTrackerPopupProps) {
       calendarError = "Failed to log tracker data in Google Calendar.";
     }
 
-    const nextEntry: DailyTrackerEntry = {
-      id: currentEntry?.id || `tracker-${selectedDate}`,
-      date: selectedDate,
-      loggedAt: nowIso,
-      calendarId,
-      calendarEventId,
-      form: nextForm,
-    };
+    const withCalendarIds = nextEntries.map((entry) => {
+      if (entry.id !== nextEntry.id) return entry;
+      return {
+        ...entry,
+        calendarId,
+        calendarEventId,
+      };
+    });
 
-    const nextEntries = [nextEntry, ...entries.filter((entry) => entry.date !== selectedDate)]
-      .sort((left, right) => right.date.localeCompare(left.date))
-      .slice(0, 730);
-
-    window.localStorage.setItem(DAILY_TRACKER_ENTRIES_STORAGE_KEY, JSON.stringify(nextEntries));
+    window.localStorage.setItem(DAILY_TRACKER_ENTRIES_STORAGE_KEY, JSON.stringify(withCalendarIds));
     window.dispatchEvent(new CustomEvent(DAILY_TRACKER_UPDATED_EVENT));
-    setEntries(nextEntries);
+    setEntries(withCalendarIds);
 
     let cloudError: string | null = null;
     try {
-      await syncEntriesToCloud(nextEntries);
+      await syncEntriesToCloud(withCalendarIds);
     } catch (syncError: unknown) {
       cloudError = syncError instanceof Error ? syncError.message : "Failed to sync tracker logs to cloud.";
     }
 
     if (calendarError && cloudError) {
       setError(`${calendarError} ${cloudError}`);
-      setMessage("Tracker saved locally only.");
+      setMessage("Log saved locally only.");
     } else if (calendarError) {
       setError(calendarError);
-      setMessage("Tracker saved locally and synced to Supabase.");
+      setMessage("Log saved locally and synced to Supabase.");
     } else if (cloudError) {
       setError(cloudError);
-      setMessage("Tracker saved locally and logged to Google Calendar.");
+      setMessage("Log saved locally and logged to Google Calendar.");
     } else {
-      setMessage("Tracker saved to local storage, Supabase, and Google Calendar.");
+      setMessage("Log saved to local storage, Supabase, and Google Calendar.");
     }
 
+    resetDraft();
     setBusy(false);
   };
 
@@ -298,14 +325,14 @@ export default function DailyTrackerPopup({ onClose }: DailyTrackerPopupProps) {
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold">Daily Tracker</h2>
-          <p className="soft-text text-sm">Morning + evening check-in with full daily context.</p>
+          <p className="soft-text text-sm">Multiple logs per day. No questions are mandatory.</p>
         </div>
         <button type="button" onClick={onClose} className="pill-btn">
           Close
         </button>
       </div>
 
-      <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3">
+      <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 space-y-2">
         <div className="flex flex-wrap items-end gap-3">
           <label className="block">
             <span className="text-xs text-zinc-500">Date</span>
@@ -317,14 +344,28 @@ export default function DailyTrackerPopup({ onClose }: DailyTrackerPopupProps) {
             />
           </label>
           <p className="text-xs text-zinc-500">
-            Editing: <span className="stat-mono">{formatDate(selectedDate)}</span>
+            Logging: <span className="stat-mono">{formatDate(selectedDate)}</span>
           </p>
-          {currentEntry ? (
-            <p className="text-xs text-zinc-500">
-              Last saved: <span className="stat-mono">{new Date(currentEntry.loggedAt).toLocaleString()}</span>
-            </p>
-          ) : null}
+          <button type="button" onClick={resetDraft} className="pill-btn text-xs">
+            New blank log
+          </button>
         </div>
+        <p className="text-xs text-zinc-500">
+          Logs on this day: <span className="stat-mono">{logsForDate.length}</span>
+        </p>
+        {logsForDate.length > 0 && (
+          <div className="max-h-28 overflow-y-auto space-y-1 pr-1">
+            {logsForDate.map((entry, index) => (
+              <div key={entry.id} className="text-[11px] text-zinc-600 rounded border border-zinc-200 bg-white px-2 py-1">
+                <span className="stat-mono">{index + 1}. {formatLogTime(entry.loggedAt)}</span>
+                {entry.form.moodRating !== null ? ` • Mood ${entry.form.moodRating}/10` : ""}
+                {entry.form.morningSleepRating !== null
+                  ? ` • Sleep ${entry.form.morningSleepRating}/10`
+                  : ""}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="max-h-[65vh] overflow-y-auto space-y-4 pr-1">
@@ -436,19 +477,32 @@ export default function DailyTrackerPopup({ onClose }: DailyTrackerPopupProps) {
           />
           <div className="space-y-1">
             <p className="text-sm font-medium">Caffeine (mg)</p>
-            <div className="flex flex-wrap gap-1">
+            <div className="flex flex-wrap gap-1 items-center">
               {[0, 50, 100, 150, 200].map((mg) => (
                 <button
                   key={mg}
                   type="button"
                   onClick={() => setForm((previous) => ({ ...previous, caffeineMg: mg }))}
                   className={`px-2 py-1 rounded-md text-xs border ${
-                    form.caffeineMg === mg ? "border-sky-400 bg-sky-50 text-sky-700" : "border-zinc-200 bg-white"
+                    form.caffeineMg === mg
+                      ? "border-sky-400 bg-sky-50 text-sky-700"
+                      : "border-zinc-200 bg-white"
                   }`}
                 >
                   {mg}
                 </button>
               ))}
+              <button
+                type="button"
+                onClick={() => setForm((previous) => ({ ...previous, caffeineMg: null }))}
+                className={`px-2 py-1 rounded-md text-xs border ${
+                  form.caffeineMg === null
+                    ? "border-zinc-500 bg-zinc-100 text-zinc-700"
+                    : "border-zinc-200 bg-white"
+                }`}
+              >
+                Clear
+              </button>
             </div>
           </div>
 
@@ -592,9 +646,9 @@ export default function DailyTrackerPopup({ onClose }: DailyTrackerPopupProps) {
       </div>
 
       <div className="flex items-center justify-between gap-3">
-        <p className="soft-text text-sm">1 calendar event per day is created/updated with full tracker description.</p>
+        <p className="soft-text text-sm">One calendar event per date is updated with all logs for that date.</p>
         <button type="button" onClick={saveTracker} className="pill-btn pill-btn-primary" disabled={busy}>
-          {busy ? "Saving..." : "Save tracker"}
+          {busy ? "Saving..." : "Save log"}
         </button>
       </div>
 

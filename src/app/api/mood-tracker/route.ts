@@ -58,7 +58,14 @@ function normalizeCalendarError(error: unknown): ApiRouteError {
 }
 
 function buildDailyTrackerSummary(date: string, form: DailyTrackerFormData): string {
-  return `Daily Tracker ${date} | Sleep ${form.morningSleepRating}/10 | Mood ${form.moodRating}/10`;
+  const parts = [`Daily Tracker ${date}`];
+  if (form.morningSleepRating !== null) {
+    parts.push(`Sleep ${form.morningSleepRating}/10`);
+  }
+  if (form.moodRating !== null) {
+    parts.push(`Mood ${form.moodRating}/10`);
+  }
+  return parts.join(" | ");
 }
 
 function addDays(dateKey: string, amount: number): string {

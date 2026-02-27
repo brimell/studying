@@ -28,12 +28,7 @@ export const EMOTION_OPTIONS = [
   "stressed",
 ] as const;
 
-export const SUPPLEMENT_OPTIONS = [
-  "ashwaghanda",
-  "l-theanine",
-  "creatine",
-  "vitamin d",
-] as const;
+export const SUPPLEMENT_OPTIONS = ["ashwaghanda", "l-theanine", "creatine", "vitamin d"] as const;
 
 export const EXERCISE_OPTIONS = ["run", "sports"] as const;
 
@@ -65,21 +60,21 @@ export interface TrackerFileMeta {
 
 export interface DailyTrackerFormData {
   date: string;
-  morningSleepRating: number;
+  morningSleepRating: number | null;
   sleepStuff: string[];
 
-  moodRating: number;
+  moodRating: number | null;
   emotions: string[];
   emotionOther: string;
-  productivity: number;
-  motivation: number;
+  productivity: number | null;
+  motivation: number | null;
 
-  headache: number;
-  fatigue: number;
-  coughing: number;
+  headache: number | null;
+  fatigue: number | null;
+  coughing: number | null;
 
-  alcohol: number;
-  caffeineMg: number;
+  alcohol: number | null;
+  caffeineMg: number | null;
 
   supplements: string[];
   exercise: string[];
@@ -115,21 +110,21 @@ export function todayDateKey(): string {
 export function defaultDailyTrackerFormData(date = todayDateKey()): DailyTrackerFormData {
   return {
     date,
-    morningSleepRating: 5,
+    morningSleepRating: null,
     sleepStuff: [],
 
-    moodRating: 5,
+    moodRating: null,
     emotions: [],
     emotionOther: "",
-    productivity: 5,
-    motivation: 5,
+    productivity: null,
+    motivation: null,
 
-    headache: 0,
-    fatigue: 5,
-    coughing: 0,
+    headache: null,
+    fatigue: null,
+    coughing: null,
 
-    alcohol: 0,
-    caffeineMg: 0,
+    alcohol: null,
+    caffeineMg: null,
 
     supplements: [],
     exercise: [],
@@ -158,9 +153,10 @@ function toStringArray(value: unknown): string[] {
     .filter(Boolean);
 }
 
-function toNumber(value: unknown, fallback: number, min: number, max: number): number {
+function toNullableNumber(value: unknown, min: number, max: number): number | null {
+  if (value === null || value === undefined || value === "") return null;
   const parsed = typeof value === "number" ? value : Number(value);
-  if (!Number.isFinite(parsed)) return fallback;
+  if (!Number.isFinite(parsed)) return null;
   return Math.min(max, Math.max(min, Math.round(parsed)));
 }
 
@@ -184,27 +180,33 @@ function normalizeMedia(value: unknown): TrackerFileMeta[] {
     .slice(0, 10);
 }
 
-export function parseDailyTrackerFormData(value: unknown, dateFallback = todayDateKey()): DailyTrackerFormData {
+export function parseDailyTrackerFormData(
+  value: unknown,
+  dateFallback = todayDateKey()
+): DailyTrackerFormData {
   const raw = value && typeof value === "object" ? (value as Partial<DailyTrackerFormData>) : {};
   const fallback = defaultDailyTrackerFormData(dateFallback);
 
   return {
-    date: typeof raw.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(raw.date) ? raw.date : fallback.date,
-    morningSleepRating: toNumber(raw.morningSleepRating, fallback.morningSleepRating, 0, 10),
+    date:
+      typeof raw.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(raw.date)
+        ? raw.date
+        : fallback.date,
+    morningSleepRating: toNullableNumber(raw.morningSleepRating, 0, 10),
     sleepStuff: toStringArray(raw.sleepStuff),
 
-    moodRating: toNumber(raw.moodRating, fallback.moodRating, 0, 10),
+    moodRating: toNullableNumber(raw.moodRating, 0, 10),
     emotions: toStringArray(raw.emotions),
     emotionOther: toStringValue(raw.emotionOther),
-    productivity: toNumber(raw.productivity, fallback.productivity, 0, 10),
-    motivation: toNumber(raw.motivation, fallback.motivation, 0, 10),
+    productivity: toNullableNumber(raw.productivity, 0, 10),
+    motivation: toNullableNumber(raw.motivation, 0, 10),
 
-    headache: toNumber(raw.headache, fallback.headache, 0, 4),
-    fatigue: toNumber(raw.fatigue, fallback.fatigue, 0, 10),
-    coughing: toNumber(raw.coughing, fallback.coughing, 0, 10),
+    headache: toNullableNumber(raw.headache, 0, 4),
+    fatigue: toNullableNumber(raw.fatigue, 0, 10),
+    coughing: toNullableNumber(raw.coughing, 0, 10),
 
-    alcohol: toNumber(raw.alcohol, fallback.alcohol, 0, 10),
-    caffeineMg: toNumber(raw.caffeineMg, fallback.caffeineMg, 0, 200),
+    alcohol: toNullableNumber(raw.alcohol, 0, 10),
+    caffeineMg: toNullableNumber(raw.caffeineMg, 0, 200),
 
     supplements: toStringArray(raw.supplements),
     exercise: toStringArray(raw.exercise),
@@ -235,14 +237,18 @@ export function parseDailyTrackerEntries(raw: string | null): DailyTrackerEntry[
       .map((item) => {
         if (!item || typeof item !== "object") return null;
         const value = item as Partial<DailyTrackerEntry>;
-        const date = typeof value.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value.date)
-          ? value.date
-          : null;
+        const date =
+          typeof value.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value.date)
+            ? value.date
+            : null;
         const loggedAt = typeof value.loggedAt === "string" ? value.loggedAt : null;
         if (!date || !loggedAt) return null;
 
         return {
-          id: typeof value.id === "string" && value.id.trim().length > 0 ? value.id : `${date}-${loggedAt}`,
+          id:
+            typeof value.id === "string" && value.id.trim().length > 0
+              ? value.id
+              : `${date}-${loggedAt}`,
           date,
           loggedAt,
           calendarId: typeof value.calendarId === "string" ? value.calendarId : null,
@@ -256,69 +262,86 @@ export function parseDailyTrackerEntries(raw: string | null): DailyTrackerEntry[
   }
 }
 
-function joinOrNone(label: string, values: string[]): string {
-  return `${label}: ${values.length > 0 ? values.join(", ") : "none"}`;
+function joinIfAny(lines: string[], label: string, values: string[]): void {
+  if (values.length === 0) return;
+  lines.push(`${label}: ${values.join(", ")}`);
+}
+
+function pushMetric(lines: string[], label: string, value: number | null, denominator: number): void {
+  if (value === null) return;
+  lines.push(`${label}: ${value}/${denominator}`);
 }
 
 export function serializeDailyTrackerForDescription(form: DailyTrackerFormData): string {
   const lines: string[] = [];
 
-  lines.push("MORNING");
-  lines.push(`Sleep rating: ${form.morningSleepRating}/10`);
-  lines.push(joinOrNone("Sleep stuff", form.sleepStuff));
-  lines.push("");
+  pushMetric(lines, "Sleep rating", form.morningSleepRating, 10);
+  joinIfAny(lines, "Sleep stuff", form.sleepStuff);
 
-  lines.push("EVENING RESULTS");
-  lines.push(`Mood rating: ${form.moodRating}/10`);
-  lines.push(joinOrNone("Emotions", form.emotions));
-  if (form.emotionOther.trim()) {
-    lines.push(`Emotion other: ${form.emotionOther.trim()}`);
-  }
-  lines.push(`Productivity: ${form.productivity}/10`);
-  lines.push(`Motivation: ${form.motivation}/10`);
-  lines.push("");
+  pushMetric(lines, "Mood rating", form.moodRating, 10);
+  joinIfAny(lines, "Emotions", form.emotions);
+  if (form.emotionOther.trim()) lines.push(`Emotion other: ${form.emotionOther.trim()}`);
+  pushMetric(lines, "Productivity", form.productivity, 10);
+  pushMetric(lines, "Motivation", form.motivation, 10);
 
-  lines.push("SYMPTOMS");
-  lines.push(`Headache: ${form.headache}/4`);
-  lines.push(`Fatigue/tiredness: ${form.fatigue}/10`);
-  lines.push(`Coughing: ${form.coughing}/10`);
-  lines.push("");
+  pushMetric(lines, "Headache", form.headache, 4);
+  pushMetric(lines, "Fatigue/tiredness", form.fatigue, 10);
+  pushMetric(lines, "Coughing", form.coughing, 10);
 
-  lines.push("FACTORS");
-  lines.push(`Alcohol: ${form.alcohol}/10`);
-  lines.push(`Caffeine: ${form.caffeineMg}mg`);
-  lines.push(joinOrNone("Supps", form.supplements));
-  lines.push(joinOrNone("Exercise", form.exercise));
-  lines.push(joinOrNone("School", form.school));
-  lines.push(joinOrNone("Events", form.events));
-  lines.push(joinOrNone("Hobbies", form.hobbies));
-  lines.push(joinOrNone("Chores", form.chores));
-  lines.push(joinOrNone("Other factors", form.otherFactors));
-  if (form.otherFactorsNotes.trim()) {
-    lines.push(`Other factors notes: ${form.otherFactorsNotes.trim()}`);
-  }
-  lines.push("");
+  pushMetric(lines, "Alcohol", form.alcohol, 10);
+  if (form.caffeineMg !== null) lines.push(`Caffeine: ${form.caffeineMg}mg`);
+  joinIfAny(lines, "Supps", form.supplements);
+  joinIfAny(lines, "Exercise", form.exercise);
+  joinIfAny(lines, "School", form.school);
+  joinIfAny(lines, "Events", form.events);
+  joinIfAny(lines, "Hobbies", form.hobbies);
+  joinIfAny(lines, "Chores", form.chores);
+  joinIfAny(lines, "Other factors", form.otherFactors);
+  if (form.otherFactorsNotes.trim()) lines.push(`Other factors notes: ${form.otherFactorsNotes.trim()}`);
 
   if (form.todaysNote.trim()) {
-    lines.push("TODAY'S NOTE");
+    lines.push("Today note:");
     lines.push(form.todaysNote.trim());
-    lines.push("");
   }
 
   if (form.media.length > 0) {
-    lines.push("TODAY'S FILES");
+    lines.push("Files:");
     for (const file of form.media) {
       const sizeMb = (file.size / (1024 * 1024)).toFixed(2);
       lines.push(`- ${file.name} (${file.type || "unknown"}, ${sizeMb} MB)`);
     }
-    lines.push("");
   }
 
-  lines.push("KOLB'S CYCLE");
-  lines.push(`Experience: ${form.kolbExperience.trim() || ""}`);
-  lines.push(`Reflection: ${form.kolbReflection.trim() || ""}`);
-  lines.push(`Abstraction: ${form.kolbAbstraction.trim() || ""}`);
-  lines.push(`Experimentation: ${form.kolbExperimentation.trim() || ""}`);
+  if (form.kolbExperience.trim()) lines.push(`Kolb experience: ${form.kolbExperience.trim()}`);
+  if (form.kolbReflection.trim()) lines.push(`Kolb reflection: ${form.kolbReflection.trim()}`);
+  if (form.kolbAbstraction.trim()) lines.push(`Kolb abstraction: ${form.kolbAbstraction.trim()}`);
+  if (form.kolbExperimentation.trim()) lines.push(`Kolb experimentation: ${form.kolbExperimentation.trim()}`);
+
+  return lines.join("\n").trim();
+}
+
+function formatLoggedTime(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+export function serializeDailyTrackerDayDescription(entries: DailyTrackerEntry[]): string {
+  const sorted = [...entries].sort((left, right) => left.loggedAt.localeCompare(right.loggedAt));
+  if (sorted.length === 0) return "No logs for this day.";
+
+  const lines: string[] = [`Daily tracker logs: ${sorted.length}`];
+
+  sorted.forEach((entry, index) => {
+    lines.push("");
+    lines.push(`Log ${index + 1} (${formatLoggedTime(entry.loggedAt)})`);
+    const body = serializeDailyTrackerForDescription(entry.form);
+    if (!body) {
+      lines.push("No answers logged.");
+      return;
+    }
+    lines.push(body);
+  });
 
   return lines.join("\n").trim();
 }
