@@ -20,18 +20,17 @@
 }
 
 body {
-  background: #ffffff;
-  color: var(--foreground);
+  background: #0a0f0d;
+  color: #dafde8;
   font-family: var(--font-inter), "Segoe UI", Arial, sans-serif;
   font-size: 1.14rem;
   line-height: 1.56;
   min-height: 100vh;
   overflow-x: hidden;
   background-image:
-    radial-gradient(circle at 8% 12%, rgba(45, 212, 191, 0.07), transparent 45%),
-    radial-gradient(circle at 88% 18%, rgba(56, 189, 248, 0.06), transparent 42%),
-    radial-gradient(circle at 52% 120%, rgba(20, 184, 166, 0.08), transparent 50%),
-    linear-gradient(180deg, #ffffff 0%, #ffffff 100%);
+    radial-gradient(circle at 50% -20%, rgba(115, 255, 193, 0.12), transparent 60%),
+    radial-gradient(circle at 50% 120%, rgba(63, 188, 145, 0.1), transparent 50%),
+    linear-gradient(180deg, #061009 0%, #050b08 52%, #030605 100%);
 }
 
 body::before {
@@ -43,23 +42,68 @@ body::before {
   background-image:
     repeating-linear-gradient(
       0deg,
-      rgba(10, 20, 35, 0.055) 0,
-      rgba(10, 20, 35, 0.055) 1px,
+      rgba(190, 255, 224, 0.065) 0,
+      rgba(190, 255, 224, 0.065) 1px,
       transparent 1px,
       transparent 3px
     ),
     repeating-linear-gradient(
       90deg,
-      rgba(0, 220, 180, 0.025) 0,
-      rgba(0, 220, 180, 0.025) 1px,
+      rgba(35, 120, 92, 0.08) 0,
+      rgba(35, 120, 92, 0.08) 1px,
       transparent 1px,
       transparent 4px
     );
-  opacity: 0.28;
+  opacity: 0.35;
+  animation: crt-flicker 0.14s steps(2, end) infinite;
+}
+
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  background:
+    radial-gradient(circle at center, transparent 52%, rgba(0, 0, 0, 0.4) 100%),
+    radial-gradient(circle at center, rgba(50, 255, 182, 0.04), transparent 70%);
+  mix-blend-mode: screen;
+  opacity: 0.78;
 }
 
 .app-shell {
   min-height: 100vh;
+  transform-origin: center center;
+  transform: perspective(1400px) scale(0.995) rotateX(0.28deg);
+  animation: crt-warp 6.2s ease-in-out infinite;
+}
+
+h1, h2, h3, h4, p, span, label, a, button, li, th, td {
+  text-shadow:
+    0.03em 0 rgba(255, 38, 86, 0.45),
+    -0.03em 0 rgba(43, 176, 255, 0.42),
+    0 0 0.35em rgba(138, 255, 195, 0.12);
+}
+
+input, textarea, select {
+  text-shadow:
+    0.02em 0 rgba(255, 38, 86, 0.3),
+    -0.02em 0 rgba(43, 176, 255, 0.28);
+}
+
+@keyframes crt-flicker {
+  0% { opacity: 0.28; }
+  50% { opacity: 0.4; }
+  100% { opacity: 0.32; }
+}
+
+@keyframes crt-warp {
+  0%, 100% {
+    transform: perspective(1400px) scale(0.995) rotateX(0.28deg);
+  }
+  50% {
+    transform: perspective(1400px) scale(0.998) rotateX(0.18deg) rotateY(0.12deg);
+  }
 }
 
 .page-container {
