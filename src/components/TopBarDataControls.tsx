@@ -5,6 +5,7 @@ import { formatTimeSince, readGlobalLastFetched } from "@/lib/client-cache";
 import type { HabitDefinition, HabitTrackerData } from "@/lib/types";
 
 const TRACKER_CALENDAR_STORAGE_KEY = "study-stats.tracker-calendar-id";
+type TopBarDataControlsMode = "full" | "levelOnly" | "refreshOnly";
 
 function computeAllHabitsStreak(habits: HabitDefinition[]): number {
   if (habits.length === 0) return 0;
@@ -37,7 +38,13 @@ function computeTopBarLevel(habits: HabitDefinition[]): number {
   return Math.floor(points / 250) + 1;
 }
 
-export default function TopBarDataControls() {
+export default function TopBarDataControls({
+  mode = "full",
+}: {
+  mode?: TopBarDataControlsMode;
+}) {
+  const showLevel = mode !== "refreshOnly";
+  const showRefresh = mode !== "levelOnly";
   const lastFetchedAt = useSyncExternalStore(
     (onStoreChange) => {
       window.addEventListener("study-stats:last-fetched-updated", onStoreChange);
@@ -59,6 +66,7 @@ export default function TopBarDataControls() {
   }, []);
 
   useEffect(() => {
+    if (!showLevel) return;
     let cancelled = false;
 
     const loadGamification = async () => {
@@ -92,7 +100,7 @@ export default function TopBarDataControls() {
       cancelled = true;
       window.removeEventListener("study-stats:refresh-all", loadGamification);
     };
-  }, []);
+  }, [showLevel]);
 
   const refreshAll = () => {
     setRefreshing(true);
@@ -102,24 +110,30 @@ export default function TopBarDataControls() {
 
   return (
     <div className="flex items-center gap-2 shrink-0">
-      <div className="hidden md:flex items-center gap-1.5">
+      {showLevel && (
+        <div className="flex items-center gap-1.5">
         <span className="pill-btn text-[11px] px-2 py-1">
           Level <span className="stat-mono">{mounted && gamificationReady ? topBarLevel : "--"}</span>
         </span>
-        <span className="pill-btn text-[11px] px-2 py-1">
+        <span className="pill-btn text-[11px] px-2 py-1 hidden md:inline-flex">
           All habits streak: <span className="stat-mono">{mounted && gamificationReady ? `${allHabitsStreak}d` : "--"}</span>
         </span>
-      </div>
-      <p className="soft-text text-[11px] hidden lg:block">
-        Last fetched {formatTimeSince(lastFetchedAt, now)}
-      </p>
-      <button
-        onClick={refreshAll}
-        disabled={refreshing}
-        className="pill-btn"
-      >
-        {refreshing ? "Refreshing..." : "Sync"}
-      </button>
+        </div>
+      )}
+      {showRefresh && (
+        <>
+          <p className="soft-text text-[11px] hidden lg:block">
+            Last fetched {formatTimeSince(lastFetchedAt, now)}
+          </p>
+          <button
+            onClick={refreshAll}
+            disabled={refreshing}
+            className="pill-btn"
+          >
+            {refreshing ? "Refreshing..." : "Sync"}
+          </button>
+        </>
+      )}
     </div>
   );
 }
