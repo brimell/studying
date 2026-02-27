@@ -368,12 +368,6 @@ export default function GamificationPanel() {
 
     const unlockedGoals = goalsWithProgress.filter((goal) => goal.completed);
     const totalPoints = unlockedGoals.reduce((sum, goal) => sum + goal.points, 0);
-    const level = Math.floor(totalPoints / 250) + 1;
-    const levelFloor = (level - 1) * 250;
-    const levelCeiling = level * 250;
-    const pointsIntoLevel = totalPoints - levelFloor;
-    const pointsForNextLevel = levelCeiling - levelFloor;
-    const pointsRemaining = Math.max(0, levelCeiling - totalPoints);
 
     const rewardTiers: RewardTier[] = [
       {
@@ -431,10 +425,6 @@ export default function GamificationPanel() {
       unlockedGoalCount: unlockedGoals.length,
       totalGoals: goalsWithProgress.length,
       totalPoints,
-      level,
-      pointsIntoLevel,
-      pointsForNextLevel,
-      pointsRemaining,
       goals: goalsSorted,
       rewardTiers,
       progressSnapshot,
@@ -526,23 +516,16 @@ export default function GamificationPanel() {
           <div className="rounded-lg border border-emerald-200 bg-emerald-50/70 p-3">
             <div className="flex items-end justify-between gap-3">
               <div>
-                <p className="text-xs text-emerald-700">Level</p>
-                <p className="text-2xl font-bold text-emerald-800 stat-mono">{model.level}</p>
+                <p className="text-xs text-emerald-700">Goals unlocked</p>
+                <p className="text-2xl font-bold text-emerald-800 stat-mono">
+                  {model.unlockedGoalCount}/{model.totalGoals}
+                </p>
               </div>
               <div className="text-right">
                 <p className="text-xs text-emerald-700">Goal Points</p>
                 <p className="text-lg font-semibold text-emerald-800 stat-mono">{model.totalPoints}</p>
               </div>
             </div>
-            <div className="mt-2 h-2 rounded-full bg-emerald-200/80 overflow-hidden">
-              <div
-                className="h-full rounded-full bg-emerald-500 transition-all duration-500"
-                style={{ width: `${Math.min(100, (model.pointsIntoLevel / model.pointsForNextLevel) * 100)}%` }}
-              />
-            </div>
-            <p className="mt-1 text-[11px] text-emerald-700">
-              <span className="stat-mono">{model.pointsRemaining}</span> points to next level
-            </p>
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
@@ -567,13 +550,6 @@ export default function GamificationPanel() {
                 </div>
               ))}
             </div>
-          </div>
-
-          <div className="rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2">
-            <p className="text-[11px] text-zinc-500">Goals unlocked</p>
-            <p className="font-semibold text-sm stat-mono">
-              {model.unlockedGoalCount}/{model.totalGoals}
-            </p>
           </div>
 
           <div>

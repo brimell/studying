@@ -319,10 +319,7 @@ function HomeContent() {
                     aria-expanded={menuOpen}
                     aria-haspopup="menu"
                   >
-                    <span className="inline-flex items-center gap-1.5">
-                      <span>{userLabel}</span>
-                      <TopBarDataControls mode="inlineLevel" />
-                    </span>
+                    <span className="inline-flex items-center gap-1.5">{userLabel}</span>
                   </button>
                 </>
               )}
@@ -337,11 +334,8 @@ function HomeContent() {
                 }`}
               >
                 <div className="flex flex-col gap-2">
-                  <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 flex items-center justify-between">
+                  <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2">
                     <span className="text-sm font-semibold text-zinc-900">{userLabel}</span>
-                    <span className="text-xs text-zinc-600">
-                      <TopBarDataControls mode="inlineLevel" />
-                    </span>
                   </div>
                   <div className="rounded-lg border border-zinc-200 bg-white px-3 py-2 space-y-2">
                     <label className="block text-xs text-zinc-600">

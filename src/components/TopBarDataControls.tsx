@@ -8,11 +8,10 @@ import type { HabitDefinition, HabitTrackerData } from "@/lib/types";
 const TRACKER_CALENDAR_STORAGE_KEY = "study-stats.tracker-calendar-id";
 const STUDY_HABIT_STORAGE_KEY = "study-stats.habit-tracker.study-habit";
 const HABIT_WORKOUT_LINKS_STORAGE_KEY = "study-stats.habit-tracker.workout-links";
-type TopBarDataControlsMode = "full" | "levelOnly" | "refreshOnly";
+type TopBarDataControlsMode = "full" | "refreshOnly";
 type TopBarDataControlsModeExtended =
   | TopBarDataControlsMode
   | "streakOnly"
-  | "inlineLevel"
   | "streakIconOnly";
 
 function computeStreakForHabits(habits: HabitDefinition[]): number {
@@ -75,19 +74,6 @@ function computeAllHabitsStreak(habits: HabitDefinition[]): number {
   return computeStreakForHabits(combinedHabits);
 }
 
-function computeTopBarLevel(habits: HabitDefinition[]): number {
-  if (habits.length === 0) return 1;
-  const allCurrentStreaks = habits.reduce((sum, habit) => sum + habit.currentStreak, 0);
-  const allTotalCompletedDays = habits.reduce((sum, habit) => sum + habit.totalCompleted, 0);
-  const activeHabitCount = habits.filter((habit) => habit.currentStreak > 0).length;
-
-  const points =
-    Math.min(360, allCurrentStreaks * 10) +
-    Math.min(900, allTotalCompletedDays * 3) +
-    activeHabitCount * 25;
-  return Math.floor(points / 250) + 1;
-}
-
 export default function TopBarDataControls({
   mode = "full",
   stacked = false,
@@ -99,10 +85,8 @@ export default function TopBarDataControls({
   showLastFetched?: boolean;
   onStreakClick?: () => void;
 }) {
-  const showLevel = mode === "full" || mode === "levelOnly" || mode === "inlineLevel";
   const showRefresh = mode === "full" || mode === "refreshOnly";
-  const showInlineLevel = mode === "inlineLevel";
-  const showStreakPill = mode === "full" || mode === "levelOnly" || mode === "streakOnly";
+  const showStreakPill = mode === "full" || mode === "streakOnly";
   const showStreakIconOnly = mode === "streakIconOnly";
   const lastFetchedAt = useSyncExternalStore(
     (onStoreChange) => {
@@ -114,7 +98,6 @@ export default function TopBarDataControls({
   );
   const [now, setNow] = useState(() => Date.now());
   const [refreshing, setRefreshing] = useState(false);
-  const [topBarLevel, setTopBarLevel] = useState(1);
   const [allHabitsStreak, setAllHabitsStreak] = useState(0);
   const [gamificationReady, setGamificationReady] = useState(false);
   const mounted = typeof window !== "undefined";
@@ -125,7 +108,7 @@ export default function TopBarDataControls({
   }, []);
 
   useEffect(() => {
-    if (!showLevel && !showStreakPill && !showStreakIconOnly) return;
+    if (!showStreakPill && !showStreakIconOnly) return;
     let cancelled = false;
 
     const loadGamification = async () => {
@@ -151,11 +134,9 @@ export default function TopBarDataControls({
 
         if (cancelled) return;
         setAllHabitsStreak(computeAllHabitsStreak(payload.habits));
-        setTopBarLevel(computeTopBarLevel(payload.habits));
         setGamificationReady(true);
       } catch {
         if (cancelled) return;
-        setTopBarLevel(1);
         setAllHabitsStreak(0);
         setGamificationReady(true);
       }
@@ -167,21 +148,13 @@ export default function TopBarDataControls({
       cancelled = true;
       window.removeEventListener("study-stats:refresh-all", loadGamification);
     };
-  }, [showLevel, showStreakIconOnly, showStreakPill]);
+  }, [showStreakIconOnly, showStreakPill]);
 
   const refreshAll = () => {
     setRefreshing(true);
     window.dispatchEvent(new CustomEvent("study-stats:refresh-all"));
     window.setTimeout(() => setRefreshing(false), 1000);
   };
-
-  if (showInlineLevel) {
-    return (
-      <span className="stat-mono text-[11px] leading-none">
-        Lvl {mounted && gamificationReady ? topBarLevel : "--"}
-      </span>
-    );
-  }
 
   if (showStreakIconOnly) {
     if (onStreakClick) {
@@ -207,14 +180,8 @@ export default function TopBarDataControls({
 
   return (
     <div className={stacked ? "flex flex-col items-stretch gap-1.5 w-full shrink-0" : "flex items-center gap-2 shrink-0"}>
-      {(showLevel || showStreakPill) && (
+      {showStreakPill && (
         <div className="flex items-center gap-1.5">
-          {showLevel && (
-            <span className="pill-btn text-[11px] px-2 py-1 inline-flex items-center gap-1">
-              <span>Lvl</span>
-              <span className="stat-mono leading-none">{mounted && gamificationReady ? topBarLevel : "--"}</span>
-            </span>
-          )}
           {showStreakPill && (
             <span className="pill-btn text-[11px] px-2 py-1 hidden md:inline-flex items-center gap-1.5">
               <span>All habits streak</span>
