@@ -5,12 +5,9 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import type { Session } from "@supabase/supabase-js";
 import TopBarDataControls from "@/components/TopBarDataControls";
 import {
-  DEFAULT_DISPLAY_NAME,
   getDisplayNameFromMetadata,
-  normalizeDisplayName,
 } from "@/lib/display-name";
 import { lockBodyScroll, unlockBodyScroll } from "@/lib/scroll-lock";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
@@ -46,11 +43,7 @@ function HomeContent() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [gamificationOpen, setGamificationOpen] = useState(false);
   const [dailyTrackerOpen, setDailyTrackerOpen] = useState(false);
-  const [accountSession, setAccountSession] = useState<Session | null>(null);
-  const [displayNameDraft, setDisplayNameDraft] = useState(DEFAULT_DISPLAY_NAME);
-  const [accountDisplayName, setAccountDisplayName] = useState(DEFAULT_DISPLAY_NAME);
-  const [updatingDisplayName, setUpdatingDisplayName] = useState(false);
-  const [displayNameError, setDisplayNameError] = useState<string | null>(null);
+  const [accountDisplayName, setAccountDisplayName] = useState("John Doe");
   const menuRef = useRef<HTMLDivElement | null>(null);
 
   const userLabel = accountDisplayName;
@@ -84,17 +77,13 @@ function HomeContent() {
     void supabase.auth.getSession().then(({ data }) => {
       if (!mounted) return;
       const nextSession = data.session;
-      setAccountSession(nextSession);
       const nextDisplayName = getDisplayNameFromMetadata(nextSession?.user.user_metadata);
-      setDisplayNameDraft(nextDisplayName);
       setAccountDisplayName(nextDisplayName);
       void syncDisplayNameFromUser();
     });
 
     const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      setAccountSession(nextSession);
       const nextDisplayName = getDisplayNameFromMetadata(nextSession?.user.user_metadata);
-      setDisplayNameDraft(nextDisplayName);
       setAccountDisplayName(nextDisplayName);
       void syncDisplayNameFromUser();
     });
@@ -219,28 +208,6 @@ function HomeContent() {
     router.replace("/auth");
   }
 
-  async function updateDisplayName() {
-    if (!supabase || !accountSession) return;
-    const normalized = normalizeDisplayName(displayNameDraft);
-    if (normalized === getDisplayNameFromMetadata(accountSession.user.user_metadata)) return;
-
-    setDisplayNameError(null);
-    setUpdatingDisplayName(true);
-    const { error } = await supabase.auth.updateUser({
-      data: {
-        ...accountSession.user.user_metadata,
-        display_name: normalized,
-      },
-    });
-    if (error) {
-      setDisplayNameError(error.message);
-    } else {
-      setDisplayNameDraft(normalized);
-      setAccountDisplayName(normalized);
-    }
-    setUpdatingDisplayName(false);
-  }
-
   return (
     <div className={`app-shell ${useLeftSidebar ? "pl-[4.5rem]" : ""}`}>
       {/* Header */}
@@ -341,33 +308,6 @@ function HomeContent() {
                 <div className="flex flex-col gap-2">
                   <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2">
                     <span className="text-sm font-semibold text-zinc-900">{userLabel}</span>
-                  </div>
-                  <div className="rounded-lg border border-zinc-200 bg-white px-3 py-2 space-y-2">
-                    <label className="block text-xs text-zinc-600">
-                      Display name
-                      <input
-                        type="text"
-                        value={displayNameDraft}
-                        onChange={(event) => setDisplayNameDraft(event.target.value)}
-                        className="field-select w-full mt-1"
-                        maxLength={60}
-                      />
-                    </label>
-                    <button
-                      type="button"
-                      className="pill-btn w-full text-left"
-                      onClick={updateDisplayName}
-                      disabled={
-                        updatingDisplayName ||
-                        normalizeDisplayName(displayNameDraft) ===
-                          getDisplayNameFromMetadata(accountSession?.user.user_metadata)
-                      }
-                    >
-                      {updatingDisplayName ? "Saving..." : "Save display name"}
-                    </button>
-                    {displayNameError ? (
-                      <p className="text-xs text-red-600">{displayNameError}</p>
-                    ) : null}
                   </div>
                   <button
                     type="button"

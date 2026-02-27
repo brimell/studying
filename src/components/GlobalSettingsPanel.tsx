@@ -4,6 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import FancyDropdown from "./FancyDropdown";
 import AuthButton from "./AuthButton";
 import { DAILY_TRACKER_CALENDAR_STORAGE_KEY } from "@/lib/daily-tracker";
+import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
+import {
+  DEFAULT_DISPLAY_NAME,
+  getDisplayNameFromMetadata,
+  normalizeDisplayName,
+} from "@/lib/display-name";
 import type { TrackerCalendarOption } from "@/lib/types";
 
 const WIDE_SCREEN_STORAGE_KEY = "study-stats.layout.wide-screen";
@@ -56,6 +62,12 @@ function parseFuturePreview(
 }
 
 export default function GlobalSettingsPanel() {
+  const supabase = useMemo(() => getSupabaseBrowserClient(), []);
+  const [displayNameDraft, setDisplayNameDraft] = useState(DEFAULT_DISPLAY_NAME);
+  const [currentDisplayName, setCurrentDisplayName] = useState(DEFAULT_DISPLAY_NAME);
+  const [updatingDisplayName, setUpdatingDisplayName] = useState(false);
+  const [displayNameError, setDisplayNameError] = useState<string | null>(null);
+
   const [wideScreen, setWideScreen] = useState<boolean>(() => {
     if (typeof window === "undefined") return true;
     return parseBoolean(window.localStorage.getItem(WIDE_SCREEN_STORAGE_KEY), true);
@@ -207,6 +219,29 @@ export default function GlobalSettingsPanel() {
   }, []);
 
   useEffect(() => {
+    if (!supabase) return;
+
+    let mounted = true;
+    const loadDisplayName = async () => {
+      const { data } = await supabase.auth.getUser();
+      if (!mounted) return;
+      const next = getDisplayNameFromMetadata(data.user?.user_metadata);
+      setDisplayNameDraft(next);
+      setCurrentDisplayName(next);
+    };
+
+    void loadDisplayName();
+    const { data } = supabase.auth.onAuthStateChange(() => {
+      void loadDisplayName();
+    });
+
+    return () => {
+      mounted = false;
+      data.subscription.unsubscribe();
+    };
+  }, [supabase]);
+
+  useEffect(() => {
     window.dispatchEvent(new CustomEvent("study-stats:settings-updated"));
     window.dispatchEvent(new CustomEvent("study-stats:refresh-all"));
     window.dispatchEvent(new CustomEvent("study-stats:milestones-updated"));
@@ -238,8 +273,62 @@ export default function GlobalSettingsPanel() {
     [dailyTrackerCalendars]
   );
 
+  async function saveDisplayName() {
+    if (!supabase) return;
+    const normalized = normalizeDisplayName(displayNameDraft);
+    if (normalized === currentDisplayName) return;
+
+    setDisplayNameError(null);
+    setUpdatingDisplayName(true);
+    const { data } = await supabase.auth.getUser();
+    const metadata = data.user?.user_metadata || {};
+    const { error } = await supabase.auth.updateUser({
+      data: {
+        ...metadata,
+        display_name: normalized,
+      },
+    });
+    if (error) {
+      setDisplayNameError(error.message);
+    } else {
+      setDisplayNameDraft(normalized);
+      setCurrentDisplayName(normalized);
+      window.dispatchEvent(new CustomEvent("study-stats:settings-updated"));
+    }
+    setUpdatingDisplayName(false);
+  }
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <section className="surface-card p-5 space-y-3">
+        <h2 className="text-lg font-semibold">Account</h2>
+        <label className="block text-sm text-zinc-600 space-y-1">
+          <span>Display name</span>
+          <input
+            type="text"
+            value={displayNameDraft}
+            onChange={(event) => setDisplayNameDraft(event.target.value)}
+            className="field-select w-full"
+            maxLength={60}
+            disabled={!supabase}
+          />
+        </label>
+        <button
+          type="button"
+          className="pill-btn w-full text-left"
+          onClick={saveDisplayName}
+          disabled={!supabase || updatingDisplayName || normalizeDisplayName(displayNameDraft) === currentDisplayName}
+        >
+          {updatingDisplayName ? "Saving..." : "Save display name"}
+        </button>
+        {displayNameError ? <p className="text-xs text-red-600">{displayNameError}</p> : null}
+        {!supabase ? (
+          <p className="text-xs text-zinc-500">
+            Supabase is not configured, so display name editing is unavailable.
+          </p>
+        ) : null}
+      </section>
+
       <section className="surface-card p-5 space-y-3">
         <h2 className="text-lg font-semibold">Layout</h2>
         <label className="flex items-center justify-between gap-3">
