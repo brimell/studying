@@ -213,6 +213,7 @@ export default function DailyTrackerPopup({ onClose }: DailyTrackerPopupProps) {
   const [selectedDate, setSelectedDate] = useState<string>(() => todayDateKey());
   const [form, setForm] = useState<DailyTrackerFormData>(() => defaultDailyTrackerFormData(todayDateKey()));
   const [busy, setBusy] = useState(false);
+  const [bulkSyncing, setBulkSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -333,6 +334,117 @@ export default function DailyTrackerPopup({ onClose }: DailyTrackerPopupProps) {
 
     resetDraft();
     setBusy(false);
+  };
+
+  const syncAllLogsToCalendar = async () => {
+    if (entries.length === 0) {
+      setError("No daily tracker logs to sync.");
+      return;
+    }
+
+    const selectedCalendarId = window.localStorage.getItem(DAILY_TRACKER_CALENDAR_STORAGE_KEY);
+    setBulkSyncing(true);
+    setError(null);
+    setMessage(null);
+
+    const entriesByDate = new Map<string, DailyTrackerEntry[]>();
+    for (const entry of entries) {
+      const dayEntries = entriesByDate.get(entry.date) || [];
+      dayEntries.push(entry);
+      entriesByDate.set(entry.date, dayEntries);
+    }
+
+    const dateKeys = [...entriesByDate.keys()].sort();
+    const syncedEventByDate = new Map<string, { eventId: string | null; calendarId: string | null }>();
+    const failedDates: string[] = [];
+
+    for (const dateKey of dateKeys) {
+      const dayEntries = entriesByDate.get(dateKey) || [];
+      if (dayEntries.length === 0) continue;
+
+      const sortedDayEntries = [...dayEntries].sort((left, right) =>
+        right.loggedAt.localeCompare(left.loggedAt)
+      );
+      const latestForm = sortedDayEntries[0]?.form || defaultDailyTrackerFormData(dateKey);
+      const description = serializeDailyTrackerDayDescription(sortedDayEntries);
+
+      try {
+        const response = await fetch("/api/mood-tracker", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            date: dateKey,
+            form: latestForm,
+            description,
+            calendarId: selectedCalendarId || undefined,
+          }),
+        });
+
+        const payload = (await response.json()) as {
+          error?: string;
+          eventId?: string | null;
+          calendarId?: string;
+        };
+
+        if (!response.ok) {
+          failedDates.push(dateKey);
+          continue;
+        }
+
+        syncedEventByDate.set(dateKey, {
+          eventId: payload.eventId || null,
+          calendarId: payload.calendarId || selectedCalendarId || null,
+        });
+      } catch {
+        failedDates.push(dateKey);
+      }
+    }
+
+    const nextEntries = entries.map((entry) => {
+      const synced = syncedEventByDate.get(entry.date);
+      if (!synced) return entry;
+      return {
+        ...entry,
+        calendarEventId: synced.eventId,
+        calendarId: synced.calendarId,
+      };
+    });
+
+    window.localStorage.setItem(DAILY_TRACKER_ENTRIES_STORAGE_KEY, JSON.stringify(nextEntries));
+    window.dispatchEvent(new CustomEvent(DAILY_TRACKER_UPDATED_EVENT));
+    setEntries(nextEntries);
+
+    let cloudError: string | null = null;
+    try {
+      await syncEntriesToCloud(nextEntries);
+    } catch (syncError: unknown) {
+      cloudError =
+        syncError instanceof Error ? syncError.message : "Failed to sync tracker logs to cloud.";
+    }
+
+    if (failedDates.length > 0 && cloudError) {
+      setError(
+        `Synced ${syncedEventByDate.size}/${dateKeys.length} days to calendar. Failed dates: ${failedDates
+          .slice(0, 3)
+          .join(", ")}. ${cloudError}`
+      );
+    } else if (failedDates.length > 0) {
+      setError(
+        `Synced ${syncedEventByDate.size}/${dateKeys.length} days to calendar. Failed dates: ${failedDates
+          .slice(0, 3)
+          .join(", ")}.`
+      );
+      setMessage("Calendar sync partially completed.");
+    } else if (cloudError) {
+      setError(cloudError);
+      setMessage(`Synced ${syncedEventByDate.size} day(s) to Google Calendar.`);
+    } else {
+      setMessage(`Synced ${syncedEventByDate.size} day(s) to Google Calendar.`);
+    }
+
+    setBulkSyncing(false);
   };
 
   return (
@@ -663,9 +775,24 @@ export default function DailyTrackerPopup({ onClose }: DailyTrackerPopupProps) {
 
       <div className="flex items-center justify-between gap-3">
         <p className="soft-text text-sm">One calendar event per date is updated with all logs for that date.</p>
-        <button type="button" onClick={saveTracker} className="pill-btn pill-btn-primary" disabled={busy}>
-          {busy ? "Saving..." : "Save log"}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={syncAllLogsToCalendar}
+            className="pill-btn"
+            disabled={busy || bulkSyncing || entries.length === 0}
+          >
+            {bulkSyncing ? "Syncing..." : "Sync all to calendar"}
+          </button>
+          <button
+            type="button"
+            onClick={saveTracker}
+            className="pill-btn pill-btn-primary"
+            disabled={busy || bulkSyncing}
+          >
+            {busy ? "Saving..." : "Save log"}
+          </button>
+        </div>
       </div>
 
       {message ? <p className="text-sm text-emerald-700">{message}</p> : null}
