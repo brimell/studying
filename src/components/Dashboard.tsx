@@ -440,7 +440,7 @@ export default function Dashboard() {
         {renderedOrder.map((id) => (
           <div
             key={id}
-            className="self-start"
+            className="h-full"
             style={getCardStyle(id)}
             ref={(node) => {
               if (!node) {
@@ -575,7 +575,7 @@ export default function Dashboard() {
               </div>
             )}
             <div
-              className={`transition-all duration-200 ${
+              className={`h-full transition-all duration-200 ${
                 draggingId === id ? "opacity-65 scale-[0.99]" : "opacity-100 scale-100"
               } ${
                 draggingId && dropTargetId === id && draggingId !== id
