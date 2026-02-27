@@ -32,6 +32,22 @@ type OrganRegionKey =
   | "endocrine-system"
   | "immune-system";
 
+const ORGAN_REGION_KEYS = [
+  "heart",
+  "lungs",
+  "brain",
+  "nervous-system",
+  "digestive-system",
+  "liver-gallbladder",
+  "kidneys-bladder",
+  "endocrine-system",
+  "immune-system",
+] as const satisfies readonly OrganRegionKey[];
+
+function isOrganRegionKey(value: string): value is OrganRegionKey {
+  return (ORGAN_REGION_KEYS as readonly string[]).includes(value);
+}
+
 const BASE_DIAGRAM: Record<DissectionLayer, MuscleDiagramFiles> = {
   "Outer Muscles": {
     anterior: "View=Anterior, Dissection=Outer Muscles, Color=No.svg",
@@ -674,6 +690,8 @@ interface MuscleModelProps {
   organOnly?: boolean;
   onHighlightedMusclesChange?: (muscles: MuscleGroup[]) => void;
   highlightedMuscles?: MuscleGroup[];
+  extraOrganScores?: Partial<Record<string, number>>;
+  extraOrganNotes?: string[];
 }
 
 interface DisplayMuscleEntry {
@@ -692,6 +710,8 @@ export default function MuscleModel({
   organOnly = false,
   onHighlightedMusclesChange,
   highlightedMuscles = [],
+  extraOrganScores,
+  extraOrganNotes = [],
 }: MuscleModelProps) {
   const [simplifyLabels, setSimplifyLabels] = useState(false);
   const [hoveredEntryKey, setHoveredEntryKey] = useState<string | null>(null);
@@ -791,7 +811,7 @@ export default function MuscleModel({
     }
     return normalizeRegionScores(raw);
   }, [commonGroupGrade]);
-  const normalizedOrganScores = useMemo(() => {
+  const workoutNormalizedOrganScores = useMemo(() => {
     const raw = new Map<OrganRegionKey, number>();
     for (const [group, grade] of commonGroupGrade.entries()) {
       const effects = ORGAN_EFFECTS_BY_GROUP[group];
@@ -802,6 +822,26 @@ export default function MuscleModel({
     }
     return normalizeRegionScores(raw);
   }, [commonGroupGrade]);
+  const trackerOrganScores = useMemo(() => {
+    const normalized = new Map<OrganRegionKey, number>();
+    if (!extraOrganScores) return normalized;
+    for (const [region, rawScore] of Object.entries(extraOrganScores)) {
+      if (!isOrganRegionKey(region)) continue;
+      if (!Number.isFinite(rawScore)) continue;
+      const clamped = Math.max(0, Math.min(100, Number(rawScore)));
+      if (clamped <= 0) continue;
+      normalized.set(region, clamped);
+    }
+    return normalized;
+  }, [extraOrganScores]);
+  const normalizedOrganScores = useMemo(() => {
+    if (trackerOrganScores.size === 0) return workoutNormalizedOrganScores;
+    const merged = new Map<OrganRegionKey, number>(workoutNormalizedOrganScores);
+    for (const [region, score] of trackerOrganScores.entries()) {
+      merged.set(region, Math.max(merged.get(region) || 0, score));
+    }
+    return merged;
+  }, [trackerOrganScores, workoutNormalizedOrganScores]);
   const externalHoveredKeys = useMemo(() => {
     const keys = new Set<string>();
     for (const muscle of highlightedMuscles) {
@@ -992,6 +1032,15 @@ export default function MuscleModel({
                 hasHover={false}
               />
         </div>
+        {extraOrganNotes.length > 0 && (
+          <div className="mt-2 space-y-1">
+            {extraOrganNotes.slice(0, 4).map((note) => (
+              <p key={note} className="text-[11px] text-zinc-600">
+                {note}
+              </p>
+            ))}
+          </div>
+        )}
       </div>
     );
   }
@@ -1074,6 +1123,15 @@ export default function MuscleModel({
                     </div>
                   ))}
                 </div>
+                {extraOrganNotes.length > 0 && (
+                  <div className="mt-2 space-y-1">
+                    {extraOrganNotes.slice(0, 4).map((note) => (
+                      <p key={note} className="text-[10px] text-zinc-500">
+                        {note}
+                      </p>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>

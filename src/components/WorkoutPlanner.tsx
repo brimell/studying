@@ -21,6 +21,12 @@ import {
   MUSCLE_LABELS,
   UI_MUSCLE_GROUPS,
 } from "@/lib/workouts";
+import {
+  DAILY_TRACKER_ENTRIES_STORAGE_KEY,
+  DAILY_TRACKER_UPDATED_EVENT,
+  parseDailyTrackerEntries,
+  type DailyTrackerEntry,
+} from "@/lib/daily-tracker";
 
 function generateId(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
@@ -178,6 +184,142 @@ type WorkoutRunnerState = {
   restRemaining: number;
 };
 
+type DailyTrackerOrganRegionKey =
+  | "heart"
+  | "lungs"
+  | "brain"
+  | "nervous-system"
+  | "digestive-system"
+  | "liver-gallbladder"
+  | "kidneys-bladder"
+  | "endocrine-system"
+  | "immune-system";
+
+function computeDailyTrackerOrganImpact(entries: DailyTrackerEntry[]): {
+  scores: Partial<Record<DailyTrackerOrganRegionKey, number>>;
+  notes: string[];
+} {
+  if (entries.length === 0) return { scores: {}, notes: [] };
+
+  const now = Date.now();
+  const lookbackMs = 1000 * 60 * 60 * 24 * 5;
+  const raw: Record<DailyTrackerOrganRegionKey, number> = {
+    heart: 0,
+    lungs: 0,
+    brain: 0,
+    "nervous-system": 0,
+    "digestive-system": 0,
+    "liver-gallbladder": 0,
+    "kidneys-bladder": 0,
+    "endocrine-system": 0,
+    "immune-system": 0,
+  };
+  const notes = new Set<string>();
+
+  const add = (region: DailyTrackerOrganRegionKey, value: number) => {
+    if (!Number.isFinite(value) || value <= 0) return;
+    raw[region] += value;
+  };
+
+  for (const entry of entries) {
+    const loggedMs = new Date(entry.loggedAt).getTime();
+    if (!Number.isFinite(loggedMs)) continue;
+    const ageMs = now - loggedMs;
+    if (ageMs < 0 || ageMs > lookbackMs) continue;
+    const recencyWeight = Math.exp(-ageMs / (1000 * 60 * 60 * 48));
+    const form = entry.form;
+
+    if (typeof form.alcohol === "number" && form.alcohol > 0) {
+      const intensity = form.alcohol / 10;
+      add("liver-gallbladder", 100 * intensity * recencyWeight);
+      add("digestive-system", 58 * intensity * recencyWeight);
+      add("kidneys-bladder", 46 * intensity * recencyWeight);
+      add("heart", 34 * intensity * recencyWeight);
+      add("brain", 28 * intensity * recencyWeight);
+      if (form.alcohol >= 4) {
+        notes.add("Alcohol logs increase liver/gallbladder and digestive load.");
+      }
+    }
+
+    if (typeof form.caffeineMg === "number" && form.caffeineMg > 0) {
+      const intensity = form.caffeineMg / 200;
+      add("nervous-system", 82 * intensity * recencyWeight);
+      add("heart", 72 * intensity * recencyWeight);
+      add("endocrine-system", 36 * intensity * recencyWeight);
+      add("kidneys-bladder", 30 * intensity * recencyWeight);
+      if (form.caffeineMg >= 150) {
+        notes.add("Higher caffeine shifts impact toward heart and nervous system.");
+      }
+    }
+
+    if (typeof form.morningSleepRating === "number") {
+      const deficit = Math.max(0, (10 - form.morningSleepRating) / 10);
+      add("brain", 76 * deficit * recencyWeight);
+      add("nervous-system", 70 * deficit * recencyWeight);
+      add("immune-system", 56 * deficit * recencyWeight);
+      add("endocrine-system", 42 * deficit * recencyWeight);
+      if (form.morningSleepRating <= 4) {
+        notes.add("Low sleep ratings increase brain, nervous, and immune strain.");
+      }
+    }
+
+    if (typeof form.fatigue === "number" && form.fatigue > 0) {
+      const intensity = form.fatigue / 10;
+      add("nervous-system", 45 * intensity * recencyWeight);
+      add("immune-system", 36 * intensity * recencyWeight);
+      add("endocrine-system", 31 * intensity * recencyWeight);
+    }
+
+    if (typeof form.headache === "number" && form.headache > 0) {
+      add("brain", 72 * (form.headache / 4) * recencyWeight);
+    }
+
+    if (typeof form.coughing === "number" && form.coughing > 0) {
+      add("lungs", 82 * (form.coughing / 10) * recencyWeight);
+      if (form.coughing >= 6) {
+        notes.add("Coughing logs strongly impact lung-related systems.");
+      }
+    }
+
+    const emotionalLoad = ["stressed", "anxious", "angry", "depressed", "lonely"].filter((emotion) =>
+      form.emotions.includes(emotion)
+    ).length;
+    if (emotionalLoad > 0) {
+      const intensity = Math.min(1, emotionalLoad / 3);
+      add("nervous-system", 66 * intensity * recencyWeight);
+      add("heart", 44 * intensity * recencyWeight);
+      add("endocrine-system", 34 * intensity * recencyWeight);
+      add("digestive-system", 24 * intensity * recencyWeight);
+    }
+
+    if (form.school.includes("exam")) {
+      add("nervous-system", 34 * recencyWeight);
+      add("heart", 18 * recencyWeight);
+    }
+
+    if (form.events.includes("party")) {
+      add("liver-gallbladder", 26 * recencyWeight);
+      add("heart", 14 * recencyWeight);
+    }
+
+    if (form.otherFactors.includes("not well (sick)")) {
+      add("immune-system", 80 * recencyWeight);
+      add("lungs", 26 * recencyWeight);
+    }
+  }
+
+  const maxRaw = Math.max(...Object.values(raw));
+  if (maxRaw <= 0) return { scores: {}, notes: [] };
+
+  const scores: Partial<Record<DailyTrackerOrganRegionKey, number>> = {};
+  (Object.keys(raw) as DailyTrackerOrganRegionKey[]).forEach((region) => {
+    if (raw[region] <= 0) return;
+    scores[region] = Math.round((raw[region] / maxRaw) * 100);
+  });
+
+  return { scores, notes: [...notes] };
+}
+
 function getNextWorkoutSetPosition(
   workout: WorkoutTemplate,
   currentExerciseIndex: number,
@@ -273,6 +415,24 @@ export default function WorkoutPlanner() {
   const [weeklyPlanSummariesVisible, setWeeklyPlanSummariesVisible] = useState(false);
 
   const [logDateByWorkout, setLogDateByWorkout] = useState<Record<string, string>>({});
+  const [dailyTrackerEntries, setDailyTrackerEntries] = useState<DailyTrackerEntry[]>([]);
+
+  useEffect(() => {
+    const syncEntries = () => {
+      const parsed = parseDailyTrackerEntries(
+        window.localStorage.getItem(DAILY_TRACKER_ENTRIES_STORAGE_KEY)
+      );
+      setDailyTrackerEntries(parsed);
+    };
+
+    syncEntries();
+    window.addEventListener(DAILY_TRACKER_UPDATED_EVENT, syncEntries);
+    window.addEventListener("storage", syncEntries);
+    return () => {
+      window.removeEventListener(DAILY_TRACKER_UPDATED_EVENT, syncEntries);
+      window.removeEventListener("storage", syncEntries);
+    };
+  }, []);
 
   const setWorkoutHighlightedMuscles = (workoutId: string, muscles: MuscleGroup[]) => {
     setHighlightedMusclesByWorkout((previous) => {
@@ -720,6 +880,10 @@ export default function WorkoutPlanner() {
     }
     return byMuscle;
   }, [logs, workoutLoadById]);
+  const dailyTrackerOrganImpact = useMemo(
+    () => computeDailyTrackerOrganImpact(dailyTrackerEntries),
+    [dailyTrackerEntries]
+  );
   const draftMuscleScores = useMemo(() => {
     const workout: WorkoutTemplate = {
       id: "draft",
@@ -1213,15 +1377,23 @@ export default function WorkoutPlanner() {
       <section className="rounded-2xl bg-white p-5 shadow-sm">
         <h2 className="text-lg font-semibold mb-1">How Exercise Supports Organs</h2>
         <p className="text-xs text-zinc-500 mb-3">
-          This info card estimates internal-system support based on the muscle groups your workouts load.
-          Organ overlays are intentionally shown only here.
+          This card combines workout load with recent daily-tracker factors (for example alcohol,
+          caffeine, sleep, and symptoms) to estimate organ impact. Organ overlays are intentionally
+          shown only here.
         </p>
+        {Object.keys(dailyTrackerOrganImpact.scores).length === 0 && (
+          <p className="text-[11px] text-zinc-500 mb-2">
+            No recent daily tracker factors detected. Organ impact currently reflects workouts only.
+          </p>
+        )}
         <MuscleModel
           scores={fatigueScores}
           loadPoints={currentLoadPoints}
           title="Estimated Organ Support Impact"
           compact
           organOnly
+          extraOrganScores={dailyTrackerOrganImpact.scores}
+          extraOrganNotes={dailyTrackerOrganImpact.notes}
         />
       </section>
 
