@@ -143,9 +143,6 @@ export default function WorkoutPlanner() {
   const [showCreateWorkoutModal, setShowCreateWorkoutModal] = useState(false);
   const [previewWorkoutId, setPreviewWorkoutId] = useState<string | null>(null);
   const [exerciseInfoVisible, setExerciseInfoVisible] = useState<Record<string, boolean>>({});
-  const [highlightedMusclesByWorkout, setHighlightedMusclesByWorkout] = useState<
-    Record<string, MuscleGroup[]>
-  >({});
   const [previewHighlightedMuscles, setPreviewHighlightedMuscles] = useState<MuscleGroup[]>([]);
   const [weeklyPlanName, setWeeklyPlanName] = useState("");
   const [weeklyPlanDays, setWeeklyPlanDays] = useState<Record<WorkoutWeekDay, string[]>>(
@@ -1008,42 +1005,54 @@ export default function WorkoutPlanner() {
             )}
             {payload.workouts.map((workout) => (
               <div key={workout.id} className="rounded-lg border border-zinc-200 p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="font-medium">{workout.name}</p>
-                  <button
-                    type="button"
-                    onClick={() => removeWorkout(workout.id)}
-                    className="px-2 py-1 rounded-md text-xs bg-zinc-200"
-                  >
-                    🗑️
-                  </button>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-base font-semibold truncate">{workout.name}</p>
+                    <p className="text-[11px] text-zinc-500">
+                      {workout.exercises.length} exercise{workout.exercises.length === 1 ? "" : "s"}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <input
+                      type="date"
+                      value={logDateByWorkout[workout.id] || todayDateKey()}
+                      onChange={(event) =>
+                        setLogDateByWorkout((previous) => ({
+                          ...previous,
+                          [workout.id]: event.target.value,
+                        }))
+                      }
+                      className="border rounded-md px-1.5 py-1 text-[11px] bg-zinc-50"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setPreviewWorkoutId(workout.id)}
+                      className="px-2 py-1 rounded-md text-[11px] bg-zinc-200 hover:bg-zinc-300"
+                    >
+                      Preview
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => logWorkout(workout)}
+                      disabled={saving}
+                      className="px-2 py-1 rounded-md text-[11px] bg-emerald-500 hover:bg-emerald-600 text-white disabled:opacity-50"
+                    >
+                      Log
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => removeWorkout(workout.id)}
+                      className="px-2 py-1 rounded-md text-[11px] bg-zinc-200"
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </div>
-                <div className="mt-3">
-                  <MuscleModel
-                    scores={workoutScoresById.get(workout.id) || fatigueScores}
-                    loadPoints={workoutLoadById.get(workout.id)}
-                    title="Workout Muscle Targets"
-                    compact
-                    showOrganPanel={false}
-                    onHighlightedMusclesChange={(muscles) =>
-                      setHighlightedMusclesByWorkout((previous) => ({
-                        ...previous,
-                        [workout.id]: muscles,
-                      }))
-                    }
-                  />
-                </div>
-                <div className="mt-2 space-y-1">
+                <div className="mt-2 space-y-1 max-h-52 overflow-y-auto pr-1">
                   {workout.exercises.map((exercise) => (
                     <div
                       key={exercise.id}
-                      className={`rounded-md border px-2.5 py-2 transition-colors ${
-                        exercise.muscles.some((muscle) =>
-                          (highlightedMusclesByWorkout[workout.id] || []).includes(muscle)
-                        )
-                          ? "border-sky-300 bg-sky-50/70"
-                          : "border-zinc-200 bg-zinc-50/70"
-                      }`}
+                      className="rounded-md border border-zinc-200 bg-zinc-50/70 px-2 py-1.5 transition-colors"
                     >
                       <div className="flex items-start justify-between gap-2">
                         <p className="text-sm font-semibold leading-tight">{exercise.name}</p>
@@ -1062,38 +1071,17 @@ export default function WorkoutPlanner() {
                           i
                         </button>
                       </div>
-                      <p className="text-xs text-zinc-500 mt-1 stat-mono">
+                      <p className="text-[11px] text-zinc-500 mt-0.5 stat-mono">
                         {exercise.sets} sets x {exercise.reps} reps • Rest{" "}
                         {exercise.restSeconds ?? DEFAULT_REST_SECONDS}s
                       </p>
                       {exerciseInfoVisible[`saved-${workout.id}-${exercise.id}`] && (
-                        <p className="text-xs text-zinc-500 mt-1">
+                        <p className="text-[11px] text-zinc-500 mt-0.5">
                           Hits: {exercise.muscles.map((muscle) => MUSCLE_LABELS[muscle]).join(", ")}
                         </p>
                       )}
                     </div>
                   ))}
-                </div>
-                <div className="mt-3 flex items-center gap-2">
-                  <input
-                    type="date"
-                    value={logDateByWorkout[workout.id] || todayDateKey()}
-                    onChange={(event) =>
-                      setLogDateByWorkout((previous) => ({
-                        ...previous,
-                        [workout.id]: event.target.value,
-                      }))
-                    }
-                    className="border rounded-lg px-2 py-1 text-xs bg-zinc-50"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => logWorkout(workout)}
-                    disabled={saving}
-                    className="px-2 py-1 rounded-md text-xs bg-emerald-500 hover:bg-emerald-600 text-white"
-                  >
-                    Log Workout
-                  </button>
                 </div>
               </div>
             ))}
