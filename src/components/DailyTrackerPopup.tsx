@@ -29,6 +29,22 @@ interface DailyTrackerPopupProps {
 }
 
 type SyncPayload = Record<string, string>;
+const EMOTION_EMOJI: Record<string, string> = {
+  excited: "🤩",
+  relaxed: "😌",
+  proud: "😎",
+  happy: "😄",
+  good: "🙂",
+  chill: "🧊",
+  depressed: "😞",
+  lonely: "🥺",
+  anxious: "😰",
+  sad: "😢",
+  angry: "😡",
+  annoyed: "😒",
+  tired: "😴",
+  stressed: "😵",
+};
 
 function toggleArrayItem(list: string[], value: string): string[] {
   return list.includes(value) ? list.filter((entry) => entry !== value) : [...list, value];
@@ -157,11 +173,13 @@ function MultiToggle({
   options,
   selected,
   onToggle,
+  renderOptionLabel,
 }: {
   label: string;
   options: readonly string[];
   selected: string[];
   onToggle: (value: string) => void;
+  renderOptionLabel?: (value: string) => string;
 }) {
   return (
     <div className="space-y-1">
@@ -178,7 +196,7 @@ function MultiToggle({
                 active ? "border-emerald-400 bg-emerald-50 text-emerald-700" : "border-zinc-200 bg-white"
               }`}
             >
-              {option}
+              {renderOptionLabel ? renderOptionLabel(option) : option}
             </button>
           );
         })}
@@ -405,6 +423,7 @@ export default function DailyTrackerPopup({ onClose }: DailyTrackerPopupProps) {
             onToggle={(value) =>
               setForm((previous) => ({ ...previous, emotions: toggleArrayItem(previous.emotions, value) }))
             }
+            renderOptionLabel={(value) => `${EMOTION_EMOJI[value] || "🙂"} ${value}`}
           />
           <label className="block">
             <span className="text-sm font-medium">Emotions other</span>
