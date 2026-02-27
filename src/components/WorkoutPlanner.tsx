@@ -73,6 +73,14 @@ function createMuscleNumberMap(initialValue = 0): Record<MuscleGroup, number> {
   >;
 }
 
+function sameMuscleList(left: MuscleGroup[], right: MuscleGroup[]): boolean {
+  if (left.length !== right.length) return false;
+  for (let index = 0; index < left.length; index += 1) {
+    if (left[index] !== right[index]) return false;
+  }
+  return true;
+}
+
 function computeWorkoutLoadPoints(workout: WorkoutTemplate): Record<MuscleGroup, number> {
   const byMuscle = createMuscleNumberMap(0);
   for (const exercise of workout.exercises) {
@@ -156,6 +164,17 @@ export default function WorkoutPlanner() {
   const [weeklyPlanSummariesVisible, setWeeklyPlanSummariesVisible] = useState(false);
 
   const [logDateByWorkout, setLogDateByWorkout] = useState<Record<string, string>>({});
+
+  const setWorkoutHighlightedMuscles = (workoutId: string, muscles: MuscleGroup[]) => {
+    setHighlightedMusclesByWorkout((previous) => {
+      const current = previous[workoutId] || [];
+      if (sameMuscleList(current, muscles)) return previous;
+      return {
+        ...previous,
+        [workoutId]: muscles,
+      };
+    });
+  };
 
   useEffect(() => {
     if (!showCreateWorkoutModal && !previewWorkoutId) return;
@@ -1060,10 +1079,7 @@ export default function WorkoutPlanner() {
                       compact
                       showOrganPanel={false}
                       onHighlightedMusclesChange={(muscles) =>
-                        setHighlightedMusclesByWorkout((previous) => ({
-                          ...previous,
-                          [workout.id]: muscles,
-                        }))
+                        setWorkoutHighlightedMuscles(workout.id, muscles)
                       }
                     />
                   </div>
