@@ -183,8 +183,8 @@ export default function Home() {
 
             {menuOpen && (
               <div
-                className={`surface-card-strong absolute mt-2 w-[min(24rem,calc(100vw-2rem))] p-3 z-[80] ${
-                  useLeftSidebar ? "left-0" : "right-0"
+                className={`surface-card-strong absolute w-[min(24rem,calc(100vw-2rem))] p-3 z-[80] ${
+                  useLeftSidebar ? "left-full top-0 ml-2" : "right-0 mt-2"
                 }`}
               >
                 <div className="flex flex-col gap-2">
