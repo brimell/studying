@@ -353,7 +353,8 @@ export default function Dashboard() {
   const getCardStyle = (id: CardId): CSSProperties | undefined => {
     if (!isDesktop) return undefined;
     const { colSpan, rowSpan } = resolveCardLayout(cardSizes[id], gridColumns);
-    const effectiveRowSpan = id === "today-progress" ? 1 : rowSpan;
+    const effectiveRowSpan =
+      id === "today-progress" || id === "first-exam-countdown" ? 1 : rowSpan;
     return {
       gridColumn: `span ${colSpan} / span ${colSpan}`,
       gridRow: `span ${effectiveRowSpan} / span ${effectiveRowSpan}`,
