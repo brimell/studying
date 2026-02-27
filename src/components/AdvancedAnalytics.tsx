@@ -26,6 +26,7 @@ const MONTHLY_STUDY_GOAL_HOURS = 80;
 const WEEKLY_ALL_HABITS_GOAL_DAYS = 5;
 const MONTHLY_ALL_HABITS_GOAL_DAYS = 22;
 const MONTHLY_TO_WEEKLY_RATIO = 30 / 7;
+const WEEKLY_TO_DAILY_RATIO = 7;
 
 interface AnalyticsState {
   today: TodayProgressData | null;
@@ -57,7 +58,7 @@ interface AnomalyInsight {
 interface GoalForecast {
   id: string;
   title: string;
-  period: "Weekly" | "Monthly";
+  period: "Daily" | "Weekly" | "Monthly";
   target: number;
   predicted: number;
   confidenceLow: number;
@@ -67,6 +68,7 @@ interface GoalForecast {
 }
 
 interface StudyGoalForecastTargets {
+  dailyHours: number;
   weeklyHours: number;
   monthlyHours: number;
 }
@@ -94,6 +96,7 @@ function clampForecastHours(value: number, fallback: number): number {
 
 function readStudyGoalForecastTargets(): StudyGoalForecastTargets {
   const fallback: StudyGoalForecastTargets = {
+    dailyHours: Math.round((WEEKLY_STUDY_GOAL_HOURS / WEEKLY_TO_DAILY_RATIO) * 10) / 10,
     weeklyHours: WEEKLY_STUDY_GOAL_HOURS,
     monthlyHours: MONTHLY_STUDY_GOAL_HOURS,
   };
@@ -102,9 +105,14 @@ function readStudyGoalForecastTargets(): StudyGoalForecastTargets {
 
   try {
     const parsed = JSON.parse(raw) as {
+      dailyHours?: unknown;
       weeklyHours?: unknown;
       monthlyHours?: unknown;
     };
+    const daily = Number(parsed.dailyHours);
+    if (Number.isFinite(daily)) {
+      return targetsFromDailyHours(daily);
+    }
     const weekly = Number(parsed.weeklyHours);
     if (Number.isFinite(weekly)) {
       return targetsFromWeeklyHours(weekly);
@@ -119,9 +127,26 @@ function readStudyGoalForecastTargets(): StudyGoalForecastTargets {
   }
 }
 
+function targetsFromDailyHours(dailyHours: number): StudyGoalForecastTargets {
+  const safeDaily = Math.max(0.1, Math.min(24, Math.round(dailyHours * 10) / 10));
+  const weeklyHours = clampForecastHours(
+    safeDaily * WEEKLY_TO_DAILY_RATIO,
+    WEEKLY_STUDY_GOAL_HOURS
+  );
+  return {
+    dailyHours: Math.round((weeklyHours / WEEKLY_TO_DAILY_RATIO) * 10) / 10,
+    weeklyHours,
+    monthlyHours: clampForecastHours(
+      weeklyHours * MONTHLY_TO_WEEKLY_RATIO,
+      MONTHLY_STUDY_GOAL_HOURS
+    ),
+  };
+}
+
 function targetsFromWeeklyHours(weeklyHours: number): StudyGoalForecastTargets {
   const safeWeekly = clampForecastHours(weeklyHours, WEEKLY_STUDY_GOAL_HOURS);
   return {
+    dailyHours: Math.round((safeWeekly / WEEKLY_TO_DAILY_RATIO) * 10) / 10,
     weeklyHours: safeWeekly,
     monthlyHours: clampForecastHours(
       safeWeekly * MONTHLY_TO_WEEKLY_RATIO,
@@ -132,11 +157,13 @@ function targetsFromWeeklyHours(weeklyHours: number): StudyGoalForecastTargets {
 
 function targetsFromMonthlyHours(monthlyHours: number): StudyGoalForecastTargets {
   const safeMonthly = clampForecastHours(monthlyHours, MONTHLY_STUDY_GOAL_HOURS);
+  const weeklyHours = clampForecastHours(
+    safeMonthly / MONTHLY_TO_WEEKLY_RATIO,
+    WEEKLY_STUDY_GOAL_HOURS
+  );
   return {
-    weeklyHours: clampForecastHours(
-      safeMonthly / MONTHLY_TO_WEEKLY_RATIO,
-      WEEKLY_STUDY_GOAL_HOURS
-    ),
+    dailyHours: Math.round((weeklyHours / WEEKLY_TO_DAILY_RATIO) * 10) / 10,
+    weeklyHours,
     monthlyHours: safeMonthly,
   };
 }
@@ -462,6 +489,16 @@ function buildGoalForecasts(
 
   const forecasts: GoalForecast[] = [
     forecastContinuousGoal(
+      "study-daily",
+      "Study hours",
+      "Daily",
+      studyTargets.dailyHours,
+      "hours",
+      studyDailyMean,
+      studyDailyStdDev,
+      1
+    ),
+    forecastContinuousGoal(
       "study-weekly",
       "Study hours",
       "Weekly",
@@ -540,7 +577,7 @@ export default function AdvancedAnalytics() {
   });
   const [goalTargets, setGoalTargets] = useState<StudyGoalForecastTargets>(() => {
     if (typeof window === "undefined") {
-      return { weeklyHours: WEEKLY_STUDY_GOAL_HOURS, monthlyHours: MONTHLY_STUDY_GOAL_HOURS };
+      return targetsFromWeeklyHours(WEEKLY_STUDY_GOAL_HOURS);
     }
     return readStudyGoalForecastTargets();
   });
@@ -549,11 +586,12 @@ export default function AdvancedAnalytics() {
     window.localStorage.setItem(
       GOAL_FORECAST_TARGETS_STORAGE_KEY,
       JSON.stringify({
+        dailyHours: goalTargets.dailyHours,
         weeklyHours: goalTargets.weeklyHours,
         monthlyHours: goalTargets.monthlyHours,
       })
     );
-  }, [goalTargets.monthlyHours, goalTargets.weeklyHours]);
+  }, [goalTargets.dailyHours, goalTargets.monthlyHours, goalTargets.weeklyHours]);
 
   const fetchData = useCallback(async () => {
     try {
@@ -852,7 +890,21 @@ export default function AdvancedAnalytics() {
             <p className="text-xs text-zinc-500">
               Forecasts use recent trend variability and show 95% confidence ranges.
             </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <label className="text-xs text-zinc-600 space-y-1">
+                <span>Daily study target (hours)</span>
+                <input
+                  type="number"
+                  min={0.1}
+                  max={24}
+                  step={0.1}
+                  value={goalTargets.dailyHours}
+                  onChange={(event) =>
+                    setGoalTargets(targetsFromDailyHours(Number(event.target.value)))
+                  }
+                  className="field-select w-full"
+                />
+              </label>
               <label className="text-xs text-zinc-600 space-y-1">
                 <span>Weekly study target (hours)</span>
                 <input
