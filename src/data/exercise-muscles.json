@@ -1217,5 +1217,157 @@
       "Tibia & Fibula",
       "Foot"
     ]
+  },
+  {
+    "exerciseId": "ex-046",
+    "exerciseName": "Upper Trap Stretch",
+    "muscles": [
+      {
+        "id": "trapezius-upper",
+        "percent": 60
+      },
+      {
+        "id": "levator-scapulae",
+        "percent": 25
+      },
+      {
+        "id": "splenius",
+        "percent": 15
+      }
+    ],
+    "timeSeconds": 30,
+    "bones": [
+      "Skull with Mandible",
+      "Clavicle",
+      "Scapulae",
+      "Spine with Sacrus & Coccyx"
+    ]
+  },
+  {
+    "exerciseId": "ex-047",
+    "exerciseName": "Levator Scap Stretch",
+    "muscles": [
+      {
+        "id": "levator-scapulae",
+        "percent": 55
+      },
+      {
+        "id": "trapezius-upper",
+        "percent": 25
+      },
+      {
+        "id": "splenius",
+        "percent": 20
+      }
+    ],
+    "timeSeconds": 30,
+    "bones": [
+      "Skull with Mandible",
+      "Clavicle",
+      "Scapulae",
+      "Spine with Sacrus & Coccyx"
+    ]
+  },
+  {
+    "exerciseId": "ex-048",
+    "exerciseName": "Thoracic Extensions",
+    "muscles": [
+      {
+        "id": "erector-spinae",
+        "percent": 45
+      },
+      {
+        "id": "trapezius-middle",
+        "percent": 25
+      },
+      {
+        "id": "rhomboids",
+        "percent": 20
+      },
+      {
+        "id": "core",
+        "percent": 10
+      }
+    ],
+    "timeSeconds": 35,
+    "bones": [
+      "Ribs & Sternum",
+      "Spine with Sacrus & Coccyx",
+      "Scapulae",
+      "Pelvis"
+    ]
+  },
+  {
+    "exerciseId": "ex-049",
+    "exerciseName": "Hip Flexor Stretch",
+    "muscles": [
+      {
+        "id": "hip-flexors",
+        "percent": 50
+      },
+      {
+        "id": "quadriceps",
+        "percent": 25
+      },
+      {
+        "id": "gluteus-maximus",
+        "percent": 15
+      },
+      {
+        "id": "core",
+        "percent": 10
+      }
+    ],
+    "timeSeconds": 30,
+    "bones": [
+      "Spine with Sacrus & Coccyx",
+      "Pelvis",
+      "Femur & Patella",
+      "Tibia & Fibula"
+    ]
+  },
+  {
+    "exerciseId": "ex-050",
+    "exerciseName": "Hamstring Sweeps",
+    "muscles": [
+      {
+        "id": "hamstrings",
+        "percent": 60
+      },
+      {
+        "id": "gluteus-maximus",
+        "percent": 20
+      },
+      {
+        "id": "erector-spinae",
+        "percent": 20
+      }
+    ],
+    "timeSeconds": 30,
+    "bones": [
+      "Pelvis",
+      "Femur & Patella",
+      "Tibia & Fibula",
+      "Spine with Sacrus & Coccyx"
+    ]
+  },
+  {
+    "exerciseId": "ex-051",
+    "exerciseName": "Palm Down Wrist Curl",
+    "muscles": [
+      {
+        "id": "forearms",
+        "percent": 70
+      },
+      {
+        "id": "wrist-extensors",
+        "percent": 30
+      }
+    ],
+    "timeSeconds": 30,
+    "bones": [
+      "Radius & Ulna",
+      "Hand"
+    ]
   }
 ]
