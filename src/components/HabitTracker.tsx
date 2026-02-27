@@ -1922,7 +1922,7 @@ export default function HabitTracker() {
   }, [data]);
 
   return (
-    <div className="surface-card p-6">
+    <div className="surface-card px-6 pt-6 pb-2">
       {loading && (
         <div className="h-40 flex items-center justify-center text-zinc-400 animate-pulse">
           Loading...
