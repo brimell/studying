@@ -66,12 +66,14 @@ function HomeContent() {
   }, []);
 
   const settingsOpen = searchParams.get("settings") === "1";
+  const trackerOpenFromQuery = searchParams.get("tracker") === "1";
+  const dailyTrackerVisible = dailyTrackerOpen || trackerOpenFromQuery;
 
   useEffect(() => {
-    if (!settingsOpen && !gamificationOpen && !dailyTrackerOpen) return;
+    if (!settingsOpen && !gamificationOpen && !dailyTrackerVisible) return;
     lockBodyScroll();
     return () => unlockBodyScroll();
-  }, [dailyTrackerOpen, gamificationOpen, settingsOpen]);
+  }, [dailyTrackerVisible, gamificationOpen, settingsOpen]);
 
   useEffect(() => {
     if (!settingsOpen) return;
@@ -100,14 +102,19 @@ function HomeContent() {
   }, [gamificationOpen]);
 
   useEffect(() => {
-    if (!dailyTrackerOpen) return;
+    if (!dailyTrackerVisible) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       setDailyTrackerOpen(false);
+      if (!trackerOpenFromQuery) return;
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete("tracker");
+      const query = params.toString();
+      router.replace(query ? `/?${query}` : "/");
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [dailyTrackerOpen]);
+  }, [dailyTrackerVisible, router, searchParams, trackerOpenFromQuery]);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -136,6 +143,23 @@ function HomeContent() {
   function closeSettings() {
     const params = new URLSearchParams(searchParams.toString());
     params.delete("settings");
+    const query = params.toString();
+    router.replace(query ? `/?${query}` : "/");
+  }
+
+  function openDailyTracker() {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tracker", "1");
+    const query = params.toString();
+    router.replace(query ? `/?${query}` : "/");
+    setDailyTrackerOpen(true);
+  }
+
+  function closeDailyTracker() {
+    setDailyTrackerOpen(false);
+    if (!trackerOpenFromQuery) return;
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("tracker");
     const query = params.toString();
     router.replace(query ? `/?${query}` : "/");
   }
@@ -188,7 +212,7 @@ function HomeContent() {
                   />
                   <button
                     type="button"
-                    onClick={() => setDailyTrackerOpen(true)}
+                    onClick={openDailyTracker}
                     className="pill-btn px-2 py-1 text-sm"
                     aria-label="Open daily tracker"
                   >
@@ -210,7 +234,7 @@ function HomeContent() {
                   <TopBarDataControls mode="streakOnly" />
                   <button
                     type="button"
-                    onClick={() => setDailyTrackerOpen(true)}
+                    onClick={openDailyTracker}
                     className="pill-btn px-2.5 py-2"
                     aria-label="Open daily tracker"
                   >
@@ -339,20 +363,20 @@ function HomeContent() {
           document.body
         )}
 
-      {dailyTrackerOpen &&
+      {dailyTrackerVisible &&
         typeof document !== "undefined" &&
         createPortal(
           <div
             className="fixed inset-0 z-[180] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
             onMouseDown={(event) => {
-              if (event.target === event.currentTarget) setDailyTrackerOpen(false);
+              if (event.target === event.currentTarget) closeDailyTracker();
             }}
           >
             <div
               className="surface-card-strong w-full max-w-3xl max-h-[90vh] overflow-y-auto p-4 sm:p-5"
               onMouseDown={(event) => event.stopPropagation()}
             >
-              <DailyTrackerPopup onClose={() => setDailyTrackerOpen(false)} />
+              <DailyTrackerPopup onClose={closeDailyTracker} />
             </div>
           </div>,
           document.body
