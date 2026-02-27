@@ -38,15 +38,16 @@ export default function TopBarDataControls() {
   };
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2">
       <button
         type="button"
         onClick={() => setShowStudyProjection(true)}
         className="px-2 py-1 rounded-md text-xs bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors"
       >
-        Project Studying
+        <span className="sm:hidden">Project</span>
+        <span className="hidden sm:inline">Project Studying</span>
       </button>
-      <p className="text-[11px] text-zinc-500 hidden md:block">
+      <p className="text-[11px] text-zinc-500 hidden lg:block">
         Last fetched {formatTimeSince(lastFetchedAt, now)}
       </p>
       <button
@@ -54,7 +55,7 @@ export default function TopBarDataControls() {
         disabled={refreshing}
         className="px-2 py-1 rounded-md text-xs bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 disabled:opacity-50 transition-colors"
       >
-        {refreshing ? "Refreshing..." : "Refresh Data"}
+        {refreshing ? "Refreshing..." : "Refresh"}
       </button>
 
       {mounted &&

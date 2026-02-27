@@ -310,7 +310,7 @@ export default function Dashboard() {
   return (
     <div>
       <AlertsPanel />
-      <div className="mb-4 flex flex-wrap items-center gap-3 text-xs text-zinc-500">
+      <div className="mb-4 hidden lg:flex flex-wrap items-center gap-3 text-xs text-zinc-500">
         <span className="font-medium text-zinc-600 dark:text-zinc-300">Dashboard Grid</span>
         <label className="inline-flex items-center gap-1.5">
           <span>Columns</span>
@@ -391,7 +391,7 @@ export default function Dashboard() {
                 >
                   ↓
                 </button>
-                <label className="inline-flex items-center gap-1">
+                <label className="hidden sm:inline-flex items-center gap-1">
                   <span>Size</span>
                   <select
                     value={cardSizes[id]}
@@ -421,7 +421,7 @@ export default function Dashboard() {
                     setDraggingId(null);
                     setDropTargetId(null);
                   }}
-                  className="px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 cursor-grab active:cursor-grabbing"
+                  className="hidden sm:inline-flex px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 cursor-grab active:cursor-grabbing"
                 >
                   Drag
                 </span>
