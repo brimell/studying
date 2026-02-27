@@ -91,7 +91,10 @@ function HomeContent() {
   }, []);
 
   useEffect(() => {
+    // Persist/sync timer snapshot only when not actively running.
+    if (studyTimerState.status === "running") return;
     writeStudyTimerState(studyTimerState);
+    window.dispatchEvent(new CustomEvent("study-stats:settings-updated"));
   }, [studyTimerState]);
 
   useEffect(() => {
