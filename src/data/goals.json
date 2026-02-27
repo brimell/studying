@@ -1,0 +1,512 @@
+{
+  "schemaVersion": "1.0",
+  "notes": [
+    "Progress is tracked externally in the database.",
+    "Goals focus only on streaks, study, fitness, and combined discipline.",
+    "Combined goals support MANY habits and are not limited to two."
+  ],
+  "goals": [
+    {
+      "id": "streak-study-2",
+      "title": "Momentum Builder",
+      "points": 25,
+      "category": "streak",
+      "habitType": "study",
+      "metric": "streak_days",
+      "target": 2,
+      "description": "Reach a 2-day study streak."
+    },
+    {
+      "id": "streak-study-3",
+      "title": "Focus Starter",
+      "points": 40,
+      "category": "streak",
+      "habitType": "study",
+      "metric": "streak_days",
+      "target": 3,
+      "description": "Reach a 3-day study streak."
+    },
+    {
+      "id": "streak-study-5",
+      "title": "Consistency Builder",
+      "points": 70,
+      "category": "streak",
+      "habitType": "study",
+      "metric": "streak_days",
+      "target": 5,
+      "description": "Reach a 5-day study streak."
+    },
+    {
+      "id": "streak-study-7",
+      "title": "Study Warrior",
+      "points": 90,
+      "category": "streak",
+      "habitType": "study",
+      "metric": "streak_days",
+      "target": 7,
+      "description": "Reach a 7-day study streak."
+    },
+    {
+      "id": "streak-study-10",
+      "title": "Ten-Day Scholar",
+      "points": 130,
+      "category": "streak",
+      "habitType": "study",
+      "metric": "streak_days",
+      "target": 10,
+      "description": "Reach a 10-day study streak."
+    },
+    {
+      "id": "streak-study-14",
+      "title": "Unbroken Focus",
+      "points": 170,
+      "category": "streak",
+      "habitType": "study",
+      "metric": "streak_days",
+      "target": 14,
+      "description": "Reach a 14-day study streak."
+    },
+    {
+      "id": "streak-study-21",
+      "title": "Three-Week Discipline",
+      "points": 240,
+      "category": "streak",
+      "habitType": "study",
+      "metric": "streak_days",
+      "target": 21,
+      "description": "Reach a 21-day study streak."
+    },
+    {
+      "id": "streak-study-30",
+      "title": "Relentless Scholar",
+      "points": 320,
+      "category": "streak",
+      "habitType": "study",
+      "metric": "streak_days",
+      "target": 30,
+      "description": "Reach a 30-day study streak."
+    },
+    {
+      "id": "streak-study-60",
+      "title": "Semester Machine",
+      "points": 650,
+      "category": "streak",
+      "habitType": "study",
+      "metric": "streak_days",
+      "target": 60,
+      "description": "Reach a 60-day study streak."
+    },
+
+    {
+      "id": "streak-workout-2",
+      "title": "Movement Kickoff",
+      "points": 25,
+      "category": "streak",
+      "habitType": "fitness",
+      "metric": "streak_days",
+      "target": 2,
+      "description": "Reach a 2-day workout streak."
+    },
+    {
+      "id": "streak-workout-3",
+      "title": "Movement Momentum",
+      "points": 40,
+      "category": "streak",
+      "habitType": "fitness",
+      "metric": "streak_days",
+      "target": 3,
+      "description": "Reach a 3-day workout streak."
+    },
+    {
+      "id": "streak-workout-5",
+      "title": "Workout Rhythm",
+      "points": 70,
+      "category": "streak",
+      "habitType": "fitness",
+      "metric": "streak_days",
+      "target": 5,
+      "description": "Reach a 5-day workout streak."
+    },
+    {
+      "id": "streak-workout-7",
+      "title": "Iron Week",
+      "points": 110,
+      "category": "streak",
+      "habitType": "fitness",
+      "metric": "streak_days",
+      "target": 7,
+      "description": "Reach a 7-day workout streak."
+    },
+    {
+      "id": "streak-workout-10",
+      "title": "Training Tenacity",
+      "points": 160,
+      "category": "streak",
+      "habitType": "fitness",
+      "metric": "streak_days",
+      "target": 10,
+      "description": "Reach a 10-day workout streak."
+    },
+    {
+      "id": "streak-workout-14",
+      "title": "Iron Routine",
+      "points": 220,
+      "category": "streak",
+      "habitType": "fitness",
+      "metric": "streak_days",
+      "target": 14,
+      "description": "Reach a 14-day workout streak."
+    },
+    {
+      "id": "streak-workout-21",
+      "title": "Three-Week Athlete",
+      "points": 320,
+      "category": "streak",
+      "habitType": "fitness",
+      "metric": "streak_days",
+      "target": 21,
+      "description": "Reach a 21-day workout streak."
+    },
+    {
+      "id": "streak-workout-30",
+      "title": "Conditioning Legend",
+      "points": 450,
+      "category": "streak",
+      "habitType": "fitness",
+      "metric": "streak_days",
+      "target": 30,
+      "description": "Reach a 30-day workout streak."
+    },
+
+    {
+      "id": "study-sessions-1",
+      "title": "Focused Session",
+      "points": 10,
+      "category": "study",
+      "habitType": "study",
+      "metric": "count",
+      "target": 1,
+      "description": "Complete one study session."
+    },
+    {
+      "id": "study-sessions-3-day",
+      "title": "Deep Work Starter",
+      "points": 30,
+      "category": "study",
+      "habitType": "study",
+      "metric": "count",
+      "target": 3,
+      "description": "Complete 3 study sessions in one day."
+    },
+    {
+      "id": "study-sessions-5-day",
+      "title": "Study Sprint",
+      "points": 60,
+      "category": "study",
+      "habitType": "study",
+      "metric": "count",
+      "target": 5,
+      "description": "Complete 5 study sessions in one day."
+    },
+    {
+      "id": "study-sessions-8-day",
+      "title": "All-Day Grind",
+      "points": 120,
+      "category": "study",
+      "habitType": "study",
+      "metric": "count",
+      "target": 8,
+      "description": "Complete 8 study sessions in one day."
+    },
+    {
+      "id": "study-minutes-60",
+      "title": "One-Hour Lock-In",
+      "points": 25,
+      "category": "study",
+      "habitType": "study",
+      "metric": "minutes",
+      "target": 60,
+      "description": "Study for 60 minutes total."
+    },
+    {
+      "id": "study-minutes-120",
+      "title": "Flow State",
+      "points": 60,
+      "category": "study",
+      "habitType": "study",
+      "metric": "minutes",
+      "target": 120,
+      "description": "Study for 2 hours total."
+    },
+    {
+      "id": "study-minutes-180",
+      "title": "Deep Work Engine",
+      "points": 90,
+      "category": "study",
+      "habitType": "study",
+      "metric": "minutes",
+      "target": 180,
+      "description": "Study for 3 hours total."
+    },
+    {
+      "id": "study-minutes-300",
+      "title": "Five-Hour Fortress",
+      "points": 160,
+      "category": "study",
+      "habitType": "study",
+      "metric": "minutes",
+      "target": 300,
+      "description": "Study for 5 hours total."
+    },
+    {
+      "id": "study-hours-week-10",
+      "title": "Weekly Knowledge Builder",
+      "points": 140,
+      "category": "study",
+      "habitType": "study",
+      "metric": "hours",
+      "target": 10,
+      "description": "Log 10 hours of study in a week."
+    },
+    {
+      "id": "study-hours-week-20",
+      "title": "Weekly Pressure Test",
+      "points": 260,
+      "category": "study",
+      "habitType": "study",
+      "metric": "hours",
+      "target": 20,
+      "description": "Log 20 hours of study in a week."
+    },
+    {
+      "id": "study-days-30",
+      "title": "Deep Work Veteran",
+      "points": 200,
+      "category": "study",
+      "habitType": "study",
+      "metric": "days",
+      "target": 30,
+      "description": "Log 30 active study days."
+    },
+    {
+      "id": "study-days-60",
+      "title": "Academic Main Character",
+      "points": 420,
+      "category": "study",
+      "habitType": "study",
+      "metric": "days",
+      "target": 60,
+      "description": "Log 60 active study days."
+    },
+    {
+      "id": "study-days-100",
+      "title": "Century of Effort",
+      "points": 800,
+      "category": "study",
+      "habitType": "study",
+      "metric": "days",
+      "target": 100,
+      "description": "Log 100 active study days."
+    },
+
+    {
+      "id": "fitness-workouts-week-3",
+      "title": "Workout Builder",
+      "points": 60,
+      "category": "fitness",
+      "habitType": "fitness",
+      "metric": "count",
+      "target": 3,
+      "description": "Complete 3 workouts in a week."
+    },
+    {
+      "id": "fitness-workouts-week-4",
+      "title": "Training Week",
+      "points": 110,
+      "category": "fitness",
+      "habitType": "fitness",
+      "metric": "count",
+      "target": 4,
+      "description": "Complete 4 workouts in a week."
+    },
+    {
+      "id": "fitness-workouts-week-5",
+      "title": "Athlete Mode",
+      "points": 200,
+      "category": "fitness",
+      "habitType": "fitness",
+      "metric": "count",
+      "target": 5,
+      "description": "Complete 5 workouts in a week."
+    },
+    {
+      "id": "fitness-unique-days-10",
+      "title": "Gym Regular",
+      "points": 90,
+      "category": "fitness",
+      "habitType": "fitness",
+      "metric": "unique_days",
+      "target": 10,
+      "description": "Log workouts on 10 unique days."
+    },
+    {
+      "id": "fitness-unique-days-20",
+      "title": "Iron Consistency",
+      "points": 140,
+      "category": "fitness",
+      "habitType": "fitness",
+      "metric": "unique_days",
+      "target": 20,
+      "description": "Log workouts on 20 unique days."
+    },
+    {
+      "id": "fitness-unique-days-50",
+      "title": "Training Identity",
+      "points": 380,
+      "category": "fitness",
+      "habitType": "fitness",
+      "metric": "unique_days",
+      "target": 50,
+      "description": "Log workouts on 50 unique days."
+    },
+    {
+      "id": "fitness-minutes-week-150",
+      "title": "Weekly Volume",
+      "points": 120,
+      "category": "fitness",
+      "habitType": "fitness",
+      "metric": "minutes",
+      "target": 150,
+      "description": "Train for 150 minutes in a week."
+    },
+    {
+      "id": "fitness-minutes-week-300",
+      "title": "Weekly Workhorse",
+      "points": 220,
+      "category": "fitness",
+      "habitType": "fitness",
+      "metric": "minutes",
+      "target": 300,
+      "description": "Train for 300 minutes in a week."
+    },
+
+    {
+      "id": "combined-same-day",
+      "title": "Perfect Day",
+      "points": 80,
+      "category": "combined",
+      "habitType": "mixed",
+      "metric": "count",
+      "target": 1,
+      "description": "Complete at least one study session and one workout on the same day.",
+      "rules": {
+        "requiresSameDay": true,
+        "requiredHabitTypes": ["study", "fitness"]
+      }
+    },
+    {
+      "id": "combined-dual-streak-3",
+      "title": "Dual Discipline",
+      "points": 150,
+      "category": "combined",
+      "habitType": "mixed",
+      "metric": "count",
+      "target": 1,
+      "description": "Keep both study and workout streaks at 3+ at the same time.",
+      "rules": {
+        "requiresConcurrentStreaks": true,
+        "requiredHabitTypes": ["study", "fitness"],
+        "minStreakDaysPerType": 3
+      }
+    },
+    {
+      "id": "combined-triple-streak",
+      "title": "Triple Threat",
+      "points": 220,
+      "category": "combined",
+      "habitType": "mixed",
+      "metric": "count",
+      "target": 1,
+      "description": "Maintain streaks of 3+ across any 3 habits at the same time.",
+      "rules": {
+        "requiresConcurrentStreaks": true,
+        "minHabits": 3,
+        "minStreakDays": 3
+      }
+    },
+    {
+      "id": "combined-quad-streak",
+      "title": "Systems Operator",
+      "points": 320,
+      "category": "combined",
+      "habitType": "mixed",
+      "metric": "count",
+      "target": 1,
+      "description": "Maintain streaks of 3+ across any 4 habits at the same time.",
+      "rules": {
+        "requiresConcurrentStreaks": true,
+        "minHabits": 4,
+        "minStreakDays": 3
+      }
+    },
+    {
+      "id": "combined-active-habits-3",
+      "title": "Habit Balancer",
+      "points": 80,
+      "category": "combined",
+      "habitType": "mixed",
+      "metric": "count",
+      "target": 3,
+      "description": "Keep 3+ habits active in the same rolling period.",
+      "rules": {
+        "requiresActiveHabitsInPeriod": true,
+        "period": "rolling_7_days",
+        "minActiveHabits": 3
+      }
+    },
+    {
+      "id": "combined-active-habits-5",
+      "title": "Balanced Machine",
+      "points": 180,
+      "category": "combined",
+      "habitType": "mixed",
+      "metric": "count",
+      "target": 5,
+      "description": "Keep 5+ habits active in the same rolling period.",
+      "rules": {
+        "requiresActiveHabitsInPeriod": true,
+        "period": "rolling_14_days",
+        "minActiveHabits": 5
+      }
+    },
+    {
+      "id": "combined-weekly-domination",
+      "title": "Weekly Domination",
+      "points": 250,
+      "category": "combined",
+      "habitType": "mixed",
+      "metric": "count",
+      "target": 1,
+      "description": "Hit study and workout targets in the same week.",
+      "rules": {
+        "requiresWeeklyTargetsMet": true,
+        "requiredHabitTypes": ["study", "fitness"]
+      }
+    },
+    {
+      "id": "combined-streak-network",
+      "title": "Streak Network",
+      "points": 260,
+      "category": "combined",
+      "habitType": "mixed",
+      "metric": "count",
+      "target": 1,
+      "description": "Maintain 7-day streaks across any 3 habits simultaneously.",
+      "rules": {
+        "requiresConcurrentStreaks": true,
+        "minHabits": 3,
+        "minStreakDays": 7
+      }
+    }
+  ]
+}
