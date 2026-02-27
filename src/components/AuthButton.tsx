@@ -28,7 +28,7 @@ export default function AuthButton({ compact = false, className = "" }: AuthButt
           onClick={() => signOut()}
           className={`pill-btn ${className}`.trim()}
         >
-          Sign out
+          Unlink Google Account
         </button>
       );
     }
@@ -50,7 +50,7 @@ export default function AuthButton({ compact = false, className = "" }: AuthButt
           onClick={() => signOut()}
           className="pill-btn"
         >
-          Sign out
+          Unlink Google Account
         </button>
       </div>
     );
@@ -61,7 +61,7 @@ export default function AuthButton({ compact = false, className = "" }: AuthButt
       onClick={() => signIn("google")}
       className={`pill-btn pill-btn-primary ${className}`.trim()}
     >
-      Sign in with Google
+      Link Google Account
     </button>
   );
 }

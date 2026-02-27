@@ -516,11 +516,17 @@ export default function SupabaseAccountSync({ buttonClassName = "" }: { buttonCl
         onClick={() => setOpen((previous) => !previous)}
         className={`pill-btn ${buttonClassName}`.trim()}
       >
-        ☁️ Account Sync
+        ☁️ Site Account & Cloud Sync
       </button>
 
       {open && (
         <div className="surface-card-strong absolute right-0 mt-2 w-[320px] p-3 z-50">
+          <div className="mb-3 rounded-md border border-zinc-200 bg-zinc-50 px-2.5 py-2">
+            <p className="text-xs font-semibold text-zinc-700">Site Account (Supabase)</p>
+            <p className="text-[11px] text-zinc-500 mt-0.5">
+              This controls dashboard cloud backup/restore and is separate from Google account linking.
+            </p>
+          </div>
           {!session && (
             <div className="space-y-3">
               <div className="flex items-center gap-2 text-xs">
@@ -581,7 +587,7 @@ export default function SupabaseAccountSync({ buttonClassName = "" }: { buttonCl
                 {mode === "signin" ? "Sign In" : "Create Account"}
               </button>
               <p className="text-[11px] text-zinc-500">
-                Optional. You can still use Google + localStorage without creating an account.
+                Optional. Google linking is separate and does not create this site account.
               </p>
             </div>
           )}

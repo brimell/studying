@@ -109,7 +109,13 @@ export default function Home() {
                     {wideScreen ? "Standard Width" : "Wide Screen"}
                   </button>
                   <TopBarDataControls mode="refreshOnly" stacked />
+                  <div className="mt-1 text-[11px] uppercase tracking-wide text-zinc-500">
+                    Site account
+                  </div>
                   <SupabaseAccountSync buttonClassName="w-full text-left" />
+                  <div className="mt-1 text-[11px] uppercase tracking-wide text-zinc-500">
+                    Google integration
+                  </div>
                   <AuthButton compact className="w-full text-left" />
                 </div>
               </div>
