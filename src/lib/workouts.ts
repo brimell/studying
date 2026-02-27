@@ -376,6 +376,10 @@ function sanitizeExercise(input: unknown): WorkoutExercise | null {
   if (muscles.length === 0) return null;
   const sets = Math.max(1, Math.min(30, Number(value.sets) || 1));
   const reps = Math.max(1, Math.min(100, Number(value.reps) || 1));
+  const rawRestSeconds = Number(value.restSeconds);
+  const restSeconds = Number.isFinite(rawRestSeconds)
+    ? Math.max(0, Math.min(600, Math.round(rawRestSeconds)))
+    : undefined;
   const notes = safeString(value.notes, 300);
   return {
     id,
@@ -383,6 +387,7 @@ function sanitizeExercise(input: unknown): WorkoutExercise | null {
     muscles,
     sets,
     reps,
+    restSeconds,
     notes: notes || undefined,
   };
 }

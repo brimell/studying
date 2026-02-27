@@ -523,6 +523,7 @@ export default function WorkoutPlanner() {
   const workouts = payload.workouts;
   const logs = payload.logs;
   const weeklyPlans = payload.weeklyPlans;
+  const activeWeeklyPlan = weeklyPlans[0] || null;
 
   const fatigueScores = useMemo(
     () =>
@@ -587,6 +588,43 @@ export default function WorkoutPlanner() {
     () => new Map(workouts.map((workout) => [workout.id, workout])),
     [workouts]
   );
+  const nextScheduledWorkouts = useMemo(() => {
+    if (!activeWeeklyPlan) return null;
+
+    const sequence = WORKOUT_WEEK_DAYS.flatMap((day) =>
+      activeWeeklyPlan.days[day].map((workoutId) => ({
+        day,
+        workoutId,
+      }))
+    );
+    if (sequence.length === 0) return null;
+
+    const lastLogged = logs.find((log) => sequence.some((entry) => entry.workoutId === log.workoutId));
+    if (!lastLogged) {
+      const firstDay = sequence[0].day;
+      return {
+        planName: activeWeeklyPlan.name,
+        day: firstDay,
+        workoutIds: activeWeeklyPlan.days[firstDay],
+      };
+    }
+
+    let lastIndex = -1;
+    for (let index = sequence.length - 1; index >= 0; index -= 1) {
+      if (sequence[index].workoutId === lastLogged.workoutId) {
+        lastIndex = index;
+        break;
+      }
+    }
+
+    const nextIndex = lastIndex >= 0 ? (lastIndex + 1) % sequence.length : 0;
+    const nextDay = sequence[nextIndex].day;
+    return {
+      planName: activeWeeklyPlan.name,
+      day: nextDay,
+      workoutIds: activeWeeklyPlan.days[nextDay],
+    };
+  }, [activeWeeklyPlan, logs]);
   const workoutScoresById = useMemo(() => {
     const scoreMap = new Map<string, Record<MuscleGroup, number>>();
     const today = todayDateKey();
@@ -679,7 +717,7 @@ export default function WorkoutPlanner() {
   if (!session) {
     return (
       <div className="rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-5">
-        <h2 className="text-lg font-semibold mb-2">Workout Planner</h2>
+        <h2 className="text-lg font-semibold mb-2">Workout Section</h2>
         <p className="text-sm text-zinc-500">
           Sign in via `☁️ Account Sync` to save workouts in Supabase and sync across devices.
         </p>
@@ -692,7 +730,7 @@ export default function WorkoutPlanner() {
       <div className="surface-card p-6">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold">Workout Planner</h1>
+            <h1 className="text-2xl font-bold">Workout Section</h1>
             <p className="text-sm text-zinc-500 mt-1">
               Build custom routines with exercises, sets, reps, and rest intervals.
             </p>
@@ -706,6 +744,40 @@ export default function WorkoutPlanner() {
           </button>
         </div>
       </div>
+
+      <section className="surface-card p-5">
+        <h2 className="text-lg font-semibold mb-2">Next Workout(s)</h2>
+        {!nextScheduledWorkouts && (
+          <p className="text-sm text-zinc-500">
+            Add a weekly workout plan to see the next workouts in sequence.
+          </p>
+        )}
+        {nextScheduledWorkouts && (
+          <div className="space-y-2">
+            <p className="text-xs text-zinc-500">
+              Plan: {nextScheduledWorkouts.planName} • Next day: {WEEKDAY_LABELS[nextScheduledWorkouts.day]}
+            </p>
+            {nextScheduledWorkouts.workoutIds.length === 0 && (
+              <p className="text-sm text-zinc-500">No workouts assigned on this day.</p>
+            )}
+            {nextScheduledWorkouts.workoutIds.map((workoutId, index) => {
+              const workout = workoutById.get(workoutId);
+              if (!workout) return null;
+              return (
+                <div
+                  key={`next-${workoutId}-${index}`}
+                  className="rounded-md border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 px-3 py-2"
+                >
+                  <p className="text-sm font-medium">{workout.name}</p>
+                  <p className="text-xs text-zinc-500">
+                    {workout.exercises.length} exercise{workout.exercises.length === 1 ? "" : "s"}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
 
       {(loading || saving) && (
         <div className="rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 px-4 py-2 text-sm text-zinc-500">
