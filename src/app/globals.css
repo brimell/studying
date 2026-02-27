@@ -139,6 +139,31 @@ body::before {
   letter-spacing: -0.01em;
 }
 
+/* Global accent tuning for a softer palette on white surfaces. */
+:where(.bg-sky-500) {
+  background-color: #3d8dac !important;
+}
+
+:where(.hover\:bg-sky-600:hover) {
+  background-color: #337b96 !important;
+}
+
+:where(.bg-emerald-500) {
+  background-color: #3c9b82 !important;
+}
+
+:where(.hover\:bg-emerald-600:hover) {
+  background-color: #31836d !important;
+}
+
+:where(.bg-red-500) {
+  background-color: #be6a6a !important;
+}
+
+:where(.bg-amber-500) {
+  background-color: #c1914d !important;
+}
+
 /* Slightly up-scale utility typography so Cormorant remains readable in dense cards. */
 .text-xs {
   font-size: 0.86rem;
