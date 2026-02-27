@@ -26,7 +26,7 @@ const HIDDEN_LAYER: LayerStyle = {
 export default function MorphingText({
   text,
   className = "",
-  morphTime = 0.45,
+  morphTime = 0.9,
 }: MorphingTextProps) {
   const filterId = useId().replace(/:/g, "-");
   const [fromText, setFromText] = useState(text);
