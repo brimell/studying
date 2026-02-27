@@ -671,6 +671,7 @@ interface MuscleModelProps {
   compact?: boolean;
   showOrganPanel?: boolean;
   organOnly?: boolean;
+  onHighlightedMusclesChange?: (muscles: MuscleGroup[]) => void;
 }
 
 interface DisplayMuscleEntry {
@@ -687,6 +688,7 @@ export default function MuscleModel({
   compact = false,
   showOrganPanel = true,
   organOnly = false,
+  onHighlightedMusclesChange,
 }: MuscleModelProps) {
   const [simplifyLabels, setSimplifyLabels] = useState(false);
   const [hoveredEntryKey, setHoveredEntryKey] = useState<string | null>(null);
@@ -915,6 +917,16 @@ export default function MuscleModel({
         .slice(0, 5),
     [normalizedOrganScores]
   );
+
+  useEffect(() => {
+    if (!onHighlightedMusclesChange) return;
+    if (!hoveredEntryKey) {
+      onHighlightedMusclesChange([]);
+      return;
+    }
+    const activeEntry = displayEntries.find((entry) => entry.key === hoveredEntryKey);
+    onHighlightedMusclesChange(activeEntry?.muscles || []);
+  }, [displayEntries, hoveredEntryKey, onHighlightedMusclesChange]);
 
   useEffect(() => {
     const warmedPairs = new Set<string>();

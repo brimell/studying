@@ -143,6 +143,10 @@ export default function WorkoutPlanner() {
   const [showCreateWorkoutModal, setShowCreateWorkoutModal] = useState(false);
   const [previewWorkoutId, setPreviewWorkoutId] = useState<string | null>(null);
   const [exerciseInfoVisible, setExerciseInfoVisible] = useState<Record<string, boolean>>({});
+  const [highlightedMusclesByWorkout, setHighlightedMusclesByWorkout] = useState<
+    Record<string, MuscleGroup[]>
+  >({});
+  const [previewHighlightedMuscles, setPreviewHighlightedMuscles] = useState<MuscleGroup[]>([]);
   const [weeklyPlanName, setWeeklyPlanName] = useState("");
   const [weeklyPlanDays, setWeeklyPlanDays] = useState<Record<WorkoutWeekDay, string[]>>(
     emptyWeeklyPlanDays()
@@ -1021,13 +1025,25 @@ export default function WorkoutPlanner() {
                     title="Workout Muscle Targets"
                     compact
                     showOrganPanel={false}
+                    onHighlightedMusclesChange={(muscles) =>
+                      setHighlightedMusclesByWorkout((previous) => ({
+                        ...previous,
+                        [workout.id]: muscles,
+                      }))
+                    }
                   />
                 </div>
                 <div className="mt-2 space-y-1">
                   {workout.exercises.map((exercise) => (
                     <div
                       key={exercise.id}
-                      className="rounded-md border border-zinc-200 bg-zinc-50/70 px-2.5 py-2"
+                      className={`rounded-md border px-2.5 py-2 transition-colors ${
+                        exercise.muscles.some((muscle) =>
+                          (highlightedMusclesByWorkout[workout.id] || []).includes(muscle)
+                        )
+                          ? "border-sky-300 bg-sky-50/70"
+                          : "border-zinc-200 bg-zinc-50/70"
+                      }`}
                     >
                       <div className="flex items-start justify-between gap-2">
                         <p className="text-sm font-semibold leading-tight">{exercise.name}</p>
@@ -1539,13 +1555,18 @@ export default function WorkoutPlanner() {
                 title="Workout Muscle Targets"
                 compact
                 showOrganPanel={false}
+                onHighlightedMusclesChange={setPreviewHighlightedMuscles}
               />
 
               <div className="mt-3 space-y-2">
                 {previewWorkout.exercises.map((exercise) => (
                   <div
                     key={`preview-exercise-${exercise.id}`}
-                    className="rounded-lg border border-zinc-200 bg-zinc-50 p-2 text-xs"
+                    className={`rounded-lg border p-2 text-xs transition-colors ${
+                      exercise.muscles.some((muscle) => previewHighlightedMuscles.includes(muscle))
+                        ? "border-sky-300 bg-sky-50/70"
+                        : "border-zinc-200 bg-zinc-50"
+                    }`}
                   >
                     <div className="flex items-start justify-between gap-2">
                       <p className="text-sm font-semibold leading-tight">{exercise.name}</p>
