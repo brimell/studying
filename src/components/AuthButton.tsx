@@ -28,7 +28,7 @@ export default function AuthButton({ compact = false, className = "" }: AuthButt
           onClick={() => signOut()}
           className={`pill-btn ${className}`.trim()}
         >
-          Unlink Google Account
+          Sign out
         </button>
       );
     }

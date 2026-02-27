@@ -9,7 +9,6 @@ import AuthButton from "@/components/AuthButton";
 import Dashboard from "@/components/Dashboard";
 import GlobalSettingsPanel from "@/components/GlobalSettingsPanel";
 import TopBarDataControls from "@/components/TopBarDataControls";
-import SupabaseAccountSync from "@/components/SupabaseAccountSync";
 import { lockBodyScroll, unlockBodyScroll } from "@/lib/scroll-lock";
 
 const WIDE_SCREEN_STORAGE_KEY = "study-stats.layout.wide-screen";
@@ -148,14 +147,7 @@ export default function Home() {
                   >
                     Settings
                   </button>
-                  <TopBarDataControls mode="refreshOnly" stacked />
-                  <div className="mt-1 text-[11px] uppercase tracking-wide text-zinc-500">
-                    Site account
-                  </div>
-                  <SupabaseAccountSync buttonClassName="w-full text-left" />
-                  <div className="mt-1 text-[11px] uppercase tracking-wide text-zinc-500">
-                    Google integration
-                  </div>
+                  <TopBarDataControls mode="refreshOnly" stacked showLastFetched={false} />
                   <AuthButton compact className="w-full text-left" />
                 </div>
               </div>

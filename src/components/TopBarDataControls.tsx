@@ -45,9 +45,11 @@ function computeTopBarLevel(habits: HabitDefinition[]): number {
 export default function TopBarDataControls({
   mode = "full",
   stacked = false,
+  showLastFetched = true,
 }: {
   mode?: TopBarDataControlsModeExtended;
   stacked?: boolean;
+  showLastFetched?: boolean;
 }) {
   const showLevel = mode === "full" || mode === "levelOnly" || mode === "inlineLevel";
   const showRefresh = mode === "full" || mode === "refreshOnly";
@@ -145,9 +147,11 @@ export default function TopBarDataControls({
       )}
       {showRefresh && (
         <>
-          <p className={stacked ? "soft-text text-[11px]" : "soft-text text-[11px] hidden lg:block"}>
-            Last fetched {formatTimeSince(lastFetchedAt, now)}
-          </p>
+          {showLastFetched && (
+            <p className={stacked ? "soft-text text-[11px]" : "soft-text text-[11px] hidden lg:block"}>
+              Last fetched {formatTimeSince(lastFetchedAt, now)}
+            </p>
+          )}
           <button
             onClick={refreshAll}
             disabled={refreshing}
