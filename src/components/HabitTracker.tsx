@@ -27,6 +27,7 @@ const HABIT_SHOW_FUTURE_DAYS_STORAGE_KEY = "study-stats.habit-tracker.show-futur
 const HABIT_FUTURE_PREVIEW_SETTINGS_STORAGE_KEY = "study-stats.habit-tracker.future-preview";
 const HABIT_ORDER_STORAGE_KEY = "study-stats.habit-tracker.order";
 const STUDY_HABIT_STORAGE_KEY = "study-stats.habit-tracker.study-habit";
+const PROJECTION_EXAM_DATE_STORAGE_KEY = "study-stats.projection.exam-date";
 const DEFAULT_CUSTOM_FUTURE_PREVIEW_DAYS = 35;
 const DEFAULT_STUDY_HABIT_NAME = "Studying";
 const DEFAULT_GYM_HABIT_NAME = "Gym";
@@ -475,6 +476,7 @@ export default function HabitTracker() {
   const [newMilestoneType, setNewMilestoneType] = useState<"exam" | "coursework">("exam");
   const [newMilestoneTitle, setNewMilestoneTitle] = useState("");
   const [newMilestoneDate, setNewMilestoneDate] = useState("");
+  const [projectionExamDate, setProjectionExamDate] = useState<string | null>(null);
   const [showAddMilestoneModal, setShowAddMilestoneModal] = useState(false);
   const [showAddHabitModal, setShowAddHabitModal] = useState(false);
   const [editingBinaryHabitSlug, setEditingBinaryHabitSlug] = useState<string | null>(null);
@@ -1269,16 +1271,23 @@ export default function HabitTracker() {
     });
   }, [data]);
 
-  const milestoneDateSet = useMemo(() => {
-    return new Set(milestones.map((milestone) => milestone.date));
-  }, [milestones]);
+  const studyExamDateSet = useMemo(() => {
+    const dates = new Set<string>();
+    for (const milestone of milestones) {
+      if (milestone.type !== "exam") continue;
+      dates.add(milestone.date);
+    }
+    if (projectionExamDate) dates.add(projectionExamDate);
+    return dates;
+  }, [milestones, projectionExamDate]);
 
   const latestExamDate = useMemo(() => {
-    return milestones.reduce((latest, milestone) => {
-      if (milestone.type !== "exam") return latest;
-      return milestone.date > latest ? milestone.date : latest;
-    }, "");
-  }, [milestones]);
+    let latest = "";
+    for (const date of studyExamDateSet) {
+      if (date > latest) latest = date;
+    }
+    return latest;
+  }, [studyExamDateSet]);
 
   useEffect(() => {
     if (!data || data.habits.length === 0) return;
@@ -1771,6 +1780,17 @@ export default function HabitTracker() {
   }, []);
 
   useEffect(() => {
+    const onExamDateUpdated = () => {
+      const raw = window.localStorage.getItem(PROJECTION_EXAM_DATE_STORAGE_KEY);
+      setProjectionExamDate(raw && isValidDateInput(raw) ? raw : null);
+    };
+
+    onExamDateUpdated();
+    window.addEventListener("study-stats:exam-date-updated", onExamDateUpdated);
+    return () => window.removeEventListener("study-stats:exam-date-updated", onExamDateUpdated);
+  }, []);
+
+  useEffect(() => {
     if (!data) return;
     const nextTrackingCalendars: Record<string, string | null> = {};
     const nextSources: Record<string, string[]> = {};
@@ -1957,7 +1977,9 @@ export default function HabitTracker() {
                         const finalEndDate =
                           futurePreviewMode === "custom"
                             ? addDays(lastTrackedDate, clampFuturePreviewDays(futurePreviewCustomDays))
-                            : latestExamDate !== "" && latestExamDate > lastTrackedDate
+                            : isSelectedStudyHabit &&
+                                latestExamDate !== "" &&
+                                latestExamDate > lastTrackedDate
                               ? latestExamDate
                               : addMonths(lastTrackedDate, 1);
                         for (
@@ -2162,7 +2184,7 @@ export default function HabitTracker() {
                                 dayDate !== "" ? dayDate > data.trackerRange.endDate : false;
                               const isMilestoneDay =
                                 dayDate !== "" && isSelectedStudyHabit
-                                  ? milestoneDateSet.has(dayDate)
+                                  ? studyExamDateSet.has(dayDate)
                                   : false;
                               return (
                               <button
