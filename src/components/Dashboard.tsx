@@ -439,7 +439,7 @@ export default function Dashboard() {
   return (
     <div>
       <AlertsPanel />
-      <div className="grid grid-cols-1 gap-6" style={gridStyle}>
+      <div className="grid grid-cols-1 items-start gap-6" style={gridStyle}>
         {renderedOrder.length === 0 && (
           <div className="surface-card p-6 text-sm text-zinc-600">
             All cards are hidden. Use the restore buttons in `Dashboard Grid` to show cards again.
@@ -448,6 +448,7 @@ export default function Dashboard() {
         {renderedOrder.map((id) => (
           <div
             key={id}
+            className="self-start"
             style={getCardStyle(id)}
             ref={(node) => {
               if (!node) {
