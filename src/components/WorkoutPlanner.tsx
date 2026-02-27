@@ -718,17 +718,37 @@ export default function WorkoutPlanner() {
   const nextScheduledWorkouts = useMemo(() => {
     if (!activeWeeklyPlan) return null;
 
-    const sequence = WORKOUT_WEEK_DAYS.flatMap((day) =>
+    const daysPerWorkout = new Map<string, number>();
+    for (const day of WORKOUT_WEEK_DAYS) {
+      for (const workoutId of activeWeeklyPlan.days[day]) {
+        daysPerWorkout.set(workoutId, (daysPerWorkout.get(workoutId) || 0) + 1);
+      }
+    }
+
+    // Workouts assigned every day (for example stretching/warm-up) should not
+    // advance the main weekly progression order.
+    const alwaysOnWorkoutIds = new Set(
+      [...daysPerWorkout.entries()]
+        .filter(([, dayCount]) => dayCount >= WORKOUT_WEEK_DAYS.length)
+        .map(([workoutId]) => workoutId)
+    );
+
+    const fullSequence = WORKOUT_WEEK_DAYS.flatMap((day) =>
       activeWeeklyPlan.days[day].map((workoutId) => ({
         day,
         workoutId,
       }))
     );
-    if (sequence.length === 0) return null;
+    if (fullSequence.length === 0) return null;
 
-    const lastLogged = logs.find((log) => sequence.some((entry) => entry.workoutId === log.workoutId));
+    const sequence = fullSequence.filter((entry) => !alwaysOnWorkoutIds.has(entry.workoutId));
+    const progressionSequence = sequence.length > 0 ? sequence : fullSequence;
+
+    const lastLogged = logs.find((log) =>
+      progressionSequence.some((entry) => entry.workoutId === log.workoutId)
+    );
     if (!lastLogged) {
-      const firstDay = sequence[0].day;
+      const firstDay = progressionSequence[0].day;
       return {
         planName: activeWeeklyPlan.name,
         day: firstDay,
@@ -737,15 +757,15 @@ export default function WorkoutPlanner() {
     }
 
     let lastIndex = -1;
-    for (let index = sequence.length - 1; index >= 0; index -= 1) {
-      if (sequence[index].workoutId === lastLogged.workoutId) {
+    for (let index = progressionSequence.length - 1; index >= 0; index -= 1) {
+      if (progressionSequence[index].workoutId === lastLogged.workoutId) {
         lastIndex = index;
         break;
       }
     }
 
-    const nextIndex = lastIndex >= 0 ? (lastIndex + 1) % sequence.length : 0;
-    const nextDay = sequence[nextIndex].day;
+    const nextIndex = lastIndex >= 0 ? (lastIndex + 1) % progressionSequence.length : 0;
+    const nextDay = progressionSequence[nextIndex].day;
     return {
       planName: activeWeeklyPlan.name,
       day: nextDay,
