@@ -1190,6 +1190,15 @@ export default function WorkoutPlanner() {
                     <div className="space-y-1 overflow-y-auto pr-1 flex-1">
                       {workout.exercises.map((exercise, exerciseIndex) => {
                         const exerciseHoverKey = `${workout.id}-${exercise.id}-${exerciseIndex}`;
+                        const hasHoveredExercise = Boolean(hoveredExerciseKeyByWorkout[workout.id]);
+                        const isHighlightedByMuscleSelection =
+                          (highlightedMusclesByWorkout[workout.id] || []).length > 0 &&
+                          exercise.muscles.some((muscle) =>
+                            (highlightedMusclesByWorkout[workout.id] || []).includes(muscle)
+                          );
+                        const isRowHighlighted = hasHoveredExercise
+                          ? hoveredExerciseKeyByWorkout[workout.id] === exerciseHoverKey
+                          : isHighlightedByMuscleSelection;
                         return (
                         <div
                           key={exerciseHoverKey}
@@ -1223,7 +1232,7 @@ export default function WorkoutPlanner() {
                           }}
                           tabIndex={0}
                           className={`rounded-md border px-2 py-1 transition-colors ${
-                            hoveredExerciseKeyByWorkout[workout.id] === exerciseHoverKey
+                            isRowHighlighted
                               ? "border-sky-300 bg-sky-50/70"
                               : "border-zinc-200 bg-zinc-50/70"
                           }`}
@@ -1749,6 +1758,12 @@ export default function WorkoutPlanner() {
               <div className="mt-3 space-y-2">
                 {previewWorkout.exercises.map((exercise, exerciseIndex) => {
                   const previewExerciseKey = `${previewWorkout.id}-${exercise.id}-${exerciseIndex}`;
+                  const isHighlightedByMuscleSelection =
+                    previewHighlightedMuscles.length > 0 &&
+                    exercise.muscles.some((muscle) => previewHighlightedMuscles.includes(muscle));
+                  const isRowHighlighted = previewHoveredExerciseKey
+                    ? previewHoveredExerciseKey === previewExerciseKey
+                    : isHighlightedByMuscleSelection;
                   return (
                   <div
                     key={`preview-exercise-${previewExerciseKey}`}
@@ -1770,7 +1785,7 @@ export default function WorkoutPlanner() {
                     }}
                     tabIndex={0}
                     className={`rounded-lg border p-2 text-xs transition-colors ${
-                      previewHoveredExerciseKey === previewExerciseKey
+                      isRowHighlighted
                         ? "border-sky-300 bg-sky-50/70"
                         : "border-zinc-200 bg-zinc-50"
                     }`}
