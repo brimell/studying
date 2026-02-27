@@ -48,7 +48,7 @@ export default function AuthButton({ compact = false, className = "" }: AuthButt
           onClick={() => signOut()}
           className={`pill-btn ${className}`.trim()}
         >
-          Sign out
+          Disconnect Google Calendar
         </button>
       );
     }
@@ -70,7 +70,7 @@ export default function AuthButton({ compact = false, className = "" }: AuthButt
           onClick={() => signOut()}
           className="pill-btn"
         >
-          Unlink Google Account
+          Disconnect Google Calendar
         </button>
       </div>
     );
@@ -81,7 +81,7 @@ export default function AuthButton({ compact = false, className = "" }: AuthButt
       onClick={() => signIn("google")}
       className={`pill-btn pill-btn-primary ${className}`.trim()}
     >
-      {hasLinkedBefore ? "Reconnect Google Account" : "Link Google Account"}
+      {hasLinkedBefore ? "Reconnect Google Calendar" : "Connect Google Calendar"}
     </button>
   );
 }

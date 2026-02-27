@@ -6,7 +6,6 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import AuthButton from "@/components/AuthButton";
 import TopBarDataControls from "@/components/TopBarDataControls";
 import { lockBodyScroll, unlockBodyScroll } from "@/lib/scroll-lock";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
@@ -308,13 +307,12 @@ function HomeContent() {
                     Manage exam/coursework dates
                   </button>
                   <TopBarDataControls mode="refreshOnly" stacked showLastFetched={false} />
-                  <AuthButton compact className="w-full text-left" />
                   <button
                     type="button"
                     className="pill-btn w-full text-left"
                     onClick={signOutAccount}
                   >
-                    Sign out account
+                    Sign out dashboard account
                   </button>
                 </div>
               </div>

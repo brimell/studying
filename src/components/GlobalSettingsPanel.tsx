@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import FancyDropdown from "./FancyDropdown";
+import AuthButton from "./AuthButton";
 import { DAILY_TRACKER_CALENDAR_STORAGE_KEY } from "@/lib/daily-tracker";
 import type { TrackerCalendarOption } from "@/lib/types";
 
@@ -380,6 +381,14 @@ export default function GlobalSettingsPanel() {
         {dailyTrackerCalendarsError ? (
           <p className="text-sm text-red-600">{dailyTrackerCalendarsError}</p>
         ) : null}
+      </section>
+
+      <section className="surface-card p-5 space-y-3">
+        <h2 className="text-lg font-semibold">Google Calendar Connection</h2>
+        <p className="soft-text text-sm">
+          Connect or disconnect your Google Calendar integration for study and tracker syncing.
+        </p>
+        <AuthButton compact className="w-full text-left" />
       </section>
     </div>
   );

@@ -5,7 +5,6 @@ import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
-import AuthButton from "@/components/AuthButton";
 import { WorkoutDataProvider } from "@/components/WorkoutDataProvider";
 
 const WIDE_SCREEN_STORAGE_KEY = "study-stats.layout.wide-screen";
@@ -140,7 +139,6 @@ export default function GymPage() {
                     Settings
                   </Link>
                   <SupabaseAccountSync />
-                  <AuthButton compact className="w-full text-left" />
                 </div>
               </div>
             )}
