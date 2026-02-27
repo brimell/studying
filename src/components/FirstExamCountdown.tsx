@@ -297,21 +297,27 @@ export default function FirstExamCountdown() {
             >
               Close
             </button>
-            <div className="w-full max-w-5xl text-center">
+            <div className="w-full max-w-5xl h-full min-h-[80vh] text-center flex flex-col items-center justify-center">
               <p className="text-sm text-zinc-500 mb-4">Until exam</p>
               <p
                 className="stat-mono font-bold tracking-tight text-zinc-900 leading-none"
-                style={{ fontSize: "min(50vh, 42vw)" }}
+                style={{ fontSize: "min(46vh, 40vw)" }}
               >
                 {weeksUntilExam}w {remainingDays}d
               </p>
-              <div className="mx-auto mt-8 w-full max-w-4xl h-6 bg-zinc-200 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-sky-500 transition-all duration-700"
-                  style={{ width: `${countdownProgress}%` }}
-                />
+              <div className="w-full max-w-4xl mt-8">
+                <div className="w-full h-6 bg-zinc-200 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-sky-500 transition-all duration-700"
+                    style={{ width: `${countdownProgress}%` }}
+                  />
+                </div>
+                <div className="mt-2 flex items-center justify-between text-xs text-zinc-500 stat-mono">
+                  <span>Start: {countdownStartDate}</span>
+                  <span>Exam: {firstExamDate}</span>
+                  <span>{progressLabel}</span>
+                </div>
               </div>
-              <p className="stat-mono mt-3 text-sm text-zinc-500">{progressLabel}</p>
             </div>
           </div>,
           document.body
