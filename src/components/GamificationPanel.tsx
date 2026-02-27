@@ -1,19 +1,53 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import type { HabitDefinition, HabitTrackerData, WorkoutPlannerPayload } from "@/lib/types";
+import goalsConfig from "@/data/goals.json";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { HabitCompletionDay, HabitDefinition, HabitTrackerData, WorkoutPlannerPayload } from "@/lib/types";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 
 const TRACKER_CALENDAR_STORAGE_KEY = "study-stats.tracker-calendar-id";
 const STUDY_HABIT_STORAGE_KEY = "study-stats.habit-tracker.study-habit";
+const GOALS_PROGRESS_SYNC_KEY = "study-stats.goals.progress.v1";
 
-interface Badge {
+type GoalCategory = "streak" | "study" | "fitness" | "combined";
+type GoalHabitType = "study" | "fitness" | "mixed";
+type GoalMetric = "streak_days" | "count" | "minutes" | "hours" | "days" | "unique_days";
+
+interface GoalRule {
+  requiresSameDay?: boolean;
+  requiredHabitTypes?: Array<"study" | "fitness">;
+  requiresConcurrentStreaks?: boolean;
+  minStreakDaysPerType?: number;
+  minHabits?: number;
+  minStreakDays?: number;
+  requiresActiveHabitsInPeriod?: boolean;
+  period?: "rolling_7_days" | "rolling_14_days";
+  minActiveHabits?: number;
+  requiresWeeklyTargetsMet?: boolean;
+}
+
+interface GoalDefinition {
   id: string;
-  name: string;
-  description: string;
-  metric: number;
-  target: number;
+  title: string;
   points: number;
+  category: GoalCategory;
+  habitType: GoalHabitType;
+  metric: GoalMetric;
+  target: number;
+  description: string;
+  rules?: GoalRule;
+}
+
+interface StoredGoalProgress {
+  best: number;
+  completedAt: string | null;
+}
+
+interface GoalProgressView extends GoalDefinition {
+  current: number;
+  best: number;
+  completed: boolean;
+  completedAt: string | null;
 }
 
 interface RewardTier {
@@ -42,6 +76,25 @@ function computeWorkoutStreak(dateKeys: string[]): number {
   return streak;
 }
 
+function computeMaxRollingCount(dateKeys: string[], windowDays: number): number {
+  if (dateKeys.length === 0) return 0;
+  const counts = new Map<string, number>();
+  for (const key of dateKeys) {
+    counts.set(key, (counts.get(key) || 0) + 1);
+  }
+  const sorted = [...counts.keys()].sort();
+  let maxCount = 0;
+  for (const endDate of sorted) {
+    const startDate = addDays(endDate, -(windowDays - 1));
+    let running = 0;
+    for (const [date, count] of counts.entries()) {
+      if (date >= startDate && date <= endDate) running += count;
+    }
+    if (running > maxCount) maxCount = running;
+  }
+  return maxCount;
+}
+
 function resolveStudyHabit(habits: HabitDefinition[], selectedSlug: string | null): HabitDefinition | null {
   if (selectedSlug) {
     const direct = habits.find((habit) => habit.slug === selectedSlug);
@@ -55,13 +108,52 @@ function resolveStudyHabit(habits: HabitDefinition[], selectedSlug: string | nul
   );
 }
 
+function parseStoredGoalProgress(raw: string | null): Record<string, StoredGoalProgress> {
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+    const goals = (parsed as { goals?: unknown }).goals;
+    if (!goals || typeof goals !== "object" || Array.isArray(goals)) return {};
+    const next: Record<string, StoredGoalProgress> = {};
+    for (const [goalId, value] of Object.entries(goals as Record<string, unknown>)) {
+      if (!value || typeof value !== "object" || Array.isArray(value)) continue;
+      const best = (value as { best?: unknown }).best;
+      const completedAt = (value as { completedAt?: unknown }).completedAt;
+      if (typeof best !== "number" || !Number.isFinite(best)) continue;
+      if (completedAt !== null && typeof completedAt !== "string") continue;
+      next[goalId] = {
+        best,
+        completedAt,
+      };
+    }
+    return next;
+  } catch {
+    return {};
+  }
+}
+
+function getCompletedDates(days: HabitCompletionDay[]): Set<string> {
+  const dates = new Set<string>();
+  for (const day of days) {
+    if (day.completed) dates.add(day.date);
+  }
+  return dates;
+}
+
 export default function GamificationPanel() {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
+  const lastSyncedSnapshotRef = useRef("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [habitData, setHabitData] = useState<HabitTrackerData | null>(null);
   const [workoutPayload, setWorkoutPayload] = useState<WorkoutPlannerPayload | null>(null);
   const [selectedStudyHabitSlug, setSelectedStudyHabitSlug] = useState<string | null>(null);
+  const [storedProgressByGoalId, setStoredProgressByGoalId] = useState<Record<string, StoredGoalProgress>>({});
+
+  const goals = useMemo(() => {
+    return (goalsConfig.goals || []) as GoalDefinition[];
+  }, []);
 
   const fetchData = useCallback(async () => {
     try {
@@ -82,23 +174,42 @@ export default function GamificationPanel() {
       setHabitData(habitJson as HabitTrackerData);
 
       let nextWorkoutPayload: WorkoutPlannerPayload | null = null;
+      let nextStoredProgressByGoalId: Record<string, StoredGoalProgress> = {};
+
       if (supabase) {
         const { data } = await supabase.auth.getSession();
         const token = data.session?.access_token;
         if (token) {
-          const workoutResponse = await fetch("/api/workout-planner", {
-            method: "GET",
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          const workoutJson = (await workoutResponse.json()) as {
-            payload?: WorkoutPlannerPayload;
-          };
+          const [workoutResponse, syncResponse] = await Promise.all([
+            fetch("/api/workout-planner", {
+              method: "GET",
+              headers: { Authorization: `Bearer ${token}` },
+            }),
+            fetch("/api/account-sync", {
+              method: "GET",
+              headers: { Authorization: `Bearer ${token}` },
+            }),
+          ]);
+
           if (workoutResponse.ok) {
+            const workoutJson = (await workoutResponse.json()) as {
+              payload?: WorkoutPlannerPayload;
+            };
             nextWorkoutPayload = workoutJson.payload || null;
+          }
+
+          if (syncResponse.ok) {
+            const syncJson = (await syncResponse.json()) as { payload?: Record<string, string> };
+            nextStoredProgressByGoalId = parseStoredGoalProgress(
+              syncJson.payload?.[GOALS_PROGRESS_SYNC_KEY] || null
+            );
+            lastSyncedSnapshotRef.current = syncJson.payload?.[GOALS_PROGRESS_SYNC_KEY] || "";
           }
         }
       }
+
       setWorkoutPayload(nextWorkoutPayload);
+      setStoredProgressByGoalId(nextStoredProgressByGoalId);
     } catch (loadError: unknown) {
       setError(loadError instanceof Error ? loadError.message : "Failed to load gamification data.");
     } finally {
@@ -124,91 +235,102 @@ export default function GamificationPanel() {
     const studyCurrentStreak = studyHabit?.currentStreak || 0;
     const studyLongestStreak = studyHabit?.longestStreak || 0;
     const studyTotalDays = studyHabit?.totalCompleted || 0;
-
-    const allCurrentStreaks = habits.reduce((sum, habit) => sum + habit.currentStreak, 0);
-    const activeHabitCount = habits.filter((habit) => habit.currentStreak > 0).length;
+    const studyTotalHours = studyHabit?.totalHours || 0;
+    const studyTotalMinutes = Math.round(studyTotalHours * 60);
+    const bestStudyHoursInDay = studyHabit
+      ? Math.max(...studyHabit.days.map((day) => day.hours), 0)
+      : 0;
+    const estimatedStudySessionsInBestDay = Math.max(0, Math.round(bestStudyHoursInDay));
 
     const workoutLogDates = (workoutPayload?.logs || []).map((log) => log.performedOn);
     const uniqueWorkoutDays = [...new Set(workoutLogDates)].length;
     const workoutCurrentStreak = computeWorkoutStreak(workoutLogDates);
+    const maxWorkoutLogsRollingWeek = computeMaxRollingCount(workoutLogDates, 7);
 
-    const badges: Badge[] = [
-      {
-        id: "study-streak-3",
-        name: "Focus Starter",
-        description: "Reach a 3-day study streak.",
-        metric: studyCurrentStreak,
-        target: 3,
-        points: 40,
-      },
-      {
-        id: "study-streak-7",
-        name: "Study Warrior",
-        description: "Reach a 7-day study streak.",
-        metric: studyCurrentStreak,
-        target: 7,
-        points: 90,
-      },
-      {
-        id: "study-days-30",
-        name: "Deep Work",
-        description: "Log 30 active study days.",
-        metric: studyTotalDays,
-        target: 30,
-        points: 120,
-      },
-      {
-        id: "workout-streak-3",
-        name: "Movement Momentum",
-        description: "Reach a 3-day workout streak.",
-        metric: workoutCurrentStreak,
-        target: 3,
-        points: 40,
-      },
-      {
-        id: "workout-days-20",
-        name: "Iron Consistency",
-        description: "Log workouts on 20 unique days.",
-        metric: uniqueWorkoutDays,
-        target: 20,
-        points: 100,
-      },
-      {
-        id: "duo-streak",
-        name: "Dual Discipline",
-        description: "Keep both study and workout streaks at 3+.",
-        metric: studyCurrentStreak >= 3 && workoutCurrentStreak >= 3 ? 1 : 0,
-        target: 1,
-        points: 150,
-      },
-      {
-        id: "habit-balance",
-        name: "Habit Balancer",
-        description: "Keep 2+ habits active in the same period.",
-        metric: activeHabitCount,
-        target: 2,
-        points: 80,
-      },
-    ];
+    const endDate = habitData.trackerRange.endDate;
+    const studyHoursLast7 = studyHabit
+      ? studyHabit.days
+          .filter((day) => day.date >= addDays(endDate, -6) && day.date <= endDate)
+          .reduce((sum, day) => sum + day.hours, 0)
+      : 0;
+    const workoutCountLast7 = workoutLogDates.filter(
+      (date) => date >= addDays(endDate, -6) && date <= endDate
+    ).length;
 
-    const unlockedBadgeCount = badges.filter((badge) => badge.metric >= badge.target).length;
-    const badgePoints = badges
-      .filter((badge) => badge.metric >= badge.target)
-      .reduce((sum, badge) => sum + badge.points, 0);
+    const workoutDateSet = new Set(workoutLogDates);
+    const studyCompletedDates = studyHabit ? getCompletedDates(studyHabit.days) : new Set<string>();
+    const hasStudyWorkoutSameDay = [...studyCompletedDates].some((date) => workoutDateSet.has(date));
 
-    const basePoints =
-      Math.min(220, studyCurrentStreak * 12) +
-      Math.min(260, studyTotalDays * 4) +
-      Math.min(180, workoutCurrentStreak * 12) +
-      Math.min(220, uniqueWorkoutDays * 6) +
-      Math.min(140, allCurrentStreaks * 5);
-    const totalPoints = basePoints + badgePoints;
+    const goalsWithProgress: GoalProgressView[] = goals.map((goal) => {
+      let current = 0;
+
+      if (goal.category === "streak") {
+        current = goal.habitType === "study" ? studyCurrentStreak : workoutCurrentStreak;
+      } else if (goal.category === "study") {
+        if (goal.metric === "days") current = studyTotalDays;
+        if (goal.metric === "hours") current = studyTotalHours;
+        if (goal.metric === "minutes") current = studyTotalMinutes;
+        if (goal.metric === "count") current = estimatedStudySessionsInBestDay;
+      } else if (goal.category === "fitness") {
+        if (goal.metric === "count") {
+          current = goal.id.includes("week") ? maxWorkoutLogsRollingWeek : workoutLogDates.length;
+        }
+        if (goal.metric === "unique_days") current = uniqueWorkoutDays;
+        if (goal.metric === "minutes") current = 0;
+      } else if (goal.category === "combined") {
+        const rules = goal.rules || {};
+
+        if (rules.requiresSameDay) {
+          current = hasStudyWorkoutSameDay ? 1 : 0;
+        } else if (rules.requiresConcurrentStreaks) {
+          if (rules.requiredHabitTypes && rules.requiredHabitTypes.length > 0) {
+            const minStreak = rules.minStreakDaysPerType || 1;
+            const studyOk = !rules.requiredHabitTypes.includes("study") || studyCurrentStreak >= minStreak;
+            const fitnessOk =
+              !rules.requiredHabitTypes.includes("fitness") || workoutCurrentStreak >= minStreak;
+            current = studyOk && fitnessOk ? 1 : 0;
+          } else {
+            const minHabits = rules.minHabits || 2;
+            const minStreakDays = rules.minStreakDays || 1;
+            const habitsAtTarget = habits.filter((habit) => habit.currentStreak >= minStreakDays).length;
+            current = habitsAtTarget >= minHabits ? 1 : habitsAtTarget;
+          }
+        } else if (rules.requiresActiveHabitsInPeriod) {
+          const periodDays = rules.period === "rolling_14_days" ? 14 : 7;
+          const periodStart = addDays(endDate, -(periodDays - 1));
+          const activeHabits = habits.filter((habit) =>
+            habit.days.some((day) => day.completed && day.date >= periodStart && day.date <= endDate)
+          ).length;
+          current = activeHabits;
+        } else if (rules.requiresWeeklyTargetsMet) {
+          const weeklyStudyTargetHours = 10;
+          const weeklyWorkoutTarget = 3;
+          current = studyHoursLast7 >= weeklyStudyTargetHours && workoutCountLast7 >= weeklyWorkoutTarget ? 1 : 0;
+        }
+      }
+
+      const stored = storedProgressByGoalId[goal.id];
+      const best = Math.max(stored?.best || 0, current);
+      const justCompleted = best >= goal.target;
+      const completedAt = stored?.completedAt || (justCompleted ? new Date().toISOString() : null);
+
+      return {
+        ...goal,
+        current,
+        best,
+        completed: justCompleted,
+        completedAt,
+      };
+    });
+
+    const unlockedGoals = goalsWithProgress.filter((goal) => goal.completed);
+    const totalPoints = unlockedGoals.reduce((sum, goal) => sum + goal.points, 0);
     const level = Math.floor(totalPoints / 250) + 1;
     const levelFloor = (level - 1) * 250;
     const levelCeiling = level * 250;
     const pointsIntoLevel = totalPoints - levelFloor;
     const pointsForNextLevel = levelCeiling - levelFloor;
-    const pointsRemaining = levelCeiling - totalPoints;
+    const pointsRemaining = Math.max(0, levelCeiling - totalPoints);
 
     const rewardTiers: RewardTier[] = [
       {
@@ -228,23 +350,95 @@ export default function GamificationPanel() {
       },
     ];
 
+    const progressForStorage: Record<string, StoredGoalProgress> = {};
+    for (const goal of goalsWithProgress) {
+      progressForStorage[goal.id] = {
+        best: goal.best,
+        completedAt: goal.completedAt,
+      };
+    }
+
+    const progressSnapshot = JSON.stringify({
+      schemaVersion: "1.0",
+      updatedAt: habitData.trackerRange.endDate,
+      goals: progressForStorage,
+    });
+
+    const goalsSorted = [...goalsWithProgress].sort((a, b) => {
+      if (a.completed !== b.completed) return a.completed ? 1 : -1;
+      const aRatio = a.target > 0 ? a.best / a.target : 0;
+      const bRatio = b.target > 0 ? b.best / b.target : 0;
+      return bRatio - aRatio;
+    });
+
     return {
       studyCurrentStreak,
       studyLongestStreak,
-      studyTotalDays,
       workoutCurrentStreak,
-      uniqueWorkoutDays,
-      activeHabitCount,
-      badges,
-      unlockedBadgeCount,
+      unlockedGoalCount: unlockedGoals.length,
+      totalGoals: goalsWithProgress.length,
       totalPoints,
       level,
       pointsIntoLevel,
       pointsForNextLevel,
       pointsRemaining,
+      goals: goalsSorted,
       rewardTiers,
+      progressSnapshot,
     };
-  }, [habitData, selectedStudyHabitSlug, workoutPayload]);
+  }, [goals, habitData, selectedStudyHabitSlug, storedProgressByGoalId, workoutPayload]);
+
+  useEffect(() => {
+    if (!supabase || !model) return;
+    const serialized = model.progressSnapshot;
+    if (!serialized || serialized === lastSyncedSnapshotRef.current) return;
+
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const { data } = await supabase.auth.getSession();
+        const token = data.session?.access_token;
+        if (!token || cancelled) return;
+
+        const readResponse = await fetch("/api/account-sync", {
+          method: "GET",
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!readResponse.ok || cancelled) return;
+
+        const readJson = (await readResponse.json()) as { payload?: Record<string, string> };
+        const existing = readJson.payload || {};
+        if (existing[GOALS_PROGRESS_SYNC_KEY] === serialized) {
+          lastSyncedSnapshotRef.current = serialized;
+          return;
+        }
+
+        const writeResponse = await fetch("/api/account-sync", {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            payload: {
+              ...existing,
+              [GOALS_PROGRESS_SYNC_KEY]: serialized,
+            },
+          }),
+        });
+
+        if (!writeResponse.ok || cancelled) return;
+        lastSyncedSnapshotRef.current = serialized;
+      } catch {
+        // Ignore sync errors and keep local progress as source of truth.
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [model, supabase]);
 
   return (
     <div className="surface-card p-6">
@@ -262,10 +456,8 @@ export default function GamificationPanel() {
                 <p className="text-2xl font-bold text-emerald-800 stat-mono">{model.level}</p>
               </div>
               <div className="text-right">
-                <p className="text-xs text-emerald-700">Reward Points</p>
-                <p className="text-lg font-semibold text-emerald-800 stat-mono">
-                  {model.totalPoints}
-                </p>
+                <p className="text-xs text-emerald-700">Goal Points</p>
+                <p className="text-lg font-semibold text-emerald-800 stat-mono">{model.totalPoints}</p>
               </div>
             </div>
             <div className="mt-2 h-2 rounded-full bg-emerald-200/80 overflow-hidden">
@@ -293,39 +485,38 @@ export default function GamificationPanel() {
               <p className="font-semibold text-sm stat-mono">{model.workoutCurrentStreak} days</p>
             </div>
             <div className="rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2">
-              <p className="text-[11px] text-zinc-500">Unlocked badges</p>
-              <p className="font-semibold text-sm stat-mono">{model.unlockedBadgeCount}/{model.badges.length}</p>
+              <p className="text-[11px] text-zinc-500">Goals unlocked</p>
+              <p className="font-semibold text-sm stat-mono">
+                {model.unlockedGoalCount}/{model.totalGoals}
+              </p>
             </div>
           </div>
 
           <div>
-            <p className="text-xs font-medium text-zinc-600 mb-2">Badges</p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-              {model.badges.map((badge) => {
-                const unlocked = badge.metric >= badge.target;
-                const progress = Math.min(100, (badge.metric / badge.target) * 100);
+            <p className="text-xs font-medium text-zinc-600 mb-2">Goals</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-[26rem] overflow-y-auto pr-1">
+              {model.goals.map((goal) => {
+                const progress = Math.min(100, (goal.best / goal.target) * 100);
                 return (
                   <div
-                    key={badge.id}
+                    key={goal.id}
                     className={`rounded-md border px-3 py-2 ${
-                      unlocked
-                        ? "border-amber-300 bg-amber-50/70"
-                        : "border-zinc-200 bg-zinc-50"
+                      goal.completed ? "border-amber-300 bg-amber-50/70" : "border-zinc-200 bg-zinc-50"
                     }`}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <p className="text-sm font-medium">{badge.name}</p>
-                      <span className="text-[11px] text-zinc-500 stat-mono">+{badge.points} pts</span>
+                      <p className="text-sm font-medium">{goal.title}</p>
+                      <span className="text-[11px] text-zinc-500 stat-mono">+{goal.points} pts</span>
                     </div>
-                    <p className="text-xs text-zinc-500 mt-0.5">{badge.description}</p>
+                    <p className="text-xs text-zinc-500 mt-0.5">{goal.description}</p>
                     <div className="mt-1 h-1.5 rounded-full bg-zinc-200 overflow-hidden">
                       <div
-                        className={`h-full rounded-full ${unlocked ? "bg-amber-500" : "bg-sky-500"}`}
+                        className={`h-full rounded-full ${goal.completed ? "bg-amber-500" : "bg-sky-500"}`}
                         style={{ width: `${progress}%` }}
                       />
                     </div>
                     <p className="mt-1 text-[11px] text-zinc-500 stat-mono">
-                      {Math.min(badge.metric, badge.target)}/{badge.target}
+                      {Math.min(goal.best, goal.target)}/{goal.target}
                     </p>
                   </div>
                 );
@@ -342,9 +533,7 @@ export default function GamificationPanel() {
                   <div
                     key={reward.threshold}
                     className={`rounded-md border px-3 py-2 ${
-                      unlocked
-                        ? "border-emerald-300 bg-emerald-50/70"
-                        : "border-zinc-200 bg-zinc-50"
+                      unlocked ? "border-emerald-300 bg-emerald-50/70" : "border-zinc-200 bg-zinc-50"
                     }`}
                   >
                     <p className="text-sm font-medium">{reward.title}</p>
