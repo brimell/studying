@@ -248,15 +248,9 @@ export default function MoodTrackerPopup({ onClose }: MoodTrackerPopupProps) {
             const isActive = selectedRating === control.rating;
             return (
               <li key={control.key} className={`mood-dot ${isActive ? "active" : ""}`}>
-                <button
-                  type="button"
-                  onClick={() => setSelectedRating(control.rating)}
-                  aria-label={`Set mood rating to ${control.rating} out of 10`}
-                  aria-pressed={isActive}
-                  disabled={busy}
-                >
+                <div aria-hidden="true">
                   <span className="mood-dot-core" />
-                </button>
+                </div>
               </li>
             );
           }
@@ -268,31 +262,23 @@ export default function MoodTrackerPopup({ onClose }: MoodTrackerPopupProps) {
               key={isActive ? `${control.key}-${sliderFaceAnimationTick}` : control.key}
               className={`${mood} ${isActive ? "active" : ""}`.trim()}
             >
-              <button
-                type="button"
-                onClick={() => setSelectedRating(control.rating)}
-                aria-label={`Set mood to ${control.label} (${control.rating}/10)`}
-                aria-pressed={isActive}
-                disabled={busy}
-              >
-                <div>
-                  {(mood === "angry" || mood === "sad" || mood === "good" || mood === "happy") && (
-                    <>
-                      <svg className="eye left" viewBox="0 0 7 4" aria-hidden="true">
-                        <use href="#mood-eye" />
-                      </svg>
-                      <svg className="eye right" viewBox="0 0 7 4" aria-hidden="true">
-                        <use href="#mood-eye" />
-                      </svg>
-                    </>
-                  )}
-                  {(mood === "angry" || mood === "sad" || mood === "good") && (
-                    <svg className="mouth" viewBox="0 0 18 7" aria-hidden="true">
-                      <use href="#mood-mouth" />
+              <div aria-hidden="true">
+                {(mood === "angry" || mood === "sad" || mood === "good" || mood === "happy") && (
+                  <>
+                    <svg className="eye left" viewBox="0 0 7 4" aria-hidden="true">
+                      <use href="#mood-eye" />
                     </svg>
-                  )}
-                </div>
-              </button>
+                    <svg className="eye right" viewBox="0 0 7 4" aria-hidden="true">
+                      <use href="#mood-eye" />
+                    </svg>
+                  </>
+                )}
+                {(mood === "angry" || mood === "sad" || mood === "good") && (
+                  <svg className="mouth" viewBox="0 0 18 7" aria-hidden="true">
+                    <use href="#mood-mouth" />
+                  </svg>
+                )}
+              </div>
             </li>
           );
         })}

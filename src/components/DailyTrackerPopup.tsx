@@ -114,8 +114,6 @@ function NumberScale({
   lowLabel?: string;
   highLabel?: string;
 }) {
-  const options = Array.from({ length: max - min + 1 }, (_, index) => min + index);
-
   return (
     <div className="space-y-1">
       <p className="text-sm font-medium">{label}</p>
@@ -125,22 +123,21 @@ function NumberScale({
           <span>{highLabel || ""}</span>
         </div>
       )}
-      <div className="flex flex-wrap gap-1 items-center">
-        {options.map((option) => {
-          const active = option === value;
-          return (
-            <button
-              key={option}
-              type="button"
-              onClick={() => onChange(option)}
-              className={`px-2 py-1 rounded-md text-xs border ${
-                active ? "border-sky-400 bg-sky-50 text-sky-700" : "border-zinc-200 bg-white"
-              }`}
-            >
-              {option}
-            </button>
-          );
-        })}
+      <div className="space-y-2">
+        <input
+          type="range"
+          min={min}
+          max={max}
+          step={1}
+          value={value ?? min}
+          onChange={(event) => onChange(Number(event.target.value))}
+          className="w-full"
+        />
+        <div className="flex items-center justify-between text-xs text-zinc-600">
+          <span className="stat-mono">{min}</span>
+          <span className="stat-mono">{value ?? "Not set"}</span>
+          <span className="stat-mono">{max}</span>
+        </div>
         <button
           type="button"
           onClick={() => onChange(null)}
