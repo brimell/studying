@@ -216,30 +216,29 @@ export default function FirstExamCountdown() {
 
   return (
     <div className="surface-card p-6">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setShowFullscreenCountdown(true)}
-            className="pill-btn"
-          >
-            Fullscreen
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowStudyProjection(true)}
-            className="pill-btn"
-          >
-            Project Future Studying
-          </button>
-        </div>
-      </div>
       <div className="rounded-xl bg-zinc-50 p-4">
-        <p className="text-sm text-zinc-500 mb-2">Until exam</p>
-        <p className="text-2xl font-bold mb-3 stat-mono">
-          {weeksUntilExam} week{weeksUntilExam === 1 ? "" : "s"} {remainingDays} day
-          {remainingDays === 1 ? "" : "s"}
-        </p>
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xl font-bold stat-mono">
+            {weeksUntilExam} week{weeksUntilExam === 1 ? "" : "s"} {remainingDays} day
+            {remainingDays === 1 ? "" : "s"}
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowFullscreenCountdown(true)}
+              className="pill-btn"
+            >
+              Fullscreen
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowStudyProjection(true)}
+              className="pill-btn"
+            >
+              Project Future Studying
+            </button>
+          </div>
+        </div>
         <div className="w-full h-3 bg-zinc-200 rounded-full overflow-hidden">
           <div
             className="h-full bg-sky-500 transition-all duration-700"
