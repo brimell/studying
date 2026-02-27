@@ -105,8 +105,8 @@ export default function GlobalSettingsPanel() {
     return parseDate(window.localStorage.getItem(PROJECTION_DATE_STORAGE_KEY));
   });
   const [showDashboardLayoutControls, setShowDashboardLayoutControls] = useState<boolean>(() => {
-    if (typeof window === "undefined") return true;
-    return parseBoolean(window.localStorage.getItem(DASHBOARD_LAYOUT_CONTROLS_STORAGE_KEY), true);
+    if (typeof window === "undefined") return false;
+    return parseBoolean(window.localStorage.getItem(DASHBOARD_LAYOUT_CONTROLS_STORAGE_KEY), false);
   });
   const [dailyTrackerCalendarId, setDailyTrackerCalendarId] = useState<string>(() => {
     if (typeof window === "undefined") return "";

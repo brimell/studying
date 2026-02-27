@@ -327,6 +327,17 @@ function serializeMatchTermsEntries(entries: MatchTermDraftEntry[]): string {
     .join("\n");
 }
 
+function parseHabitOrderSerialized(raw: string | null): string[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((value): value is string => typeof value === "string" && value.length > 0);
+  } catch {
+    return [];
+  }
+}
+
 function computeHabitStats(days: HabitCompletionDay[]) {
   let currentStreak = 0;
   let longestStreak = 0;
@@ -483,6 +494,7 @@ export default function HabitTracker() {
     Record<string, HabitFuturePreviewSetting>
   >({});
   const [habitOrder, setHabitOrder] = useState<string[]>([]);
+  const [habitOrderStorageReady, setHabitOrderStorageReady] = useState(false);
   const [draggingHabitSlug, setDraggingHabitSlug] = useState<string | null>(null);
   const [dragOverHabitSlug, setDragOverHabitSlug] = useState<string | null>(null);
   const [milestones, setMilestones] = useState<MilestoneDate[]>([]);
@@ -509,6 +521,9 @@ export default function HabitTracker() {
   const habitColorsSyncMessageTimeoutRef = useRef<number | null>(null);
   const lastHabitColorsSnapshotRef = useRef("");
   const habitColorsHydratedRef = useRef(false);
+  const habitOrderSyncTimeoutRef = useRef<number | null>(null);
+  const lastHabitOrderSnapshotRef = useRef("");
+  const habitOrderCloudHydratedRef = useRef(false);
   const hasOpenModal =
     showAddMilestoneModal ||
     showAddHabitModal ||
@@ -754,16 +769,142 @@ export default function HabitTracker() {
 
   useEffect(() => {
     const raw = window.localStorage.getItem(HABIT_ORDER_STORAGE_KEY);
-    if (!raw) return;
-    try {
-      const parsed = JSON.parse(raw) as unknown;
-      if (!Array.isArray(parsed)) return;
-      const next = parsed.filter((value): value is string => typeof value === "string" && value.length > 0);
-      setHabitOrder(next);
-    } catch {
-      // Ignore malformed localStorage payload.
-    }
+    const next = parseHabitOrderSerialized(raw);
+    if (next.length > 0) setHabitOrder(next);
+    lastHabitOrderSnapshotRef.current = JSON.stringify(next);
+    setHabitOrderStorageReady(true);
   }, []);
+
+  useEffect(() => {
+    if (!supabase) return;
+    if (!habitOrderStorageReady) return;
+    if (habitOrderCloudHydratedRef.current) return;
+
+    habitOrderCloudHydratedRef.current = true;
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const { data } = await supabase.auth.getSession();
+        const token = data.session?.access_token;
+        if (!token) return;
+
+        const readResponse = await trackedFetch("/api/account-sync", {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        if (!readResponse.ok) return;
+
+        const readJson = (await readResponse.json()) as { payload?: Record<string, string> };
+        const existing = readJson.payload || {};
+        const cloudOrder = parseHabitOrderSerialized(existing[HABIT_ORDER_STORAGE_KEY] || null);
+        const localOrder = parseHabitOrderSerialized(
+          window.localStorage.getItem(HABIT_ORDER_STORAGE_KEY)
+        );
+        const localSerialized = JSON.stringify(localOrder);
+        const cloudSerialized = JSON.stringify(cloudOrder);
+
+        // Prefer local if this device already has a custom order.
+        if (localOrder.length > 0) {
+          if (existing[HABIT_ORDER_STORAGE_KEY] !== localSerialized) {
+            await trackedFetch("/api/account-sync", {
+              method: "PUT",
+              headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                payload: {
+                  ...existing,
+                  [HABIT_ORDER_STORAGE_KEY]: localSerialized,
+                },
+              }),
+            });
+          }
+          if (!cancelled) {
+            lastHabitOrderSnapshotRef.current = localSerialized;
+          }
+          return;
+        }
+
+        if (cloudOrder.length === 0 || cancelled) return;
+        setHabitOrder(cloudOrder);
+        window.localStorage.setItem(HABIT_ORDER_STORAGE_KEY, cloudSerialized);
+        lastHabitOrderSnapshotRef.current = cloudSerialized;
+      } catch {
+        // Keep localStorage as source of truth if cloud sync fails.
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [habitOrderStorageReady, supabase]);
+
+  useEffect(() => {
+    const serialized = JSON.stringify(habitOrder);
+
+    if (!supabase) return;
+    if (!habitOrderStorageReady) return;
+    if (!habitOrderCloudHydratedRef.current) return;
+    if (serialized === lastHabitOrderSnapshotRef.current) return;
+
+    if (habitOrderSyncTimeoutRef.current) {
+      window.clearTimeout(habitOrderSyncTimeoutRef.current);
+    }
+
+    habitOrderSyncTimeoutRef.current = window.setTimeout(() => {
+      void (async () => {
+        try {
+          const { data } = await supabase.auth.getSession();
+          const token = data.session?.access_token;
+          if (!token) return;
+
+          const readResponse = await trackedFetch("/api/account-sync", {
+            method: "GET",
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          });
+          if (!readResponse.ok) return;
+
+          const readJson = (await readResponse.json()) as { payload?: Record<string, string> };
+          const existing = readJson.payload || {};
+          if (existing[HABIT_ORDER_STORAGE_KEY] === serialized) {
+            lastHabitOrderSnapshotRef.current = serialized;
+            return;
+          }
+
+          const writeResponse = await trackedFetch("/api/account-sync", {
+            method: "PUT",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              payload: {
+                ...existing,
+                [HABIT_ORDER_STORAGE_KEY]: serialized,
+              },
+            }),
+          });
+          if (!writeResponse.ok) return;
+          lastHabitOrderSnapshotRef.current = serialized;
+        } catch {
+          // Keep localStorage as source of truth if cloud sync fails.
+        }
+      })();
+    }, 600);
+
+    return () => {
+      if (habitOrderSyncTimeoutRef.current) {
+        window.clearTimeout(habitOrderSyncTimeoutRef.current);
+        habitOrderSyncTimeoutRef.current = null;
+      }
+    };
+  }, [habitOrder, habitOrderStorageReady, supabase]);
 
   const defaultHabitOrder = useMemo(() => {
     if (!data) return [];

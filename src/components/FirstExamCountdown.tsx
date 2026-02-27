@@ -161,6 +161,7 @@ export default function FirstExamCountdown() {
       PROJECTION_COUNTDOWN_START_STORAGE_KEY,
       countdownStartDate
     );
+    window.dispatchEvent(new CustomEvent(EXAM_DATE_UPDATED_EVENT));
   }, [countdownStartDate, localHydrated]);
 
   useEffect(() => {

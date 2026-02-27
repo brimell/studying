@@ -40,6 +40,13 @@ type DashboardSettingsState = {
   cardSizes?: Partial<Record<CardId, unknown>>;
   hiddenCards?: unknown;
 };
+type DashboardLayoutState = {
+  order?: unknown;
+  columns?: number;
+  rows?: number;
+  cardSizes?: Partial<Record<CardId, unknown>>;
+  hiddenCards?: unknown;
+};
 
 const DEFAULT_CARD_SIZES: Record<CardId, CardSizePreset> = {
   "today-progress": "standard",
@@ -173,8 +180,40 @@ function loadInitialDashboardState(): {
   if (rawLayout) {
     try {
       const parsed = JSON.parse(rawLayout) as unknown;
-      const normalized = normalizeOrder(parsed);
-      if (normalized) order = normalized;
+
+      // Legacy shape: array of card ids.
+      const legacyOrder = normalizeOrder(parsed);
+      if (legacyOrder) {
+        order = legacyOrder;
+      }
+
+      // Current shape: full layout payload (order + settings).
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        const payload = parsed as DashboardLayoutState;
+
+        const parsedOrder = normalizeOrder(payload.order);
+        if (parsedOrder) order = parsedOrder;
+
+        if (typeof payload.columns === "number" && isValidColumns(payload.columns)) {
+          gridColumns = payload.columns;
+        }
+        if (typeof payload.rows === "number" && isValidRows(payload.rows)) {
+          gridRows = payload.rows;
+        }
+        if (payload.cardSizes && typeof payload.cardSizes === "object") {
+          const merged = { ...DEFAULT_CARD_SIZES };
+          for (const id of DEFAULT_ORDER) {
+            const rawSize = payload.cardSizes[id];
+            if (isValidCardSize(rawSize)) merged[id] = rawSize;
+          }
+          cardSizes = merged;
+        }
+        if (Array.isArray(payload.hiddenCards)) {
+          hiddenCards = payload.hiddenCards.filter(
+            (id): id is CardId => typeof id === "string" && DEFAULT_ORDER.includes(id as CardId)
+          );
+        }
+      }
     } catch {
       // Ignore malformed localStorage value.
     }
@@ -235,9 +274,9 @@ export default function Dashboard() {
     left: number;
   } | null>(null);
   const [showLayoutControls, setShowLayoutControls] = useState<boolean>(() => {
-    if (typeof window === "undefined") return true;
+    if (typeof window === "undefined") return false;
     const value = window.localStorage.getItem(DASHBOARD_LAYOUT_CONTROLS_STORAGE_KEY);
-    return value === null ? true : value === "true";
+    return value === null ? false : value === "true";
   });
   const [firstExamDateSetting, setFirstExamDateSetting] = useState<string>(() => {
     if (typeof window === "undefined") return defaultExamDate();
@@ -256,8 +295,17 @@ export default function Dashboard() {
   const previousRects = useRef(new Map<CardId, DOMRect>());
 
   useEffect(() => {
-    window.localStorage.setItem(DASHBOARD_LAYOUT_STORAGE_KEY, JSON.stringify(order));
-  }, [order]);
+    window.localStorage.setItem(
+      DASHBOARD_LAYOUT_STORAGE_KEY,
+      JSON.stringify({
+        order,
+        columns: gridColumns,
+        rows: gridRows,
+        cardSizes,
+        hiddenCards,
+      })
+    );
+  }, [order, gridColumns, gridRows, cardSizes, hiddenCards]);
 
   useEffect(() => {
     window.localStorage.setItem(
@@ -282,7 +330,7 @@ export default function Dashboard() {
   useEffect(() => {
     const syncLayoutControls = () => {
       const value = window.localStorage.getItem(DASHBOARD_LAYOUT_CONTROLS_STORAGE_KEY);
-      setShowLayoutControls(value === null ? true : value === "true");
+      setShowLayoutControls(value === null ? false : value === "true");
     };
     syncLayoutControls();
     window.addEventListener("study-stats:settings-updated", syncLayoutControls);
@@ -509,7 +557,7 @@ export default function Dashboard() {
         {renderedOrder.map((id) => (
           <div
             key={id}
-            className="h-full"
+            className="h-full relative"
             style={getCardStyle(id)}
             onContextMenu={(event) => {
               event.preventDefault();
@@ -609,56 +657,58 @@ export default function Dashboard() {
                     ⚙
                   </button>
                 </div>
-                {openSettingsCardId === id && (
-                  <div
-                    className="surface-card-strong absolute right-0 top-7 z-20 w-72 p-3 space-y-3"
-                    data-card-settings-root="true"
-                  >
-                  <label className="block space-y-1">
-                    <span className="text-xs text-zinc-600">Card size</span>
-                    <FancyDropdown
-                      value={cardSizes[id]}
-                      onChange={(value) => {
-                        if (!isValidCardSize(value)) return;
-                        setCardSizes((previous) => ({ ...previous, [id]: value }));
-                      }}
-                      options={Object.entries(CARD_SIZE_PRESETS).map(([key, preset]) => ({
-                        value: key,
-                        label: preset.label,
-                      }))}
-                    />
-                  </label>
-                  {id === "first-exam-countdown" && (
-                    <div className="space-y-2">
-                      <label className="block space-y-1">
-                        <span className="text-xs text-zinc-600">First exam date</span>
-                        <input
-                          type="date"
-                          value={firstExamDateSetting}
-                          onChange={(event) => updateFirstExamSetting("exam", event.target.value)}
-                          className="field-select w-full"
-                        />
-                      </label>
-                      <label className="block space-y-1">
-                        <span className="text-xs text-zinc-600">Countdown start date</span>
-                        <input
-                          type="date"
-                          value={countdownStartDateSetting}
-                          onChange={(event) => updateFirstExamSetting("start", event.target.value)}
-                          className="field-select w-full"
-                        />
-                      </label>
-                    </div>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => hideCard(id)}
-                    className="pill-btn w-full text-left text-red-700"
-                  >
-                    🗑 Hide card
-                  </button>
+              </div>
+            )}
+            {openSettingsCardId === id && (
+              <div
+                className={`surface-card-strong absolute right-0 z-20 w-72 p-3 space-y-3 ${
+                  showLayoutControls ? "top-7" : "top-2"
+                }`}
+                data-card-settings-root="true"
+              >
+                <label className="block space-y-1">
+                  <span className="text-xs text-zinc-600">Card size</span>
+                  <FancyDropdown
+                    value={cardSizes[id]}
+                    onChange={(value) => {
+                      if (!isValidCardSize(value)) return;
+                      setCardSizes((previous) => ({ ...previous, [id]: value }));
+                    }}
+                    options={Object.entries(CARD_SIZE_PRESETS).map(([key, preset]) => ({
+                      value: key,
+                      label: preset.label,
+                    }))}
+                  />
+                </label>
+                {id === "first-exam-countdown" && (
+                  <div className="space-y-2">
+                    <label className="block space-y-1">
+                      <span className="text-xs text-zinc-600">First exam date</span>
+                      <input
+                        type="date"
+                        value={firstExamDateSetting}
+                        onChange={(event) => updateFirstExamSetting("exam", event.target.value)}
+                        className="field-select w-full"
+                      />
+                    </label>
+                    <label className="block space-y-1">
+                      <span className="text-xs text-zinc-600">Countdown start date</span>
+                      <input
+                        type="date"
+                        value={countdownStartDateSetting}
+                        onChange={(event) => updateFirstExamSetting("start", event.target.value)}
+                        className="field-select w-full"
+                      />
+                    </label>
                   </div>
                 )}
+                <button
+                  type="button"
+                  onClick={() => hideCard(id)}
+                  className="pill-btn w-full text-left text-red-700"
+                >
+                  🗑 Hide card
+                </button>
               </div>
             )}
             <div
@@ -690,6 +740,18 @@ export default function Dashboard() {
             }
           >
             <li className="contextMenu-item">
+              <button
+                type="button"
+                className="contextMenu-button"
+                onClick={() => {
+                  setOpenSettingsCardId(contextCardId);
+                  setContextMenu(null);
+                }}
+              >
+                Open Card Settings
+              </button>
+            </li>
+            <li className="contextMenu-item" data-divider="bottom">
               <button
                 type="button"
                 className="contextMenu-button"
