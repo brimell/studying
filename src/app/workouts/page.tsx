@@ -21,6 +21,9 @@ export default function WorkoutsPage() {
             <h1 className="text-xl font-bold tracking-tight">Workout Planner</h1>
           </div>
           <div className="w-full sm:w-auto flex items-center gap-2 sm:gap-3 overflow-x-auto pb-1 sm:pb-0">
+            <Link href="/settings" className="pill-btn">
+              Settings
+            </Link>
             <SupabaseAccountSync />
             <AuthButton />
           </div>

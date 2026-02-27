@@ -19,6 +19,18 @@ export default function Home() {
     window.localStorage.setItem(WIDE_SCREEN_STORAGE_KEY, String(wideScreen));
   }, [wideScreen]);
 
+  useEffect(() => {
+    const syncFromSettings = () => {
+      setWideScreen(window.localStorage.getItem(WIDE_SCREEN_STORAGE_KEY) === "true");
+    };
+    window.addEventListener("study-stats:settings-updated", syncFromSettings);
+    window.addEventListener("storage", syncFromSettings);
+    return () => {
+      window.removeEventListener("study-stats:settings-updated", syncFromSettings);
+      window.removeEventListener("storage", syncFromSettings);
+    };
+  }, []);
+
   const containerClass = wideScreen
     ? "w-full px-4 sm:px-6 lg:px-8"
     : "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8";
@@ -35,6 +47,9 @@ export default function Home() {
             <Link href="/workouts" className="pill-btn">
               <span className="sm:hidden">Workout</span>
               <span className="hidden sm:inline">Workout Section</span>
+            </Link>
+            <Link href="/settings" className="pill-btn">
+              Settings
             </Link>
             <button
               type="button"
