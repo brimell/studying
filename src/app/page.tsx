@@ -32,7 +32,7 @@ import {
 
 const WIDE_SCREEN_STORAGE_KEY = "study-stats.layout.wide-screen";
 const Dashboard = dynamic(() => import("@/components/Dashboard"), {
-  loading: () => <div className="surface-card p-6 animate-pulse h-40" />,
+  loading: () => null,
 });
 const DailyTrackerPopup = dynamic(() => import("@/components/DailyTrackerPopup"));
 const GamificationPanel = dynamic(() => import("@/components/GamificationPanel"));
