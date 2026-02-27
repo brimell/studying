@@ -936,68 +936,70 @@ export default function MuscleModel({
         </button>
       </div>
       <div className={`grid ${compact ? "grid-cols-1" : "md:grid-cols-[240px,1fr]"} gap-3`}>
-        <div className="mx-auto w-full max-w-[360px]">
-          <div className="rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-2">
-            <p className="text-xs font-medium mb-2">Overlay view (outer + inner muscle groups)</p>
-            <div className="grid grid-cols-2 gap-2 text-[10px] text-zinc-500 dark:text-zinc-400 mb-1 px-1">
-              <span>Anterior</span>
-              <span>Posterior</span>
+        <div className="w-full overflow-x-auto pb-1">
+          <div className="flex items-start gap-3 min-w-max">
+            <div className="w-full min-w-[320px] max-w-[360px] rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-2">
+              <p className="text-xs font-medium mb-2">Overlay view (outer + inner muscle groups)</p>
+              <div className="grid grid-cols-2 gap-2 text-[10px] text-zinc-500 dark:text-zinc-400 mb-1 px-1">
+                <span>Anterior</span>
+                <span>Posterior</span>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {overlayPanels.map((panel) => (
+                  <OverlayPanel
+                    key={panel.key}
+                    baseSrc={panel.baseSrc}
+                    alt={`${panel.view === "anterior" ? "Anterior" : "Posterior"} ${panel.dissection.toLowerCase()} muscle model`}
+                    overlays={panel.overlays}
+                    hoveredEntryKey={hoveredEntryKey}
+                    hasHover={hasHover}
+                  />
+                ))}
+              </div>
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              {overlayPanels.map((panel) => (
-                <OverlayPanel
-                  key={panel.key}
-                  baseSrc={panel.baseSrc}
-                  alt={`${panel.view === "anterior" ? "Anterior" : "Posterior"} ${panel.dissection.toLowerCase()} muscle model`}
-                  overlays={panel.overlays}
-                  hoveredEntryKey={hoveredEntryKey}
-                  hasHover={hasHover}
-                />
-              ))}
+            <div className="w-full min-w-[320px] max-w-[360px] rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-2">
+              <p className="text-xs font-medium mb-2">Skeletal support impact</p>
+              <div className="grid grid-cols-2 gap-2 text-[10px] text-zinc-500 dark:text-zinc-400 mb-1 px-1">
+                <span>Anterior</span>
+                <span>Posterior</span>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {skeletalPanels.map((panel) => (
+                  <OverlayPanel
+                    key={panel.key}
+                    baseSrc={panel.baseSrc}
+                    alt={`${panel.view === "anterior" ? "Anterior" : "Posterior"} skeletal model`}
+                    overlays={panel.overlays}
+                    hoveredEntryKey={null}
+                    hasHover={false}
+                  />
+                ))}
+              </div>
+              <div className="grid grid-cols-2 gap-x-3 gap-y-1 mt-2">
+                {topBoneEntries.map(([region, score]) => (
+                  <div key={`bone-impact-${region}`} className="text-[10px] text-zinc-500 dark:text-zinc-400">
+                    {SKELETAL_REGION_LABELS[region]} {Math.round(score)}%
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
-          <div className="rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-2 mt-3">
-            <p className="text-xs font-medium mb-2">Skeletal support impact</p>
-            <div className="grid grid-cols-2 gap-2 text-[10px] text-zinc-500 dark:text-zinc-400 mb-1 px-1">
-              <span>Anterior</span>
-              <span>Posterior</span>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              {skeletalPanels.map((panel) => (
-                <OverlayPanel
-                  key={panel.key}
-                  baseSrc={panel.baseSrc}
-                  alt={`${panel.view === "anterior" ? "Anterior" : "Posterior"} skeletal model`}
-                  overlays={panel.overlays}
-                  hoveredEntryKey={null}
-                  hasHover={false}
-                />
-              ))}
-            </div>
-            <div className="grid grid-cols-2 gap-x-3 gap-y-1 mt-2">
-              {topBoneEntries.map(([region, score]) => (
-                <div key={`bone-impact-${region}`} className="text-[10px] text-zinc-500 dark:text-zinc-400">
-                  {SKELETAL_REGION_LABELS[region]} {Math.round(score)}%
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className="rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-2 mt-3">
-            <p className="text-xs font-medium mb-2">Internal system support impact</p>
-            <OverlayPanel
-              key={organPanel.key}
-              baseSrc={organPanel.baseSrc}
-              alt="Organ system support model"
-              overlays={organPanel.overlays}
-              hoveredEntryKey={null}
-              hasHover={false}
-            />
-            <div className="grid grid-cols-2 gap-x-3 gap-y-1 mt-2">
-              {topOrganEntries.map(([region, score]) => (
-                <div key={`organ-impact-${region}`} className="text-[10px] text-zinc-500 dark:text-zinc-400">
-                  {ORGAN_REGION_LABELS[region]} {Math.round(score)}%
-                </div>
-              ))}
+            <div className="w-full min-w-[320px] max-w-[360px] rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-2">
+              <p className="text-xs font-medium mb-2">Internal system support impact</p>
+              <OverlayPanel
+                key={organPanel.key}
+                baseSrc={organPanel.baseSrc}
+                alt="Organ system support model"
+                overlays={organPanel.overlays}
+                hoveredEntryKey={null}
+                hasHover={false}
+              />
+              <div className="grid grid-cols-2 gap-x-3 gap-y-1 mt-2">
+                {topOrganEntries.map(([region, score]) => (
+                  <div key={`organ-impact-${region}`} className="text-[10px] text-zinc-500 dark:text-zinc-400">
+                    {ORGAN_REGION_LABELS[region]} {Math.round(score)}%
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>

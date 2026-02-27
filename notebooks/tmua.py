@@ -1,9 +1,12 @@
 import requests
 from bs4 import BeautifulSoup
+import os
 
-# Define your credentials
-email = "rimellbill@gmail.com"
-password = "!$EYv^iKvUi83*"
+# Define your credentials via environment variables.
+email = os.environ.get("TMUA_EMAIL")
+password = os.environ.get("TMUA_PASSWORD")
+if not email or not password:
+    raise RuntimeError("Set TMUA_EMAIL and TMUA_PASSWORD environment variables before running.")
 # URLs
 login_url = "https://tmua.exams.ninja/login"
 questions_url = "https://tmua.exams.ninja/practice-dojo/practice"
