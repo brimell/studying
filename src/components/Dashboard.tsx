@@ -347,7 +347,9 @@ export default function Dashboard() {
     if (!isDesktop) return undefined;
     const { colSpan, rowSpan } = resolveCardLayout(cardSizes[id], gridColumns);
     const effectiveRowSpan =
-      id === "today-progress" || id === "first-exam-countdown" ? 1 : rowSpan;
+      id === "today-progress" || id === "first-exam-countdown" || id === "habit-tracker"
+        ? 1
+        : rowSpan;
     return {
       gridColumn: `span ${colSpan} / span ${colSpan}`,
       gridRow: `span ${effectiveRowSpan} / span ${effectiveRowSpan}`,
