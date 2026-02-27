@@ -131,13 +131,17 @@ export default function Home() {
               router.push("/");
               window.scrollTo({ top: 0, behavior: "smooth" });
             }}
-            className="text-left text-lg sm:text-xl font-bold tracking-tight text-zinc-900"
+            className={`text-left text-lg sm:text-xl font-bold tracking-tight text-zinc-900 ${
+              useLeftSidebar ? "[writing-mode:vertical-rl] rotate-180 self-start" : ""
+            }`}
           >
             Dashboard
           </button>
           <Link
             href="/workouts"
-            className="text-sm font-medium text-zinc-700 hover:text-zinc-900 underline underline-offset-4 decoration-zinc-300 hover:decoration-zinc-600"
+            className={`text-sm font-medium text-zinc-700 hover:text-zinc-900 underline underline-offset-4 decoration-zinc-300 hover:decoration-zinc-600 ${
+              useLeftSidebar ? "[writing-mode:vertical-rl] rotate-180 self-start" : ""
+            }`}
           >
             Gym
           </Link>

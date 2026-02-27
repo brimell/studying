@@ -63,11 +63,11 @@ export default function WorkoutsPage() {
           <div className="flex items-center gap-2 sm:gap-3">
             <Link
               href="/"
-              className="pill-btn"
+              className={`pill-btn ${useLeftSidebar ? "[writing-mode:vertical-rl] rotate-180" : ""}`}
             >
               ← Dashboard
             </Link>
-            <h1 className="text-xl font-bold tracking-tight">Gym</h1>
+            <h1 className={`text-xl font-bold tracking-tight ${useLeftSidebar ? "[writing-mode:vertical-rl] rotate-180" : ""}`}>Gym</h1>
           </div>
           <div className={`flex items-center gap-2 sm:gap-3 ${useLeftSidebar ? "flex-col items-stretch mt-1" : "w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0"}`}>
             <Link href="/?settings=1" className="pill-btn">
