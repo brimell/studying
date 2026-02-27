@@ -35,6 +35,7 @@ const TRACKER_CALENDAR_STORAGE_KEY = "study-stats.tracker-calendar-id";
 const HABIT_WORKOUT_LINKS_STORAGE_KEY = "study-stats.habit-tracker.workout-links";
 
 const DEFAULT_EXERCISE_MUSCLES: MuscleGroup[] = ["pectoralis-major"];
+const DEFAULT_REST_SECONDS = 90;
 
 const WEEKDAY_LABELS: Record<WorkoutWeekDay, string> = {
   monday: "Monday",
@@ -122,6 +123,7 @@ export default function WorkoutPlanner() {
   const [exerciseName, setExerciseName] = useState("");
   const [exerciseSets, setExerciseSets] = useState(3);
   const [exerciseReps, setExerciseReps] = useState(10);
+  const [exerciseRestSeconds, setExerciseRestSeconds] = useState(DEFAULT_REST_SECONDS);
   const [exerciseMuscles, setExerciseMuscles] = useState<MuscleGroup[]>(DEFAULT_EXERCISE_MUSCLES);
   const [showCustomExerciseForm, setShowCustomExerciseForm] = useState(false);
   const [showCreateWorkoutModal, setShowCreateWorkoutModal] = useState(false);
@@ -287,6 +289,7 @@ export default function WorkoutPlanner() {
       muscles: exercise.muscles,
       sets: Math.max(1, Math.min(30, exerciseSets)),
       reps: Math.max(1, Math.min(100, exerciseReps)),
+      restSeconds: Math.max(0, Math.min(600, exerciseRestSeconds)),
     };
     setDraftExercises((previous) => [...previous, next]);
     setExerciseSearch("");
@@ -302,12 +305,33 @@ export default function WorkoutPlanner() {
       muscles: exerciseMuscles,
       sets: Math.max(1, Math.min(30, exerciseSets)),
       reps: Math.max(1, Math.min(100, exerciseReps)),
+      restSeconds: Math.max(0, Math.min(600, exerciseRestSeconds)),
     };
     setDraftExercises((previous) => [...previous, next]);
     setExerciseName("");
     setExerciseSets(3);
     setExerciseReps(10);
+    setExerciseRestSeconds(DEFAULT_REST_SECONDS);
     setExerciseMuscles(DEFAULT_EXERCISE_MUSCLES);
+  };
+
+  const updateDraftExercise = (
+    exerciseId: string,
+    field: "sets" | "reps" | "restSeconds",
+    value: number
+  ) => {
+    setDraftExercises((previous) =>
+      previous.map((exercise) => {
+        if (exercise.id !== exerciseId) return exercise;
+        if (field === "sets") {
+          return { ...exercise, sets: Math.max(1, Math.min(30, Math.round(value))) };
+        }
+        if (field === "reps") {
+          return { ...exercise, reps: Math.max(1, Math.min(100, Math.round(value))) };
+        }
+        return { ...exercise, restSeconds: Math.max(0, Math.min(600, Math.round(value))) };
+      })
+    );
   };
 
   const removeDraftExercise = (exerciseId: string) => {
@@ -336,6 +360,7 @@ export default function WorkoutPlanner() {
     setNewWorkoutName("");
     setDraftExercises([]);
     setExerciseSearch("");
+    setExerciseRestSeconds(DEFAULT_REST_SECONDS);
     setShowCustomExerciseForm(false);
     setShowCreateWorkoutModal(false);
   };
@@ -669,7 +694,7 @@ export default function WorkoutPlanner() {
           <div>
             <h1 className="text-2xl font-bold">Workout Planner</h1>
             <p className="text-sm text-zinc-500 mt-1">
-              Build workouts, track sessions by date, and monitor muscle fatigue.
+              Build custom routines with exercises, sets, reps, and rest intervals.
             </p>
           </div>
           <button
@@ -748,6 +773,7 @@ export default function WorkoutPlanner() {
                   {workout.exercises.map((exercise) => (
                     <p key={exercise.id} className="text-xs text-zinc-500">
                       {exercise.name}: {exercise.sets}x{exercise.reps} •{" "}
+                      Rest {exercise.restSeconds ?? DEFAULT_REST_SECONDS}s •{" "}
                       {exercise.muscles.map((muscle) => MUSCLE_LABELS[muscle]).join(", ")}
                     </p>
                   ))}
@@ -1014,6 +1040,15 @@ export default function WorkoutPlanner() {
                       placeholder="Reps"
                       className="border rounded-lg px-3 py-2 text-sm bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
                     />
+                    <input
+                      type="number"
+                      value={exerciseRestSeconds}
+                      min={0}
+                      max={600}
+                      onChange={(event) => setExerciseRestSeconds(Number(event.target.value))}
+                      placeholder="Rest (seconds)"
+                      className="border rounded-lg px-3 py-2 text-sm bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700 col-span-2"
+                    />
                   </div>
                   <div className="rounded-md border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 h-44 overflow-y-auto">
                     {filteredKnownExercises.length === 0 && (
@@ -1075,6 +1110,15 @@ export default function WorkoutPlanner() {
                           placeholder="Reps"
                           className="border rounded-lg px-3 py-2 text-sm bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
                         />
+                        <input
+                          type="number"
+                          value={exerciseRestSeconds}
+                          min={0}
+                          max={600}
+                          onChange={(event) => setExerciseRestSeconds(Number(event.target.value))}
+                          placeholder="Rest (seconds)"
+                          className="border rounded-lg px-3 py-2 text-sm bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700 col-span-2"
+                        />
                       </div>
                       <div className="grid grid-cols-2 sm:grid-cols-3 gap-1">
                         {UI_MUSCLE_GROUPS.map((muscle) => (
@@ -1125,9 +1169,49 @@ export default function WorkoutPlanner() {
                         </button>
                       </div>
                       <p className="text-zinc-500">
-                        {exercise.sets} sets x {exercise.reps} reps •{" "}
+                        {exercise.sets} sets x {exercise.reps} reps • Rest{" "}
+                        {exercise.restSeconds ?? DEFAULT_REST_SECONDS}s •{" "}
                         {exercise.muscles.map((muscle) => MUSCLE_LABELS[muscle]).join(", ")}
                       </p>
+                      <div className="mt-2 grid grid-cols-3 gap-2">
+                        <input
+                          type="number"
+                          value={exercise.sets}
+                          min={1}
+                          max={30}
+                          onChange={(event) =>
+                            updateDraftExercise(exercise.id, "sets", Number(event.target.value))
+                          }
+                          placeholder="Sets"
+                          className="border rounded px-2 py-1 text-xs bg-white dark:bg-zinc-900 dark:border-zinc-700"
+                        />
+                        <input
+                          type="number"
+                          value={exercise.reps}
+                          min={1}
+                          max={100}
+                          onChange={(event) =>
+                            updateDraftExercise(exercise.id, "reps", Number(event.target.value))
+                          }
+                          placeholder="Reps"
+                          className="border rounded px-2 py-1 text-xs bg-white dark:bg-zinc-900 dark:border-zinc-700"
+                        />
+                        <input
+                          type="number"
+                          value={exercise.restSeconds ?? DEFAULT_REST_SECONDS}
+                          min={0}
+                          max={600}
+                          onChange={(event) =>
+                            updateDraftExercise(
+                              exercise.id,
+                              "restSeconds",
+                              Number(event.target.value)
+                            )
+                          }
+                          placeholder="Rest (sec)"
+                          className="border rounded px-2 py-1 text-xs bg-white dark:bg-zinc-900 dark:border-zinc-700"
+                        />
+                      </div>
                     </div>
                   ))}
                 </div>

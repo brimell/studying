@@ -186,6 +186,7 @@ export interface WorkoutExercise {
   muscles: MuscleGroup[];
   sets: number;
   reps: number;
+  restSeconds?: number;
   notes?: string;
 }
 
