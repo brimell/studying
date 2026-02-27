@@ -316,7 +316,7 @@ const SPECIFIC_FILE_BASE_BY_MUSCLE: Partial<Record<MuscleGroup, string>> = {
   "pectoralis-major": "Muscle Group=- Pectoralis Major",
   "pectoralis-minor": "Muscle Group=- Pectoralis Minor",
   "quadratus-lumborum": "Muscle Group=- Quadratus Lumborum",
-  rhomboids: "Muscle Group=- Rhomboids",
+  rhomboids: "Muscle Group=-Rhomboids",
   "serratus-anterior": "Muscle Group=- Serratus Anterior",
   splenius: "Muscle Group=- Splenius",
   sternocleidomastoid: "Muscle Group=- Sternocleidomastoid",
@@ -635,18 +635,39 @@ function OverlayPanel({
   useEffect(() => {
     if (isVisible) return;
     const node = panelRef.current;
-    if (!node) return;
+    if (!node || typeof IntersectionObserver === "undefined") {
+      const immediateTimer = window.setTimeout(() => {
+        setIsVisible(true);
+      }, 0);
+      return () => window.clearTimeout(immediateTimer);
+    }
+
+    let revealed = false;
+    const reveal = () => {
+      if (revealed) return;
+      revealed = true;
+      setIsVisible(true);
+    };
 
     const observer = new IntersectionObserver(
       (entries) => {
         if (!entries.some((entry) => entry.isIntersecting)) return;
-        setIsVisible(true);
+        reveal();
         observer.disconnect();
       },
       { rootMargin: "120px 0px" }
     );
     observer.observe(node);
-    return () => observer.disconnect();
+    const fallbackTimer = window.setTimeout(() => {
+      reveal();
+      observer.disconnect();
+    }, 1200);
+
+    return () => {
+      revealed = true;
+      observer.disconnect();
+      window.clearTimeout(fallbackTimer);
+    };
   }, [isVisible]);
 
   return (
