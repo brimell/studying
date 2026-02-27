@@ -79,7 +79,7 @@ export default function WorkoutsPage() {
         </div>
       </header>
 
-      <main className={`${containerClass} py-8`}>
+      <main className={`${containerClass} pt-2 pb-8`}>
         <WorkoutDataProvider>
           <WorkoutPlanner />
         </WorkoutDataProvider>

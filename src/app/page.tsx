@@ -190,7 +190,7 @@ export default function Home() {
       </header>
 
       {/* Main content */}
-      <main className={`${containerClass} py-5 sm:py-9`}>
+      <main className={`${containerClass} pt-2 pb-5 sm:pt-3 sm:pb-9`}>
         <Dashboard />
       </main>
 
