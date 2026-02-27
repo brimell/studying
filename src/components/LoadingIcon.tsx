@@ -6,7 +6,7 @@ export default function LoadingIcon({ className = "" }: { className?: string }) 
   const gradientId = useId().replace(/:/g, "");
 
   return (
-    <div className={`loader-wrap ${className}`.trim()} aria-label="Loading" role="status">
+    <div className={`loader-wrap h-full w-full ${className}`.trim()} aria-label="Loading" role="status">
       <svg className="pl" viewBox="0 0 176 160" xmlns="http://www.w3.org/2000/svg">
         <defs>
           <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
