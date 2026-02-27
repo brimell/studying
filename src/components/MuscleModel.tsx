@@ -910,12 +910,13 @@ export default function MuscleModel({
           const fallbackSrc = simplifyLabels
             ? undefined
             : toDiagramPath(resolveDiagramFiles(muscle, true, dissection)[view]);
-          const hoverKey = String(useSimplifiedOverlay ? getCommonGroupKey(muscle) : muscle);
+          const groupKey = String(getCommonGroupKey(muscle));
           const opacity = normalizedGradeToOpacity(normalizedGrade);
           const existing = groupedOverlays.get(src);
           if (existing) {
             existing.opacity = Math.max(existing.opacity, opacity);
-            existing.hoverKeys.add(hoverKey);
+            existing.hoverKeys.add(muscle);
+            existing.hoverKeys.add(groupKey);
             if (fallbackSrc && !existing.fallbackSrc) {
               existing.fallbackSrc = fallbackSrc;
             }
@@ -923,7 +924,7 @@ export default function MuscleModel({
           }
           groupedOverlays.set(src, {
             opacity,
-            hoverKeys: new Set([hoverKey]),
+            hoverKeys: new Set([muscle, groupKey]),
             ordinal: groupedOverlays.size,
             fallbackSrc,
           });
