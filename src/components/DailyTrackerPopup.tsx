@@ -456,7 +456,7 @@ export default function DailyTrackerPopup({ onClose }: DailyTrackerPopupProps) {
           <NumberScale
             label="Headache"
             min={0}
-            max={4}
+            max={10}
             value={form.headache}
             onChange={(value) => setForm((previous) => ({ ...previous, headache: value }))}
             lowLabel="none"

@@ -201,7 +201,7 @@ export function parseDailyTrackerFormData(
     productivity: toNullableNumber(raw.productivity, 0, 10),
     motivation: toNullableNumber(raw.motivation, 0, 10),
 
-    headache: toNullableNumber(raw.headache, 0, 4),
+    headache: toNullableNumber(raw.headache, 0, 10),
     fatigue: toNullableNumber(raw.fatigue, 0, 10),
     coughing: toNullableNumber(raw.coughing, 0, 10),
 
@@ -284,7 +284,7 @@ export function serializeDailyTrackerForDescription(form: DailyTrackerFormData):
   pushMetric(lines, "Productivity", form.productivity, 10);
   pushMetric(lines, "Motivation", form.motivation, 10);
 
-  pushMetric(lines, "Headache", form.headache, 4);
+  pushMetric(lines, "Headache", form.headache, 10);
   pushMetric(lines, "Fatigue/tiredness", form.fatigue, 10);
   pushMetric(lines, "Coughing", form.coughing, 10);
 
