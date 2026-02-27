@@ -72,7 +72,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           scope:
             "openid email profile https://www.googleapis.com/auth/calendar",
           access_type: "offline",
-          prompt: "consent",
         },
       },
     }),

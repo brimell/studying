@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { signIn, signOut, useSession } from "next-auth/react";
 
 interface AuthButtonProps {
@@ -7,8 +8,27 @@ interface AuthButtonProps {
   className?: string;
 }
 
+const GOOGLE_LINKED_STORAGE_KEY = "study-stats.google-linked-account";
+
 export default function AuthButton({ compact = false, className = "" }: AuthButtonProps) {
   const { data: session, status } = useSession();
+  const [linkedBeforeSnapshot] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return Boolean(window.localStorage.getItem(GOOGLE_LINKED_STORAGE_KEY));
+  });
+  const hasLinkedBefore = Boolean(session?.user?.email) || linkedBeforeSnapshot;
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (status === "loading" || !session?.user?.email) return;
+    if (session?.user?.email) {
+      const snapshot = JSON.stringify({
+        email: session.user.email,
+        linkedAt: new Date().toISOString(),
+      });
+      window.localStorage.setItem(GOOGLE_LINKED_STORAGE_KEY, snapshot);
+    }
+  }, [session, status]);
 
   if (status === "loading") {
     return (
@@ -61,7 +81,7 @@ export default function AuthButton({ compact = false, className = "" }: AuthButt
       onClick={() => signIn("google")}
       className={`pill-btn pill-btn-primary ${className}`.trim()}
     >
-      Link Google Account
+      {hasLinkedBefore ? "Reconnect Google Account" : "Link Google Account"}
     </button>
   );
 }
