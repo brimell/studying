@@ -807,6 +807,7 @@ export default function WorkoutPlanner() {
           loadPoints={currentLoadPoints}
           title="Estimated Organ Support Impact"
           compact
+          organOnly
         />
       </section>
 

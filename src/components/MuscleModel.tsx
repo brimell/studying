@@ -670,6 +670,7 @@ interface MuscleModelProps {
   title?: string;
   compact?: boolean;
   showOrganPanel?: boolean;
+  organOnly?: boolean;
 }
 
 interface DisplayMuscleEntry {
@@ -685,6 +686,7 @@ export default function MuscleModel({
   title = "Muscle Load Map",
   compact = false,
   showOrganPanel = true,
+  organOnly = false,
 }: MuscleModelProps) {
   const [simplifyLabels, setSimplifyLabels] = useState(false);
   const [hoveredEntryKey, setHoveredEntryKey] = useState<string | null>(null);
@@ -944,6 +946,24 @@ export default function MuscleModel({
       void toRedOnlyDataUrl(overlay.src, organPanel.baseSrc);
     }
   }, [organPanel, skeletalPanels, showOrganPanel]);
+
+  if (organOnly) {
+    return (
+      <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-3">
+        <p className="text-sm font-medium mb-2">{title}</p>
+        <div className="w-full max-w-[420px] mx-auto rounded-lg border border-zinc-200 bg-white p-2">
+          <OverlayPanel
+            key={organPanel.key}
+            baseSrc={organPanel.baseSrc}
+            alt="Organ system support model"
+            overlays={organPanel.overlays}
+            hoveredEntryKey={null}
+            hasHover={false}
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-3">
