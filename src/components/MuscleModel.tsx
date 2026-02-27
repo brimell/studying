@@ -541,21 +541,6 @@ function RedOnlyOverlay({
 
   useEffect(() => {
     let cancelled = false;
-    const cached = overlayImageCache.get(cacheKey);
-    if (cached) {
-      window.requestAnimationFrame(() => {
-        if (cancelled) return;
-        setProcessedOverlay((previous) =>
-          previous.key === cacheKey && previous.src === cached
-            ? previous
-            : { key: cacheKey, src: cached }
-        );
-      });
-      return () => {
-        cancelled = true;
-      };
-    }
-
     toRedOnlyDataUrl(src, baseSrc).then((nextSrc) => {
       if (cancelled) return;
       setProcessedOverlay((previous) =>
