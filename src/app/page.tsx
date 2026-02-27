@@ -31,7 +31,7 @@ export default function Home() {
           <h1 className="text-lg sm:text-xl font-bold tracking-tight text-zinc-900">
             Study Stats
           </h1>
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3 sm:justify-end">
+          <div className="w-full sm:w-auto flex items-center gap-2 sm:gap-3 sm:justify-end overflow-x-auto pb-1 sm:pb-0">
             <Link href="/workouts" className="pill-btn">
               <span className="sm:hidden">Workout</span>
               <span className="hidden sm:inline">Workout Section</span>

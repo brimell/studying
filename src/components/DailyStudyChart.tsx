@@ -125,15 +125,15 @@ export default function DailyStudyChart() {
 
   return (
     <div className="surface-card p-6">
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
         <h2 className="text-lg font-semibold">
           Daily Study Time {subject ? `(${subject})` : "(All Subjects)"}
         </h2>
-        <div className="flex gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full sm:w-auto">
           <select
             value={subject}
             onChange={(e) => setSubject(e.target.value)}
-            className="text-sm border rounded-lg px-2 py-1 bg-zinc-50"
+            className="text-sm border rounded-lg px-2 py-1 bg-zinc-50 w-full"
           >
             <option value="">All Subjects</option>
             {Object.keys(DEFAULT_SUBJECTS).map((s) => (
@@ -145,7 +145,7 @@ export default function DailyStudyChart() {
           <select
             value={days}
             onChange={(e) => setDays(Number(e.target.value))}
-            className="text-sm border rounded-lg px-2 py-1 bg-zinc-50"
+            className="text-sm border rounded-lg px-2 py-1 bg-zinc-50 w-full"
           >
             {[7, 14, 30, 60, 90].map((d) => (
               <option key={d} value={d}>
@@ -163,7 +163,7 @@ export default function DailyStudyChart() {
       {error && <p className="text-sm text-red-500">{error}</p>}
       {data && !loading && (
         <>
-          <div className="flex gap-6 mb-4 text-sm">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-6 mb-4 text-sm">
             <span>
               Monthly avg:{" "}
               <strong className="text-green-600">

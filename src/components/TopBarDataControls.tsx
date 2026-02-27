@@ -111,7 +111,7 @@ export default function TopBarDataControls() {
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="flex items-center gap-2 shrink-0">
       <div className="hidden md:flex items-center gap-1.5">
         <span className="pill-btn text-[11px] px-2 py-1">
           Level {mounted && gamificationReady ? topBarLevel : "--"}
@@ -125,7 +125,7 @@ export default function TopBarDataControls() {
         onClick={() => setShowStudyProjection(true)}
         className="pill-btn"
       >
-        <span className="sm:hidden">Project</span>
+        <span className="sm:hidden">Plan</span>
         <span className="hidden sm:inline">Project Studying</span>
       </button>
       <p className="soft-text text-[11px] hidden lg:block">
@@ -136,7 +136,7 @@ export default function TopBarDataControls() {
         disabled={refreshing}
         className="pill-btn"
       >
-        {refreshing ? "Refreshing..." : "Refresh"}
+        {refreshing ? "Refreshing..." : "Sync"}
       </button>
 
       {mounted &&

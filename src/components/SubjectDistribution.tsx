@@ -122,12 +122,12 @@ export default function SubjectDistribution() {
 
   return (
     <div className="surface-card p-6">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
         <h2 className="text-lg font-semibold">Subject Distribution</h2>
         <select
           value={days}
           onChange={(e) => setDays(Number(e.target.value))}
-          className="text-sm border rounded-lg px-2 py-1 bg-zinc-50"
+          className="text-sm border rounded-lg px-2 py-1 bg-zinc-50 w-full sm:w-auto"
         >
           {[7, 30, 90, 365].map((d) => (
             <option key={d} value={d}>
@@ -156,7 +156,7 @@ export default function SubjectDistribution() {
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Pie chart */}
-              <ResponsiveContainer width="100%" height={300}>
+              <ResponsiveContainer width="100%" height={260}>
                 <PieChart>
                   <Pie
                     data={filteredSubjects}
@@ -181,7 +181,7 @@ export default function SubjectDistribution() {
               </ResponsiveContainer>
 
               {/* Bar chart */}
-              <ResponsiveContainer width="100%" height={300}>
+              <ResponsiveContainer width="100%" height={260}>
                 <BarChart data={filteredSubjects}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis

@@ -10,8 +10,8 @@ export default function WorkoutsPage() {
   return (
     <div className="app-shell">
       <header className="top-nav sticky top-0 z-50">
-        <div className="w-full px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+        <div className="w-full px-4 sm:px-6 lg:px-8 py-2 flex flex-col gap-2 sm:h-16 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2 sm:gap-3">
             <Link
               href="/"
               className="pill-btn"
@@ -20,7 +20,7 @@ export default function WorkoutsPage() {
             </Link>
             <h1 className="text-xl font-bold tracking-tight">Workout Planner</h1>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="w-full sm:w-auto flex items-center gap-2 sm:gap-3 overflow-x-auto pb-1 sm:pb-0">
             <SupabaseAccountSync />
             <AuthButton />
           </div>
