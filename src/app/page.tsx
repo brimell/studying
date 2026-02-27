@@ -66,13 +66,59 @@ function HomeContent() {
   const [studyTimerState, setStudyTimerState] = useState<StudyTimerState>(() =>
     readStudyTimerState()
   );
+  const [studyTimerAlarmMessage, setStudyTimerAlarmMessage] = useState<string | null>(null);
   const [pendingFetchCount, setPendingFetchCount] = useState(() =>
     typeof window === "undefined" ? 0 : readPendingFetchCount()
   );
   const [accountDisplayName, setAccountDisplayName] = useState("John Doe");
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const alarmClearTimeoutRef = useRef<number | null>(null);
+  const alarmAudioContextRef = useRef<AudioContext | null>(null);
 
   const userLabel = accountDisplayName;
+
+  function triggerStudyTimerAlarm(message: string) {
+    if (typeof window === "undefined") return;
+
+    setStudyTimerAlarmMessage(message);
+    if (alarmClearTimeoutRef.current) {
+      window.clearTimeout(alarmClearTimeoutRef.current);
+    }
+    alarmClearTimeoutRef.current = window.setTimeout(() => {
+      setStudyTimerAlarmMessage(null);
+      alarmClearTimeoutRef.current = null;
+    }, 2200);
+
+    try {
+      const AudioContextCtor = ((window as unknown as { webkitAudioContext?: typeof AudioContext })
+        .webkitAudioContext || window.AudioContext) as typeof AudioContext | undefined;
+      if (!AudioContextCtor) return;
+
+      const context = alarmAudioContextRef.current || new AudioContextCtor();
+      alarmAudioContextRef.current = context;
+      if (context.state === "suspended") {
+        void context.resume();
+      }
+
+      const now = context.currentTime + 0.01;
+      const beepOffsets = [0, 0.24];
+      for (const offset of beepOffsets) {
+        const oscillator = context.createOscillator();
+        const gain = context.createGain();
+        oscillator.type = "sine";
+        oscillator.frequency.setValueAtTime(880, now + offset);
+        gain.gain.setValueAtTime(0.0001, now + offset);
+        gain.gain.exponentialRampToValueAtTime(0.18, now + offset + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + offset + 0.18);
+        oscillator.connect(gain);
+        gain.connect(context.destination);
+        oscillator.start(now + offset);
+        oscillator.stop(now + offset + 0.2);
+      }
+    } catch {
+      // Ignore alarm audio failures; visual alert still shows.
+    }
+  }
 
   useEffect(() => {
     window.localStorage.setItem(WIDE_SCREEN_STORAGE_KEY, String(wideScreen));
@@ -106,12 +152,40 @@ function HomeContent() {
   useEffect(() => {
     if (studyTimerState.status !== "running") return;
     const tick = () => {
-      setStudyTimerState((previous) => advanceStudyTimerState(previous, Date.now()));
+      setStudyTimerState((previous) => {
+        const next = advanceStudyTimerState(previous, Date.now());
+        if (next === previous) return previous;
+
+        const completedStudySession = next.completedStudyCycles > previous.completedStudyCycles;
+        const switchedBackToStudy = previous.phase === "break" && next.phase === "study";
+        if (completedStudySession) {
+          const message =
+            next.phase === "break" && next.breakEnabled
+              ? "Study session complete. Break started."
+              : "Study session complete. Next session started.";
+          triggerStudyTimerAlarm(message);
+        } else if (switchedBackToStudy) {
+          triggerStudyTimerAlarm("Break finished. Back to study.");
+        }
+
+        return next;
+      });
     };
     tick();
     const id = window.setInterval(tick, 500);
     return () => window.clearInterval(id);
   }, [studyTimerState.status]);
+
+  useEffect(() => {
+    return () => {
+      if (alarmClearTimeoutRef.current) {
+        window.clearTimeout(alarmClearTimeoutRef.current);
+      }
+      if (alarmAudioContextRef.current) {
+        void alarmAudioContextRef.current.close().catch(() => {});
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!supabase) return;
@@ -580,6 +654,17 @@ function HomeContent() {
           </div>,
           document.body
         )}
+
+      {studyTimerAlarmMessage && (
+        <div className="pointer-events-none fixed inset-0 z-[210]">
+          <div className="absolute inset-0 bg-amber-300/30 animate-[pulse_400ms_ease-out_3]" />
+          <div className="absolute left-1/2 top-6 -translate-x-1/2 rounded-xl border border-amber-400 bg-amber-50 px-4 py-3 shadow-lg">
+            <p className="text-sm font-semibold text-amber-900" role="status" aria-live="assertive">
+              {studyTimerAlarmMessage}
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
