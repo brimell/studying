@@ -299,7 +299,10 @@ export default function FirstExamCountdown() {
             </button>
             <div className="w-full max-w-5xl text-center">
               <p className="text-sm text-zinc-500 mb-4">Until exam</p>
-              <p className="stat-mono font-bold tracking-tight text-zinc-900 leading-none text-[clamp(3.6rem,12vw,10rem)]">
+              <p
+                className="stat-mono font-bold tracking-tight text-zinc-900 leading-none"
+                style={{ fontSize: "min(50vh, 42vw)" }}
+              >
                 {weeksUntilExam}w {remainingDays}d
               </p>
               <div className="mx-auto mt-8 w-full max-w-4xl h-6 bg-zinc-200 rounded-full overflow-hidden">
