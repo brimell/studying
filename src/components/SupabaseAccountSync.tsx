@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 
@@ -107,39 +107,45 @@ export default function SupabaseAccountSync() {
     };
   }, [supabase]);
 
-  const callSyncApi = async (method: "GET" | "PUT", payload?: SyncPayload) => {
-    if (!supabase) throw new Error("Supabase is not configured.");
+  const callSyncApi = useCallback(
+    async (method: "GET" | "PUT", payload?: SyncPayload) => {
+      if (!supabase) throw new Error("Supabase is not configured.");
 
-    const { data } = await supabase.auth.getSession();
-    const token = data.session?.access_token;
-    if (!token) throw new Error("No active Supabase session.");
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+      if (!token) throw new Error("No active Supabase session.");
 
-    const response = await fetch("/api/account-sync", {
-      method,
-      headers: {
-        Authorization: `Bearer ${token}`,
-        ...(method === "PUT" ? { "Content-Type": "application/json" } : {}),
-      },
-      body: method === "PUT" ? JSON.stringify({ payload }) : undefined,
-    });
+      const response = await fetch("/api/account-sync", {
+        method,
+        headers: {
+          Authorization: `Bearer ${token}`,
+          ...(method === "PUT" ? { "Content-Type": "application/json" } : {}),
+        },
+        body: method === "PUT" ? JSON.stringify({ payload }) : undefined,
+      });
 
-    const json = (await response.json()) as {
-      error?: string;
-      payload?: SyncPayload;
-      updatedAt?: string | null;
-    };
+      const json = (await response.json()) as {
+        error?: string;
+        payload?: SyncPayload;
+        updatedAt?: string | null;
+      };
 
-    if (!response.ok) {
-      throw new Error(json.error || "Sync request failed.");
-    }
+      if (!response.ok) {
+        throw new Error(json.error || "Sync request failed.");
+      }
 
-    return json;
-  };
+      return json;
+    },
+    [supabase]
+  );
 
-  const autoBackupToCloud = async (payload: SyncPayload) => {
-    const result = await callSyncApi("PUT", payload);
-    setCloudUpdatedAt(result.updatedAt || null);
-  };
+  const autoBackupToCloud = useCallback(
+    async (payload: SyncPayload) => {
+      const result = await callSyncApi("PUT", payload);
+      setCloudUpdatedAt(result.updatedAt || null);
+    },
+    [callSyncApi]
+  );
 
   const handleSignIn = async () => {
     if (!supabase) return;
@@ -460,7 +466,7 @@ export default function SupabaseAccountSync() {
         writableStorage.clear = originalClear;
       }
     };
-  }, [session]);
+  }, [autoBackupToCloud, callSyncApi, session]);
 
   if (!supabase) {
     return null;

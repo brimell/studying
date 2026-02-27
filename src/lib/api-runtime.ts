@@ -51,9 +51,7 @@ interface IdempotencyRecord {
 }
 
 declare global {
-  // eslint-disable-next-line no-var
   var __studyStatsRateLimitBuckets: Map<string, RateBucket> | undefined;
-  // eslint-disable-next-line no-var
   var __studyStatsIdempotencyRecords: Map<string, IdempotencyRecord> | undefined;
 }
 

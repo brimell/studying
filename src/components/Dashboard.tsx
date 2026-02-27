@@ -90,46 +90,50 @@ function resolveCardLayout(size: CardSizePreset, gridColumns: number): { colSpan
   };
 }
 
-export default function Dashboard() {
-  const { data: session, status } = useSession();
-  const [order, setOrder] = useState<CardId[]>([...DEFAULT_ORDER]);
-  const [draggingId, setDraggingId] = useState<CardId | null>(null);
-  const [dropTargetId, setDropTargetId] = useState<CardId | null>(null);
-  const [gridColumns, setGridColumns] = useState<(typeof GRID_COLUMN_OPTIONS)[number]>(12);
-  const [gridRows, setGridRows] = useState<(typeof GRID_ROW_OPTIONS)[number]>(4);
-  const [cardSizes, setCardSizes] = useState<Record<CardId, CardSizePreset>>({ ...DEFAULT_CARD_SIZES });
-  const [isDesktop, setIsDesktop] = useState(false);
+function loadInitialDashboardState(): {
+  order: CardId[];
+  gridColumns: (typeof GRID_COLUMN_OPTIONS)[number];
+  gridRows: (typeof GRID_ROW_OPTIONS)[number];
+  cardSizes: Record<CardId, CardSizePreset>;
+} {
+  const fallback = {
+    order: [...DEFAULT_ORDER],
+    gridColumns: 12 as (typeof GRID_COLUMN_OPTIONS)[number],
+    gridRows: 4 as (typeof GRID_ROW_OPTIONS)[number],
+    cardSizes: { ...DEFAULT_CARD_SIZES },
+  };
 
-  const cardRefs = useRef(new Map<CardId, HTMLDivElement>());
-  const previousRects = useRef(new Map<CardId, DOMRect>());
+  if (typeof window === "undefined") return fallback;
 
-  useEffect(() => {
-    const raw = window.localStorage.getItem(DASHBOARD_LAYOUT_STORAGE_KEY);
-    if (!raw) return;
+  let order = fallback.order;
+  let gridColumns = fallback.gridColumns;
+  let gridRows = fallback.gridRows;
+  let cardSizes = fallback.cardSizes;
+
+  const rawLayout = window.localStorage.getItem(DASHBOARD_LAYOUT_STORAGE_KEY);
+  if (rawLayout) {
     try {
-      const parsed = JSON.parse(raw) as unknown;
-      if (isValidOrder(parsed)) setOrder(parsed);
+      const parsed = JSON.parse(rawLayout) as unknown;
+      if (isValidOrder(parsed)) order = parsed;
     } catch {
       // Ignore malformed localStorage value.
     }
-  }, []);
+  }
 
-  useEffect(() => {
-    const raw = window.localStorage.getItem(DASHBOARD_SETTINGS_STORAGE_KEY);
-    if (!raw) return;
-
+  const rawSettings = window.localStorage.getItem(DASHBOARD_SETTINGS_STORAGE_KEY);
+  if (rawSettings) {
     try {
-      const parsed = JSON.parse(raw) as {
+      const parsed = JSON.parse(rawSettings) as {
         columns?: unknown;
         rows?: unknown;
         cardSizes?: Partial<Record<CardId, unknown>>;
       };
 
       if (typeof parsed.columns === "number" && isValidColumns(parsed.columns)) {
-        setGridColumns(parsed.columns);
+        gridColumns = parsed.columns;
       }
       if (typeof parsed.rows === "number" && isValidRows(parsed.rows)) {
-        setGridRows(parsed.rows);
+        gridRows = parsed.rows;
       }
       if (parsed.cardSizes && typeof parsed.cardSizes === "object") {
         const merged = { ...DEFAULT_CARD_SIZES };
@@ -137,12 +141,35 @@ export default function Dashboard() {
           const rawSize = parsed.cardSizes[id];
           if (isValidCardSize(rawSize)) merged[id] = rawSize;
         }
-        setCardSizes(merged);
+        cardSizes = merged;
       }
     } catch {
       // Ignore malformed localStorage value.
     }
-  }, []);
+  }
+
+  return { order, gridColumns, gridRows, cardSizes };
+}
+
+export default function Dashboard() {
+  const { data: session, status } = useSession();
+  const initialDashboardState = useMemo(() => loadInitialDashboardState(), []);
+  const [order, setOrder] = useState<CardId[]>(initialDashboardState.order);
+  const [draggingId, setDraggingId] = useState<CardId | null>(null);
+  const [dropTargetId, setDropTargetId] = useState<CardId | null>(null);
+  const [gridColumns, setGridColumns] = useState<(typeof GRID_COLUMN_OPTIONS)[number]>(
+    initialDashboardState.gridColumns
+  );
+  const [gridRows, setGridRows] = useState<(typeof GRID_ROW_OPTIONS)[number]>(
+    initialDashboardState.gridRows
+  );
+  const [cardSizes, setCardSizes] = useState<Record<CardId, CardSizePreset>>(
+    initialDashboardState.cardSizes
+  );
+  const [isDesktop, setIsDesktop] = useState(false);
+
+  const cardRefs = useRef(new Map<CardId, HTMLDivElement>());
+  const previousRects = useRef(new Map<CardId, DOMRect>());
 
   useEffect(() => {
     window.localStorage.setItem(DASHBOARD_LAYOUT_STORAGE_KEY, JSON.stringify(order));

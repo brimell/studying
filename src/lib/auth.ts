@@ -1,12 +1,18 @@
 import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
 import { getGoogleAuthEnv } from "@/lib/env";
+import type { Session } from "next-auth";
 
 type TokenWithGoogle = {
   accessToken?: string;
   refreshToken?: string;
   accessTokenExpiresAt?: number;
   error?: string;
+};
+
+type SessionWithGoogle = Session & {
+  accessToken?: string;
+  authError?: string;
 };
 
 async function refreshGoogleAccessToken(token: TokenWithGoogle): Promise<TokenWithGoogle> {
@@ -98,8 +104,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
     async session({ session, token }) {
       // Make the access token available on the session
-      (session as any).accessToken = token.accessToken;
-      (session as any).authError = (token as TokenWithGoogle).error;
+      const nextSession = session as SessionWithGoogle;
+      nextSession.accessToken = token.accessToken as string | undefined;
+      nextSession.authError = (token as TokenWithGoogle).error;
       return session;
     },
   },

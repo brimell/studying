@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 
@@ -47,32 +47,35 @@ export default function FirstExamCountdown() {
   const hydratedFromCloudRef = useRef(false);
   const cloudHydrationCompleteRef = useRef(false);
 
-  const callApi = async (
-    method: "GET" | "PUT",
-    payload?: { examDate: string; countdownStartDate: string }
-  ) => {
-    if (!supabase) throw new Error("Supabase is not configured.");
-    const { data } = await supabase.auth.getSession();
-    const token = data.session?.access_token;
-    if (!token) throw new Error("No active Supabase session.");
+  const callApi = useCallback(
+    async (
+      method: "GET" | "PUT",
+      payload?: { examDate: string; countdownStartDate: string }
+    ) => {
+      if (!supabase) throw new Error("Supabase is not configured.");
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+      if (!token) throw new Error("No active Supabase session.");
 
-    const response = await fetch("/api/exam-countdown", {
-      method,
-      headers: {
-        Authorization: `Bearer ${token}`,
-        ...(method === "PUT" ? { "Content-Type": "application/json" } : {}),
-      },
-      body: method === "PUT" ? JSON.stringify(payload) : undefined,
-    });
+      const response = await fetch("/api/exam-countdown", {
+        method,
+        headers: {
+          Authorization: `Bearer ${token}`,
+          ...(method === "PUT" ? { "Content-Type": "application/json" } : {}),
+        },
+        body: method === "PUT" ? JSON.stringify(payload) : undefined,
+      });
 
-    const json = (await response.json()) as {
-      error?: string;
-      examDate?: string | null;
-      countdownStartDate?: string | null;
-    };
-    if (!response.ok) throw new Error(json.error || "Exam countdown sync failed.");
-    return json;
-  };
+      const json = (await response.json()) as {
+        error?: string;
+        examDate?: string | null;
+        countdownStartDate?: string | null;
+      };
+      if (!response.ok) throw new Error(json.error || "Exam countdown sync failed.");
+      return json;
+    },
+    [supabase]
+  );
 
   useEffect(() => {
     if (!supabase) return;
@@ -125,7 +128,7 @@ export default function FirstExamCountdown() {
     return () => {
       cancelled = true;
     };
-  }, [localHydrated, session, supabase]);
+  }, [callApi, localHydrated, session, supabase]);
 
   useEffect(() => {
     if (!localHydrated) return;
@@ -159,7 +162,7 @@ export default function FirstExamCountdown() {
         syncTimeoutRef.current = null;
       }
     };
-  }, [countdownStartDate, firstExamDate, localHydrated, session, supabase]);
+  }, [callApi, countdownStartDate, firstExamDate, localHydrated, session, supabase]);
 
   const now = getTodayAtNoon();
   const examDateObject = parseDateInput(firstExamDate);

@@ -325,12 +325,6 @@ function getCommonGroupKey(muscle: MuscleGroup): keyof typeof CORE_DIAGRAM_FILES
   return DIAGRAM_ALIAS[muscle] || (muscle as keyof typeof CORE_DIAGRAM_FILES) || "back";
 }
 
-function getMuscleLabel(muscle: MuscleGroup, simplified: boolean): string {
-  if (!simplified) return MUSCLE_LABELS[muscle];
-  const alias = getCommonGroupKey(muscle);
-  return COMMON_LABELS[alias] || MUSCLE_LABELS[muscle];
-}
-
 function applyDissection(fileName: string, dissection: DissectionLayer): string {
   return fileName.replace("Dissection=Outer Muscles", `Dissection=${dissection}`);
 }
@@ -520,15 +514,19 @@ function RedOnlyOverlay({
   dimmed?: boolean;
 }) {
   const cacheKey = getOverlayCacheKey(src, baseSrc);
-  const [processedSrc, setProcessedSrc] = useState<string>(
-    () => overlayImageCache.get(cacheKey) || TRANSPARENT_PIXEL_DATA_URL
-  );
+  const [processedOverlay, setProcessedOverlay] = useState<{ key: string; src: string }>({
+    key: cacheKey,
+    src: overlayImageCache.get(cacheKey) || TRANSPARENT_PIXEL_DATA_URL,
+  });
+  const processedSrc =
+    processedOverlay.key === cacheKey
+      ? processedOverlay.src
+      : overlayImageCache.get(cacheKey) || TRANSPARENT_PIXEL_DATA_URL;
 
   useEffect(() => {
     let cancelled = false;
     const cached = overlayImageCache.get(cacheKey);
     if (cached) {
-      setProcessedSrc((previous) => (previous === cached ? previous : cached));
       return () => {
         cancelled = true;
       };
@@ -536,7 +534,11 @@ function RedOnlyOverlay({
 
     toRedOnlyDataUrl(src, baseSrc).then((nextSrc) => {
       if (cancelled) return;
-      setProcessedSrc((previous) => (previous === nextSrc ? previous : nextSrc));
+      setProcessedOverlay((previous) =>
+        previous.key === cacheKey && previous.src === nextSrc
+          ? previous
+          : { key: cacheKey, src: nextSrc }
+      );
     });
 
     return () => {
@@ -545,6 +547,7 @@ function RedOnlyOverlay({
   }, [baseSrc, cacheKey, src]);
 
   return (
+    // eslint-disable-next-line @next/next/no-img-element
     <img
       src={processedSrc}
       alt=""
@@ -623,6 +626,7 @@ function OverlayPanel({
       ref={panelRef}
       className="rounded-md border border-zinc-200 dark:border-zinc-700 overflow-hidden bg-white relative aspect-[3/4] isolate"
     >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={baseSrc}
         alt={alt}
