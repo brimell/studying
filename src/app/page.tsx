@@ -158,7 +158,7 @@ function HomeContent() {
             Dashboard
           </button>
           <Link
-            href="/workouts"
+            href="/gym"
             className={`text-sm font-medium text-zinc-700 hover:text-zinc-900 underline underline-offset-4 decoration-zinc-300 hover:decoration-zinc-600 ${
               useLeftSidebar ? "[writing-mode:vertical-rl] rotate-180" : ""
             }`}

@@ -11,7 +11,12 @@ import {
 } from "react";
 import type { Session, SupabaseClient } from "@supabase/supabase-js";
 import type { WorkoutPlannerPayload } from "@/lib/types";
-import { emptyWorkoutPayload } from "@/lib/workouts";
+import {
+  defaultWorkoutPlannerPayload,
+  emptyWorkoutPayload,
+  forceApplyDefaultTemplates,
+  sanitizeWorkoutPayload,
+} from "@/lib/workouts";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 
 type WorkoutApiMethod = "GET" | "PUT";
@@ -28,16 +33,35 @@ interface WorkoutDataContextValue {
 }
 
 const WorkoutDataContext = createContext<WorkoutDataContextValue | null>(null);
+const WORKOUT_LOCAL_STORAGE_KEY = "study-stats.workout-planner.local-payload.v1";
 
 function normalizeErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error) return error.message;
   return fallback;
 }
 
+function readLocalWorkoutPayload(): WorkoutPlannerPayload {
+  if (typeof window === "undefined") return defaultWorkoutPlannerPayload();
+  const raw = window.localStorage.getItem(WORKOUT_LOCAL_STORAGE_KEY);
+  if (!raw) return defaultWorkoutPlannerPayload();
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    const sanitized = sanitizeWorkoutPayload(parsed);
+    return forceApplyDefaultTemplates(sanitized).payload;
+  } catch {
+    return defaultWorkoutPlannerPayload();
+  }
+}
+
+function writeLocalWorkoutPayload(payload: WorkoutPlannerPayload) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(WORKOUT_LOCAL_STORAGE_KEY, JSON.stringify(payload));
+}
+
 export function WorkoutDataProvider({ children }: { children: ReactNode }) {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const [session, setSession] = useState<Session | null>(null);
-  const [payload, setPayload] = useState<WorkoutPlannerPayload>(emptyWorkoutPayload());
+  const [payload, setPayload] = useState<WorkoutPlannerPayload>(defaultWorkoutPlannerPayload());
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -69,47 +93,64 @@ export function WorkoutDataProvider({ children }: { children: ReactNode }) {
   );
 
   const refresh = useCallback(async () => {
-    if (!session) {
-      setPayload(emptyWorkoutPayload());
-      setLoading(false);
-      return;
-    }
-
     try {
       setLoading(true);
       setError(null);
-      const nextPayload = await callApi("GET");
-      setPayload(nextPayload);
+      const localPayload = readLocalWorkoutPayload();
+      setPayload(localPayload);
+
+      if (session && supabase) {
+        const nextPayload = await callApi("GET");
+        setPayload(nextPayload);
+        writeLocalWorkoutPayload(nextPayload);
+      }
     } catch (refreshError: unknown) {
       setError(normalizeErrorMessage(refreshError, "Failed to load workout planner."));
     } finally {
       setLoading(false);
     }
-  }, [callApi, session]);
+  }, [callApi, session, supabase]);
 
   const savePayload = useCallback(
     async (nextPayload: WorkoutPlannerPayload): Promise<WorkoutPlannerPayload> => {
+      const nextLocal = forceApplyDefaultTemplates(sanitizeWorkoutPayload(nextPayload)).payload;
+      nextLocal.updatedAt = new Date().toISOString();
       try {
         setSaving(true);
         setError(null);
-        const saved = await callApi("PUT", nextPayload);
-        setPayload(saved);
-        return saved;
+
+        // Local storage is always source-of-truth, even when not signed in.
+        setPayload(nextLocal);
+        writeLocalWorkoutPayload(nextLocal);
+
+        if (session && supabase) {
+          const saved = await callApi("PUT", nextLocal);
+          setPayload(saved);
+          writeLocalWorkoutPayload(saved);
+          return saved;
+        }
+
+        return nextLocal;
       } catch (saveError: unknown) {
-        const message = normalizeErrorMessage(saveError, "Failed to save workout planner.");
+        // Preserve local save success while reporting cloud-sync failure.
+        const message = normalizeErrorMessage(
+          saveError,
+          "Saved locally, but cloud sync for workout planner failed."
+        );
         setError(message);
-        throw new Error(message);
+        return nextLocal;
       } finally {
         setSaving(false);
       }
     },
-    [callApi]
+    [callApi, session, supabase]
   );
 
   useEffect(() => {
     if (!supabase) {
-      setLoading(false);
+      setPayload(readLocalWorkoutPayload());
       setSession(null);
+      setLoading(false);
       return;
     }
 
@@ -134,13 +175,12 @@ export function WorkoutDataProvider({ children }: { children: ReactNode }) {
   }, [refresh]);
 
   useEffect(() => {
-    if (!session) return;
     const onRefreshAll = () => {
       void refresh();
     };
     window.addEventListener("study-stats:refresh-all", onRefreshAll);
     return () => window.removeEventListener("study-stats:refresh-all", onRefreshAll);
-  }, [refresh, session]);
+  }, [refresh]);
 
   const value = useMemo<WorkoutDataContextValue>(
     () => ({

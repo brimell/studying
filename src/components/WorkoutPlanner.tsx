@@ -189,7 +189,7 @@ function fuzzyScore(query: string, target: string): number {
 }
 
 export default function WorkoutPlanner() {
-  const { supabase, session, payload, loading, saving, error: sharedError, savePayload } =
+  const { session, payload, loading, saving, error: sharedError, savePayload } =
     useWorkoutData();
   const [actionError, setActionError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -905,27 +905,6 @@ export default function WorkoutPlanner() {
     return summaries;
   }, [weeklyPlanSummariesVisible, weeklyPlans, workoutById]);
 
-  if (!supabase) {
-    return (
-      <div className="rounded-xl border border-zinc-200 bg-white p-5">
-        <p className="text-sm text-zinc-500">
-          Supabase is not configured. Add `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
-        </p>
-      </div>
-    );
-  }
-
-  if (!session) {
-    return (
-      <div className="rounded-xl border border-zinc-200 bg-white p-5">
-        <h2 className="text-lg font-semibold mb-2">Gym</h2>
-        <p className="text-sm text-zinc-500">
-          Sign in via `☁️ Account Sync` to save workouts in Supabase and sync across devices.
-        </p>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-5">
       <div className="surface-card p-6">
@@ -933,7 +912,8 @@ export default function WorkoutPlanner() {
           <div>
             <h1 className="text-2xl font-bold">Gym</h1>
             <p className="text-sm text-zinc-500 mt-1">
-              Build custom routines with exercises, sets, reps, and rest intervals.
+              Build custom routines with exercises, sets, reps, and rest intervals.{" "}
+              {session ? "Auto-synced to cloud when available." : "Saved locally on this device."}
             </p>
           </div>
           <button
