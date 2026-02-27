@@ -14,6 +14,7 @@ import { isStale, readCache, writeCache, writeGlobalLastFetched } from "@/lib/cl
 import { lockBodyScroll, unlockBodyScroll } from "@/lib/scroll-lock";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 import LoadingIcon from "@/components/LoadingIcon";
+import FancyDropdown from "@/components/FancyDropdown";
 
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const TRACKER_CALENDAR_STORAGE_KEY = "study-stats.tracker-calendar-id";
@@ -2248,15 +2249,15 @@ export default function HabitTracker() {
 
                     {habitShowFutureDays[activeHabitSettings.slug] && (
                       <div className="flex flex-wrap items-center gap-2">
-                        <label className="flex items-center gap-1 text-xs text-zinc-500">
+                        <label className="flex items-center gap-2 text-xs text-zinc-500">
                           <span>Future preview</span>
-                          <select
+                          <FancyDropdown
                             value={activeHabitFuturePreview.mode}
-                            onChange={(event) =>
+                            onChange={(nextValue) =>
                               setHabitFuturePreviewSettings((previous) => ({
                                 ...previous,
                                 [activeHabitSettings.slug]: {
-                                  mode: event.target.value === "custom" ? "custom" : "auto",
+                                  mode: nextValue === "custom" ? "custom" : "auto",
                                   customDays: clampFuturePreviewDays(
                                     previous[activeHabitSettings.slug]?.customDays ??
                                       DEFAULT_CUSTOM_FUTURE_PREVIEW_DAYS
@@ -2264,11 +2265,12 @@ export default function HabitTracker() {
                                 },
                               }))
                             }
-                            className="rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1 text-xs"
-                          >
-                            <option value="auto">Auto</option>
-                            <option value="custom">Custom</option>
-                          </select>
+                            options={[
+                              { value: "auto", label: "Auto" },
+                              { value: "custom", label: "Custom" },
+                            ]}
+                            className="min-w-[8.5rem]"
+                          />
                         </label>
                         {activeHabitFuturePreview.mode === "custom" && (
                           <label className="flex items-center gap-1 text-xs text-zinc-500">
@@ -2298,23 +2300,21 @@ export default function HabitTracker() {
 
                     <label className="flex items-center gap-2 text-xs text-zinc-500">
                       <span>Color</span>
-                      <select
+                      <FancyDropdown
                         value={activeHabitColor}
-                        onChange={(event) =>
+                        onChange={(nextValue) =>
                           setHabitColors((previous) => ({
                             ...previous,
-                            [activeHabitSettings.slug]: event.target.value,
+                            [activeHabitSettings.slug]: nextValue,
                           }))
                         }
-                        className="rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1 text-xs"
+                        options={HABIT_COLOR_OPTIONS.map((option) => ({
+                          value: option.value,
+                          label: option.label,
+                        }))}
+                        className="min-w-[8.5rem]"
                         aria-label={`Set ${activeHabitSettings.name} color`}
-                      >
-                        {HABIT_COLOR_OPTIONS.map((option) => (
-                          <option key={`${activeHabitSettings.slug}-${option.value}`} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
+                      />
                     </label>
 
                     <button
@@ -2575,31 +2575,25 @@ export default function HabitTracker() {
                   <div className="space-y-3">
                     <label className="block">
                       <span className="text-xs text-zinc-500">Tracking calendar</span>
-                      <select
+                      <FancyDropdown
                         value={
                           habitTrackingCalendarDrafts[editingBinaryHabit.slug] ||
                           selectedTrackerCalendarId ||
                           ""
                         }
-                        onChange={(event) =>
+                        onChange={(nextValue) =>
                           setHabitTrackingCalendarDrafts((previous) => ({
                             ...previous,
-                            [editingBinaryHabit.slug]: event.target.value || null,
+                            [editingBinaryHabit.slug]: nextValue || null,
                           }))
                         }
-                        className="mt-1 w-full border rounded-lg px-3 py-2 text-sm bg-zinc-50"
+                        options={calendars.map((calendarOption) => ({
+                          value: calendarOption.id,
+                          label: `${calendarOption.summary}${calendarOption.primary ? " (Primary)" : ""}`,
+                        }))}
                         disabled={actionLoading || !hasWritableCalendars}
-                      >
-                        {calendars.map((calendarOption) => (
-                          <option
-                            key={`${editingBinaryHabit.slug}-${calendarOption.id}`}
-                            value={calendarOption.id}
-                          >
-                            {calendarOption.summary}
-                            {calendarOption.primary ? " (Primary)" : ""}
-                          </option>
-                        ))}
-                      </select>
+                        className="mt-1"
+                      />
                     </label>
 
                     <label className="flex items-center gap-2 text-xs">
@@ -2714,16 +2708,17 @@ export default function HabitTracker() {
                   )}
                 </div>
                 <form onSubmit={addMilestone} className="flex flex-wrap gap-2">
-                  <select
+                  <FancyDropdown
                     value={newMilestoneType}
-                    onChange={(event) =>
-                      setNewMilestoneType(event.target.value as "exam" | "coursework")
+                    onChange={(nextValue) =>
+                      setNewMilestoneType(nextValue === "coursework" ? "coursework" : "exam")
                     }
-                    className="text-sm border rounded-lg px-3 py-2 bg-zinc-50"
-                  >
-                    <option value="exam">🧪 Exam</option>
-                    <option value="coursework">📚 Coursework</option>
-                  </select>
+                    options={[
+                      { value: "exam", label: "🧪 Exam" },
+                      { value: "coursework", label: "📚 Coursework" },
+                    ]}
+                    className="min-w-[11rem]"
+                  />
                   <input
                     type="text"
                     value={newMilestoneTitle}
@@ -2776,16 +2771,19 @@ export default function HabitTracker() {
                 </div>
 
                 <form onSubmit={handleAddHabit} className="flex flex-wrap gap-2 mb-3">
-                  <select
+                  <FancyDropdown
                     value={newHabitMode}
-                    onChange={(event) => setNewHabitMode(event.target.value as HabitMode)}
-                    className="text-sm border rounded-lg px-3 py-2 bg-zinc-50"
+                    onChange={(nextValue) =>
+                      setNewHabitMode(nextValue === "duration" ? "duration" : "binary")
+                    }
+                    options={[
+                      { value: "binary", label: "✅ Yes/No" },
+                      { value: "duration", label: "⏱️ Hours" },
+                    ]}
                     disabled={!selectedTrackerCalendarId || actionLoading}
                     aria-label="Select habit tracking mode"
-                  >
-                    <option value="binary">✅ Yes/No</option>
-                    <option value="duration">⏱️ Hours</option>
-                  </select>
+                    className="min-w-[11rem]"
+                  />
                   <input
                     type="text"
                     value={newHabitName}
@@ -2961,21 +2959,20 @@ export default function HabitTracker() {
                   <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 space-y-2">
                     <label className="block">
                       <span className="text-xs text-zinc-500">Tracking calendar for this habit</span>
-                      <select
+                      <FancyDropdown
                         value={newHabitTrackingCalendarId || ""}
-                        onChange={(event) => setNewHabitTrackingCalendarId(event.target.value || null)}
+                        onChange={(nextValue) => setNewHabitTrackingCalendarId(nextValue || null)}
                         disabled={!hasWritableCalendars || actionLoading}
-                        className="mt-1 w-full border rounded-lg px-3 py-2 text-sm bg-white"
-                      >
-                        {!hasWritableCalendars && <option value="">No writable calendars found</option>}
-                        {hasWritableCalendars &&
-                          calendars.map((entry) => (
-                            <option key={`new-habit-binary-${entry.id}`} value={entry.id}>
-                              {entry.summary}
-                              {entry.primary ? " (Primary)" : ""}
-                            </option>
-                          ))}
-                      </select>
+                        options={
+                          !hasWritableCalendars
+                            ? [{ value: "", label: "No writable calendars found" }]
+                            : calendars.map((entry) => ({
+                                value: entry.id,
+                                label: `${entry.summary}${entry.primary ? " (Primary)" : ""}`,
+                              }))
+                        }
+                        className="mt-1"
+                      />
                     </label>
                   </div>
                 )}

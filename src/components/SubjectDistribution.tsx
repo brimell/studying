@@ -14,6 +14,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import LoadingIcon from "./LoadingIcon";
+import FancyDropdown from "./FancyDropdown";
 import type { StudyDistributionData } from "@/lib/types";
 import { isStale, readCache, writeCache, writeGlobalLastFetched } from "@/lib/client-cache";
 
@@ -124,17 +125,15 @@ export default function SubjectDistribution() {
   return (
     <div className="surface-card p-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
-        <select
-          value={days}
-          onChange={(e) => setDays(Number(e.target.value))}
-          className="text-sm border rounded-lg px-2 py-1 bg-zinc-50 w-full sm:w-auto"
-        >
-          {[7, 30, 90, 365].map((d) => (
-            <option key={d} value={d}>
-              {d === 365 ? "1 year" : `${d} days`}
-            </option>
-          ))}
-        </select>
+        <FancyDropdown
+          value={String(days)}
+          onChange={(nextValue) => setDays(Number(nextValue))}
+          options={[7, 30, 90, 365].map((d) => ({
+            value: String(d),
+            label: d === 365 ? "1 year" : `${d} days`,
+          }))}
+          className="w-full sm:w-auto sm:min-w-[11rem]"
+        />
       </div>
 
       {loading && (

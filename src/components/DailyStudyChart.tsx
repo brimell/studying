@@ -12,6 +12,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import LoadingIcon from "./LoadingIcon";
+import FancyDropdown from "./FancyDropdown";
 import type { DailyStudyTimeData } from "@/lib/types";
 import { DEFAULT_SUBJECTS } from "@/lib/types";
 import { isStale, readCache, writeCache, writeGlobalLastFetched } from "@/lib/client-cache";
@@ -133,29 +134,25 @@ export default function DailyStudyChart() {
     <div className="surface-card p-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full sm:w-auto">
-          <select
+          <FancyDropdown
             value={subject}
-            onChange={(e) => setSubject(e.target.value)}
-            className="text-sm border rounded-lg px-2 py-1 bg-zinc-50 w-full"
-          >
-            <option value="">All Subjects</option>
-            {Object.keys(DEFAULT_SUBJECTS).map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-          <select
-            value={days}
-            onChange={(e) => setDays(Number(e.target.value))}
-            className="text-sm border rounded-lg px-2 py-1 bg-zinc-50 w-full"
-          >
-            {[7, 14, 30, 60, 90].map((d) => (
-              <option key={d} value={d}>
-                {d} days
-              </option>
-            ))}
-          </select>
+            onChange={(nextValue) => setSubject(nextValue)}
+            options={[
+              { value: "", label: "All Subjects" },
+              ...Object.keys(DEFAULT_SUBJECTS).map((entry) => ({
+                value: entry,
+                label: entry,
+              })),
+            ]}
+          />
+          <FancyDropdown
+            value={String(days)}
+            onChange={(nextValue) => setDays(Number(nextValue))}
+            options={[7, 14, 30, 60, 90].map((d) => ({
+              value: String(d),
+              label: `${d} days`,
+            }))}
+          />
         </div>
       </div>
       {loading && (

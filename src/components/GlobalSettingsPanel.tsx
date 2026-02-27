@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import FancyDropdown from "./FancyDropdown";
 
 const WIDE_SCREEN_STORAGE_KEY = "study-stats.layout.wide-screen";
 const DAILY_DAYS_STORAGE_KEY = "study-stats.daily-study.days";
@@ -188,29 +189,25 @@ export default function GlobalSettingsPanel() {
         <h2 className="text-lg font-semibold">Study Charts</h2>
         <label className="block space-y-1">
           <span>Default daily chart range</span>
-          <select
-            value={dailyDays}
-            onChange={(event) => setDailyDays(Number(event.target.value))}
-            className="field-select w-full"
-          >
-            {dailyOptions.map((value) => (
-              <option key={value} value={value}>{value} days</option>
-            ))}
-          </select>
+          <FancyDropdown
+            value={String(dailyDays)}
+            onChange={(nextValue) => setDailyDays(Number(nextValue))}
+            options={dailyOptions.map((value) => ({
+              value: String(value),
+              label: `${value} days`,
+            }))}
+          />
         </label>
         <label className="block space-y-1">
           <span>Default distribution range</span>
-          <select
-            value={distributionDays}
-            onChange={(event) => setDistributionDays(Number(event.target.value))}
-            className="field-select w-full"
-          >
-            {distributionOptions.map((value) => (
-              <option key={value} value={value}>
-                {value === 365 ? "1 year" : `${value} days`}
-              </option>
-            ))}
-          </select>
+          <FancyDropdown
+            value={String(distributionDays)}
+            onChange={(nextValue) => setDistributionDays(Number(nextValue))}
+            options={distributionOptions.map((value) => ({
+              value: String(value),
+              label: value === 365 ? "1 year" : `${value} days`,
+            }))}
+          />
         </label>
       </section>
 
@@ -237,16 +234,14 @@ export default function GlobalSettingsPanel() {
         </label>
         <label className="block space-y-1">
           <span>Future preview mode</span>
-          <select
+          <FancyDropdown
             value={futurePreviewMode}
-            onChange={(event) =>
-              setFuturePreviewMode(event.target.value === "custom" ? "custom" : "auto")
-            }
-            className="field-select w-full"
-          >
-            <option value="auto">Auto</option>
-            <option value="custom">Custom</option>
-          </select>
+            onChange={(nextValue) => setFuturePreviewMode(nextValue === "custom" ? "custom" : "auto")}
+            options={[
+              { value: "auto", label: "Auto" },
+              { value: "custom", label: "Custom" },
+            ]}
+          />
         </label>
         {futurePreviewMode === "custom" && (
           <label className="block space-y-1">

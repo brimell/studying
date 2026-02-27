@@ -10,6 +10,7 @@ import HabitTracker from "./HabitTracker";
 import AlertsPanel from "./AlertsPanel";
 import AdvancedAnalytics from "./AdvancedAnalytics";
 import LoadingIcon from "./LoadingIcon";
+import FancyDropdown from "./FancyDropdown";
 
 const DASHBOARD_LAYOUT_STORAGE_KEY = "study-stats.dashboard.layout.v1";
 const DASHBOARD_SETTINGS_STORAGE_KEY = "study-stats.dashboard.settings.v1";
@@ -526,21 +527,17 @@ export default function Dashboard() {
                   >
                   <label className="block space-y-1">
                     <span className="text-xs text-zinc-600">Card size</span>
-                    <select
+                    <FancyDropdown
                       value={cardSizes[id]}
-                      onChange={(event) => {
-                        const value = event.target.value;
+                      onChange={(value) => {
                         if (!isValidCardSize(value)) return;
                         setCardSizes((previous) => ({ ...previous, [id]: value }));
                       }}
-                      className="field-select w-full"
-                    >
-                      {Object.entries(CARD_SIZE_PRESETS).map(([key, preset]) => (
-                        <option key={key} value={key}>
-                          {preset.label}
-                        </option>
-                      ))}
-                    </select>
+                      options={Object.entries(CARD_SIZE_PRESETS).map(([key, preset]) => ({
+                        value: key,
+                        label: preset.label,
+                      }))}
+                    />
                   </label>
                   {id === "first-exam-countdown" && (
                     <div className="space-y-2">
