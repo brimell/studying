@@ -459,7 +459,7 @@ function HomeContent() {
               onMouseDown={(event) => event.stopPropagation()}
             >
               <div className="mb-3 flex items-center justify-between gap-3">
-                <h2 className="text-lg font-semibold">Gamification</h2>
+                <h2 className="text-lg font-semibold">Streaks</h2>
                 <button
                   type="button"
                   onClick={() => setGamificationOpen(false)}

@@ -57,6 +57,11 @@ interface RewardTier {
   description: string;
 }
 
+interface CombinedStreakStats {
+  current: number;
+  longest: number;
+}
+
 function addDays(dateKey: string, amount: number): string {
   const [year, month, day] = dateKey.split("-").map(Number);
   const date = new Date(Date.UTC(year, month - 1, day));
@@ -140,6 +145,42 @@ function getCompletedDates(days: HabitCompletionDay[]): Set<string> {
     if (day.completed) dates.add(day.date);
   }
   return dates;
+}
+
+function computeCombinedStreakStats(habits: HabitDefinition[]): CombinedStreakStats {
+  if (habits.length === 0) return { current: 0, longest: 0 };
+
+  const allDates = [...new Set(habits.flatMap((habit) => habit.days.map((day) => day.date)))].sort();
+  if (allDates.length === 0) return { current: 0, longest: 0 };
+
+  const allCompletedByDate = new Map<string, boolean>();
+  for (const date of allDates) {
+    const allCompleted = habits.every((habit) => {
+      const day = habit.days.find((entry) => entry.date === date);
+      return Boolean(day?.completed);
+    });
+    allCompletedByDate.set(date, allCompleted);
+  }
+
+  let current = 0;
+  let cursor = allDates[allDates.length - 1];
+  while (allCompletedByDate.get(cursor)) {
+    current += 1;
+    cursor = addDays(cursor, -1);
+  }
+
+  let longest = 0;
+  let running = 0;
+  for (const date of allDates) {
+    if (!allCompletedByDate.get(date)) {
+      running = 0;
+      continue;
+    }
+    running += 1;
+    if (running > longest) longest = running;
+  }
+
+  return { current, longest };
 }
 
 export default function GamificationPanel() {
@@ -247,6 +288,7 @@ export default function GamificationPanel() {
     const uniqueWorkoutDays = [...new Set(workoutLogDates)].length;
     const workoutCurrentStreak = computeWorkoutStreak(workoutLogDates);
     const maxWorkoutLogsRollingWeek = computeMaxRollingCount(workoutLogDates, 7);
+    const combinedStreak = computeCombinedStreakStats(habits);
 
     const endDate = habitData.trackerRange.endDate;
     const studyHoursLast7 = studyHabit
@@ -376,6 +418,16 @@ export default function GamificationPanel() {
       studyCurrentStreak,
       studyLongestStreak,
       workoutCurrentStreak,
+      combinedCurrentStreak: combinedStreak.current,
+      combinedLongestStreak: combinedStreak.longest,
+      individualHabitStreaks: habits
+        .map((habit) => ({
+          slug: habit.slug,
+          name: habit.name,
+          currentStreak: habit.currentStreak,
+          longestStreak: habit.longestStreak,
+        }))
+        .sort((left, right) => right.currentStreak - left.currentStreak || left.name.localeCompare(right.name)),
       unlockedGoalCount: unlockedGoals.length,
       totalGoals: goalsWithProgress.length,
       totalPoints,
@@ -476,23 +528,41 @@ export default function GamificationPanel() {
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
             <div className="rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2">
-              <p className="text-[11px] text-zinc-500">Study streak</p>
-              <p className="font-semibold text-sm stat-mono">{model.studyCurrentStreak} days</p>
+              <p className="text-[11px] text-zinc-500">Combined streak</p>
+              <p className="font-semibold text-sm stat-mono">{model.combinedCurrentStreak} days</p>
             </div>
             <div className="rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2">
-              <p className="text-[11px] text-zinc-500">Longest study streak</p>
-              <p className="font-semibold text-sm stat-mono">{model.studyLongestStreak} days</p>
+              <p className="text-[11px] text-zinc-500">Longest combined streak</p>
+              <p className="font-semibold text-sm stat-mono">{model.combinedLongestStreak} days</p>
+            </div>
+            <div className="rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2">
+              <p className="text-[11px] text-zinc-500">Study streak</p>
+              <p className="font-semibold text-sm stat-mono">{model.studyCurrentStreak} days</p>
             </div>
             <div className="rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2">
               <p className="text-[11px] text-zinc-500">Workout streak</p>
               <p className="font-semibold text-sm stat-mono">{model.workoutCurrentStreak} days</p>
             </div>
-            <div className="rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2">
-              <p className="text-[11px] text-zinc-500">Goals unlocked</p>
-              <p className="font-semibold text-sm stat-mono">
-                {model.unlockedGoalCount}/{model.totalGoals}
-              </p>
+          </div>
+
+          <div>
+            <p className="text-xs font-medium text-zinc-600 mb-2">Individual streaks</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              {model.individualHabitStreaks.map((habit) => (
+                <div key={habit.slug} className="rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2">
+                  <p className="text-xs text-zinc-500">{habit.name}</p>
+                  <p className="text-sm font-semibold stat-mono">{habit.currentStreak}d current</p>
+                  <p className="text-[11px] text-zinc-500 stat-mono">{habit.longestStreak}d longest</p>
+                </div>
+              ))}
             </div>
+          </div>
+
+          <div className="rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2">
+            <p className="text-[11px] text-zinc-500">Goals unlocked</p>
+            <p className="font-semibold text-sm stat-mono">
+              {model.unlockedGoalCount}/{model.totalGoals}
+            </p>
           </div>
 
           <div>
