@@ -212,10 +212,14 @@ export default function WorkoutPlanner() {
   const [hoveredExerciseMusclesByWorkout, setHoveredExerciseMusclesByWorkout] = useState<
     Record<string, MuscleGroup[]>
   >({});
+  const [hoveredExerciseKeyByWorkout, setHoveredExerciseKeyByWorkout] = useState<
+    Record<string, string | null>
+  >({});
   const [previewHighlightedMuscles, setPreviewHighlightedMuscles] = useState<MuscleGroup[]>([]);
   const [previewHoveredExerciseMuscles, setPreviewHoveredExerciseMuscles] = useState<MuscleGroup[]>(
     []
   );
+  const [previewHoveredExerciseKey, setPreviewHoveredExerciseKey] = useState<string | null>(null);
   const [weeklyPlanName, setWeeklyPlanName] = useState("");
   const [weeklyPlanDays, setWeeklyPlanDays] = useState<Record<WorkoutWeekDay, string[]>>(
     emptyWeeklyPlanDays()
@@ -998,6 +1002,7 @@ export default function WorkoutPlanner() {
                         type="button"
                         onClick={() => {
                           setPreviewHoveredMuscles([]);
+                          setPreviewHoveredExerciseKey(null);
                           setPreviewHighlightedMuscles([]);
                           setPreviewWorkoutId(workout.id);
                         }}
@@ -1122,6 +1127,7 @@ export default function WorkoutPlanner() {
                       type="button"
                       onClick={() => {
                         setPreviewHoveredMuscles([]);
+                        setPreviewHoveredExerciseKey(null);
                         setPreviewHighlightedMuscles([]);
                         setPreviewWorkoutId(workout.id);
                       }}
@@ -1162,18 +1168,42 @@ export default function WorkoutPlanner() {
                   </div>
                   <div className="rounded-md border border-zinc-200 bg-zinc-50/50 p-1.5 min-h-[16rem] h-full flex flex-col">
                     <div className="space-y-1 overflow-y-auto pr-1 flex-1">
-                      {workout.exercises.map((exercise) => (
+                      {workout.exercises.map((exercise, exerciseIndex) => {
+                        const exerciseHoverKey = `${workout.id}-${exercise.id}-${exerciseIndex}`;
+                        return (
                         <div
-                          key={exercise.id}
-                          onMouseEnter={() => setWorkoutHoveredMuscles(workout.id, exercise.muscles)}
-                          onMouseLeave={() => setWorkoutHoveredMuscles(workout.id, [])}
-                          onFocus={() => setWorkoutHoveredMuscles(workout.id, exercise.muscles)}
-                          onBlur={() => setWorkoutHoveredMuscles(workout.id, [])}
+                          key={exerciseHoverKey}
+                          onMouseEnter={() => {
+                            setWorkoutHoveredMuscles(workout.id, exercise.muscles);
+                            setHoveredExerciseKeyByWorkout((previous) => ({
+                              ...previous,
+                              [workout.id]: exerciseHoverKey,
+                            }));
+                          }}
+                          onMouseLeave={() => {
+                            setWorkoutHoveredMuscles(workout.id, []);
+                            setHoveredExerciseKeyByWorkout((previous) => ({
+                              ...previous,
+                              [workout.id]: null,
+                            }));
+                          }}
+                          onFocus={() => {
+                            setWorkoutHoveredMuscles(workout.id, exercise.muscles);
+                            setHoveredExerciseKeyByWorkout((previous) => ({
+                              ...previous,
+                              [workout.id]: exerciseHoverKey,
+                            }));
+                          }}
+                          onBlur={() => {
+                            setWorkoutHoveredMuscles(workout.id, []);
+                            setHoveredExerciseKeyByWorkout((previous) => ({
+                              ...previous,
+                              [workout.id]: null,
+                            }));
+                          }}
                           tabIndex={0}
                           className={`rounded-md border px-2 py-1 transition-colors ${
-                            exercise.muscles.some((muscle) =>
-                              activeHighlightedMuscles.includes(muscle)
-                            )
+                            hoveredExerciseKeyByWorkout[workout.id] === exerciseHoverKey
                               ? "border-sky-300 bg-sky-50/70"
                               : "border-zinc-200 bg-zinc-50/70"
                           }`}
@@ -1208,7 +1238,8 @@ export default function WorkoutPlanner() {
                             </p>
                           )}
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
@@ -1652,6 +1683,7 @@ export default function WorkoutPlanner() {
             onMouseDown={(event) => {
               if (event.target === event.currentTarget) {
                 setPreviewHoveredMuscles([]);
+                setPreviewHoveredExerciseKey(null);
                 setPreviewHighlightedMuscles([]);
                 setPreviewWorkoutId(null);
               }
@@ -1674,6 +1706,7 @@ export default function WorkoutPlanner() {
                   type="button"
                   onClick={() => {
                     setPreviewHoveredMuscles([]);
+                    setPreviewHoveredExerciseKey(null);
                     setPreviewHighlightedMuscles([]);
                     setPreviewWorkoutId(null);
                   }}
@@ -1694,18 +1727,30 @@ export default function WorkoutPlanner() {
               />
 
               <div className="mt-3 space-y-2">
-                {previewWorkout.exercises.map((exercise) => (
+                {previewWorkout.exercises.map((exercise, exerciseIndex) => {
+                  const previewExerciseKey = `${previewWorkout.id}-${exercise.id}-${exerciseIndex}`;
+                  return (
                   <div
-                    key={`preview-exercise-${exercise.id}`}
-                    onMouseEnter={() => setPreviewHoveredMuscles(exercise.muscles)}
-                    onMouseLeave={() => setPreviewHoveredMuscles([])}
-                    onFocus={() => setPreviewHoveredMuscles(exercise.muscles)}
-                    onBlur={() => setPreviewHoveredMuscles([])}
+                    key={`preview-exercise-${previewExerciseKey}`}
+                    onMouseEnter={() => {
+                      setPreviewHoveredMuscles(exercise.muscles);
+                      setPreviewHoveredExerciseKey(previewExerciseKey);
+                    }}
+                    onMouseLeave={() => {
+                      setPreviewHoveredMuscles([]);
+                      setPreviewHoveredExerciseKey(null);
+                    }}
+                    onFocus={() => {
+                      setPreviewHoveredMuscles(exercise.muscles);
+                      setPreviewHoveredExerciseKey(previewExerciseKey);
+                    }}
+                    onBlur={() => {
+                      setPreviewHoveredMuscles([]);
+                      setPreviewHoveredExerciseKey(null);
+                    }}
                     tabIndex={0}
                     className={`rounded-lg border p-2 text-xs transition-colors ${
-                      exercise.muscles.some((muscle) =>
-                        previewActiveHighlightedMuscles.includes(muscle)
-                      )
+                      previewHoveredExerciseKey === previewExerciseKey
                         ? "border-sky-300 bg-sky-50/70"
                         : "border-zinc-200 bg-zinc-50"
                     }`}
@@ -1738,7 +1783,8 @@ export default function WorkoutPlanner() {
                       </p>
                     )}
                   </div>
-                ))}
+                  );
+                })}
               </div>
                   </>
                 );
