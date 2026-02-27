@@ -8,11 +8,23 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import AuthButton from "@/components/AuthButton";
 import TopBarDataControls from "@/components/TopBarDataControls";
+import StudyTimerPopup from "@/components/StudyTimerPopup";
 import {
   getDisplayNameFromMetadata,
 } from "@/lib/display-name";
 import { lockBodyScroll, unlockBodyScroll } from "@/lib/scroll-lock";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
+import {
+  advanceStudyTimerState,
+  applyStudyTimerSettings,
+  pauseStudyTimer,
+  readStudyTimerState,
+  resetStudyTimer,
+  startStudyTimer,
+  studyTimerSidebarLabel,
+  type StudyTimerState,
+  writeStudyTimerState,
+} from "@/lib/study-timer";
 
 const WIDE_SCREEN_STORAGE_KEY = "study-stats.layout.wide-screen";
 const Dashboard = dynamic(() => import("@/components/Dashboard"), {
@@ -46,6 +58,10 @@ function HomeContent() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [gamificationOpen, setGamificationOpen] = useState(false);
   const [dailyTrackerOpen, setDailyTrackerOpen] = useState(false);
+  const [studyTimerOpen, setStudyTimerOpen] = useState(false);
+  const [studyTimerState, setStudyTimerState] = useState<StudyTimerState>(() =>
+    readStudyTimerState()
+  );
   const [accountDisplayName, setAccountDisplayName] = useState("John Doe");
   const menuRef = useRef<HTMLDivElement | null>(null);
 
@@ -66,6 +82,20 @@ function HomeContent() {
       window.removeEventListener("storage", syncFromSettings);
     };
   }, []);
+
+  useEffect(() => {
+    writeStudyTimerState(studyTimerState);
+  }, [studyTimerState]);
+
+  useEffect(() => {
+    if (studyTimerState.status !== "running") return;
+    const tick = () => {
+      setStudyTimerState((previous) => advanceStudyTimerState(previous, Date.now()));
+    };
+    tick();
+    const id = window.setInterval(tick, 500);
+    return () => window.clearInterval(id);
+  }, [studyTimerState.status]);
 
   useEffect(() => {
     if (!supabase) return;
@@ -109,12 +139,13 @@ function HomeContent() {
   const settingsOpen = searchParams.get("settings") === "1";
   const trackerOpenFromQuery = searchParams.get("tracker") === "1";
   const dailyTrackerVisible = dailyTrackerOpen || trackerOpenFromQuery;
+  const studyTimerLabel = studyTimerSidebarLabel(studyTimerState);
 
   useEffect(() => {
-    if (!settingsOpen && !gamificationOpen && !dailyTrackerVisible) return;
+    if (!settingsOpen && !gamificationOpen && !dailyTrackerVisible && !studyTimerOpen) return;
     lockBodyScroll();
     return () => unlockBodyScroll();
-  }, [dailyTrackerVisible, gamificationOpen, settingsOpen]);
+  }, [dailyTrackerVisible, gamificationOpen, settingsOpen, studyTimerOpen]);
 
   useEffect(() => {
     if (!settingsOpen) return;
@@ -156,6 +187,16 @@ function HomeContent() {
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [dailyTrackerVisible, router, searchParams, trackerOpenFromQuery]);
+
+  useEffect(() => {
+    if (!studyTimerOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setStudyTimerOpen(false);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [studyTimerOpen]);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -211,6 +252,21 @@ function HomeContent() {
     router.replace("/auth");
   }
 
+  function applyTimerSettings(settings: {
+    studyMinutes: number;
+    breakEnabled: boolean;
+    breakMinutes: number;
+  }) {
+    setStudyTimerState((previous) => applyStudyTimerSettings(previous, settings));
+  }
+
+  function toggleTimerExamMode() {
+    setStudyTimerState((previous) => ({
+      ...previous,
+      examMode: !previous.examMode,
+    }));
+  }
+
   return (
     <div className={`app-shell ${useLeftSidebar ? "pl-[4.5rem]" : ""}`}>
       {/* Header */}
@@ -257,6 +313,19 @@ function HomeContent() {
                     mode="streakIconOnly"
                     onStreakClick={() => setGamificationOpen(true)}
                   />
+                  {studyTimerLabel && !studyTimerOpen && (
+                    <p className="text-[11px] text-zinc-600 stat-mono [writing-mode:vertical-rl] rotate-180">
+                      {studyTimerLabel}
+                    </p>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setStudyTimerOpen(true)}
+                    className="pill-btn px-2 py-1 text-sm"
+                    aria-label="Open study timer"
+                  >
+                    🕒
+                  </button>
                   <button
                     type="button"
                     onClick={openDailyTracker}
@@ -279,6 +348,15 @@ function HomeContent() {
               ) : (
                 <>
                   <TopBarDataControls mode="streakOnly" />
+                  <button
+                    type="button"
+                    onClick={() => setStudyTimerOpen(true)}
+                    className="pill-btn px-2.5 py-2 flex items-center gap-2"
+                    aria-label="Open study timer"
+                  >
+                    <span>🕒</span>
+                    {studyTimerLabel && <span className="stat-mono text-xs">{studyTimerLabel}</span>}
+                  </button>
                   <button
                     type="button"
                     onClick={openDailyTracker}
@@ -438,6 +516,37 @@ function HomeContent() {
               onMouseDown={(event) => event.stopPropagation()}
             >
               <DailyTrackerPopup onClose={closeDailyTracker} />
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {studyTimerOpen &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[180] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) setStudyTimerOpen(false);
+            }}
+          >
+            <div
+              className="w-full max-w-5xl h-[90vh] max-h-[90vh]"
+              onMouseDown={(event) => event.stopPropagation()}
+            >
+              <StudyTimerPopup
+                state={studyTimerState}
+                onClose={() => setStudyTimerOpen(false)}
+                onStart={() =>
+                  setStudyTimerState((previous) => startStudyTimer(previous, Date.now()))
+                }
+                onPause={() =>
+                  setStudyTimerState((previous) => pauseStudyTimer(previous, Date.now()))
+                }
+                onReset={() => setStudyTimerState((previous) => resetStudyTimer(previous))}
+                onApplySettings={applyTimerSettings}
+                onToggleExamMode={toggleTimerExamMode}
+              />
             </div>
           </div>,
           document.body
