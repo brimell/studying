@@ -1,28 +1,24 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { formatTimeSince, readGlobalLastFetched } from "@/lib/client-cache";
 import { lockBodyScroll, unlockBodyScroll } from "@/lib/scroll-lock";
 import StudyProjection from "@/components/StudyProjection";
 
 export default function TopBarDataControls() {
-  const [lastFetchedAt, setLastFetchedAt] = useState<number | null>(() =>
-    typeof window === "undefined" ? null : readGlobalLastFetched()
+  const lastFetchedAt = useSyncExternalStore(
+    (onStoreChange) => {
+      window.addEventListener("study-stats:last-fetched-updated", onStoreChange);
+      return () => window.removeEventListener("study-stats:last-fetched-updated", onStoreChange);
+    },
+    () => readGlobalLastFetched(),
+    () => null
   );
   const [now, setNow] = useState(() => Date.now());
   const [refreshing, setRefreshing] = useState(false);
   const [showStudyProjection, setShowStudyProjection] = useState(false);
   const mounted = typeof window !== "undefined";
-
-  useEffect(() => {
-    const onUpdate = () => setLastFetchedAt(readGlobalLastFetched());
-    window.addEventListener("study-stats:last-fetched-updated", onUpdate);
-
-    return () => {
-      window.removeEventListener("study-stats:last-fetched-updated", onUpdate);
-    };
-  }, []);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 60_000);
