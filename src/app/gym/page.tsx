@@ -89,21 +89,21 @@ export default function GymPage() {
           <button
             type="button"
             onClick={() => {
-              router.push("/");
+              router.push("/gym");
             }}
             className={`text-left text-lg sm:text-xl font-bold tracking-tight text-zinc-900 ${
               useLeftSidebar ? "[writing-mode:vertical-rl] rotate-180" : ""
             }`}
           >
-            Dashboard
+            Gym
           </button>
           <Link
-            href="/gym"
+            href="/"
             className={`text-sm font-medium text-zinc-700 hover:text-zinc-900 underline underline-offset-4 decoration-zinc-300 hover:decoration-zinc-600 ${
               useLeftSidebar ? "[writing-mode:vertical-rl] rotate-180" : ""
             }`}
           >
-            Gym
+            Dashboard
           </Link>
 
           <div className={`relative ${useLeftSidebar ? "mt-auto" : "ml-auto"}`} ref={menuRef}>
