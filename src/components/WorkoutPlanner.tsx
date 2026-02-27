@@ -49,26 +49,6 @@ const HABIT_WORKOUT_LINKS_STORAGE_KEY = "study-stats.habit-tracker.workout-links
 
 const DEFAULT_EXERCISE_MUSCLES: MuscleGroup[] = ["pectoralis-major"];
 const DEFAULT_REST_SECONDS = 90;
-const ESTIMATED_REST_SECONDS = 60;
-const ESTIMATED_LEG_REST_SECONDS = 180;
-const LEG_MUSCLES = new Set<MuscleGroup>([
-  "quadriceps",
-  "quads",
-  "hamstrings",
-  "gluteus-maximus",
-  "glutes",
-  "hip-adductors",
-  "hip-flexors",
-  "abductors",
-  "calves",
-  "gastrocnemius",
-  "soleus",
-  "tibialis-anterior",
-  "thighs",
-  "sartorius",
-  "hips",
-  "feet",
-]);
 
 const WEEKDAY_LABELS: Record<WorkoutWeekDay, string> = {
   monday: "Monday",
@@ -118,17 +98,13 @@ function computeWorkoutLoadPoints(workout: WorkoutTemplate): Record<MuscleGroup,
   return byMuscle;
 }
 
-function isLegExercise(exercise: WorkoutExercise): boolean {
-  return exercise.muscles.some((muscle) => LEG_MUSCLES.has(muscle));
-}
-
 function getExerciseEstimatedWorkSeconds(exercise: WorkoutExercise): number {
   const mapped = EXERCISE_MUSCLE_MAP.get(exercise.id);
   const perSetSeconds =
     mapped?.timeSeconds && mapped.timeSeconds > 0
       ? mapped.timeSeconds
       : Math.max(20, Math.round(exercise.reps * 2.5));
-  return perSetSeconds * exercise.sets;
+  return perSetSeconds * Math.max(1, exercise.sets);
 }
 
 function estimateWorkoutDurationSeconds(workout: WorkoutTemplate): number {
@@ -137,8 +113,7 @@ function estimateWorkoutDurationSeconds(workout: WorkoutTemplate): number {
     total += getExerciseEstimatedWorkSeconds(exercise);
     const restBetweenSets = Math.max(0, exercise.sets - 1);
     if (restBetweenSets === 0) continue;
-    total +=
-      restBetweenSets * (isLegExercise(exercise) ? ESTIMATED_LEG_REST_SECONDS : ESTIMATED_REST_SECONDS);
+    total += restBetweenSets * Math.max(0, exercise.restSeconds ?? DEFAULT_REST_SECONDS);
   }
   return total;
 }
