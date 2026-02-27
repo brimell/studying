@@ -1172,6 +1172,14 @@ export default function HabitTracker() {
     );
   }, [data, selectedStudyHabitSlug]);
 
+  const examAwareStudyHabitSlug = useMemo(() => {
+    if (!data) return selectedStudyHabit?.slug || null;
+    const studyingByName = data.habits.find(
+      (habit) => habit.name.trim().toLowerCase() === DEFAULT_STUDY_HABIT_NAME.toLowerCase()
+    );
+    return studyingByName?.slug || selectedStudyHabit?.slug || null;
+  }, [data, selectedStudyHabit]);
+
   const trackerRangeLabel = useMemo(() => {
     if (!data) return "";
     return `${formatShortDate(data.trackerRange.startDate)} - ${formatShortDate(
@@ -1227,7 +1235,7 @@ export default function HabitTracker() {
           next[habit.slug] = previous[habit.slug];
           continue;
         }
-        next[habit.slug] = habit.slug === selectedStudyHabitSlug;
+        next[habit.slug] = habit.slug === examAwareStudyHabitSlug;
         changed = true;
       }
 
@@ -1237,7 +1245,7 @@ export default function HabitTracker() {
 
       return changed ? next : previous;
     });
-  }, [data, selectedStudyHabitSlug]);
+  }, [data, examAwareStudyHabitSlug]);
 
   useEffect(() => {
     if (!data) return;
@@ -1966,7 +1974,7 @@ export default function HabitTracker() {
 
             <div className="space-y-4">
               {orderedHabits.map((habit) => {
-                const isSelectedStudyHabit = habit.slug === selectedStudyHabitSlug;
+                const isExamAwareStudyHabit = habit.slug === examAwareStudyHabitSlug;
                 const shouldShowFutureDays = Boolean(habitShowFutureDays[habit.slug]);
                 const habitDaysForGrid =
                   shouldShowFutureDays
@@ -1977,7 +1985,7 @@ export default function HabitTracker() {
                         const finalEndDate =
                           futurePreviewMode === "custom"
                             ? addDays(lastTrackedDate, clampFuturePreviewDays(futurePreviewCustomDays))
-                            : isSelectedStudyHabit &&
+                            : isExamAwareStudyHabit &&
                                 latestExamDate !== "" &&
                                 latestExamDate > lastTrackedDate
                               ? latestExamDate
@@ -2183,7 +2191,7 @@ export default function HabitTracker() {
                               const isFutureDay =
                                 dayDate !== "" ? dayDate > data.trackerRange.endDate : false;
                               const isMilestoneDay =
-                                dayDate !== "" && isSelectedStudyHabit
+                                dayDate !== "" && isExamAwareStudyHabit
                                   ? studyExamDateSet.has(dayDate)
                                   : false;
                               return (
@@ -2263,7 +2271,7 @@ export default function HabitTracker() {
                               />
                             ))}
                             <span>More</span>
-                            {isSelectedStudyHabit && (
+                            {isExamAwareStudyHabit && (
                               <>
                                 <div
                                   className="w-[13px] h-[13px] rounded-[2px] ml-2"
@@ -2271,7 +2279,7 @@ export default function HabitTracker() {
                                 />
                                 <span className="text-zinc-400">Future day</span>
                                 <div className="w-[13px] h-[13px] rounded-[2px] ring-1 ring-red-500 ring-inset" />
-                                <span className="text-zinc-400">🟥 Exam/coursework date</span>
+                                <span className="text-zinc-400">🟥 Exam date</span>
                               </>
                             )}
                           </>
