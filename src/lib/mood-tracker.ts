@@ -1,6 +1,8 @@
 export const MOOD_TRACKER_ENTRIES_STORAGE_KEY = "study-stats.mood-tracker.entries";
 export const MOOD_TRACKER_CALENDAR_STORAGE_KEY = "study-stats.mood-tracker.calendar-id";
 export const MOOD_TRACKER_UPDATED_EVENT = "study-stats:mood-tracker-updated";
+export const MOOD_RATING_MIN = 1;
+export const MOOD_RATING_MAX = 10;
 
 export const MOOD_VALUES = ["angry", "sad", "ok", "good", "happy"] as const;
 export type MoodValue = (typeof MOOD_VALUES)[number];
@@ -15,12 +17,29 @@ export interface MoodEntry {
 }
 
 export function moodToRating(mood: MoodValue): number {
-  return MOOD_VALUES.indexOf(mood) + 1;
+  switch (mood) {
+    case "angry":
+      return 1;
+    case "sad":
+      return 3;
+    case "ok":
+      return 5;
+    case "good":
+      return 7;
+    case "happy":
+      return 9;
+    default:
+      return 5;
+  }
 }
 
 export function ratingToMood(rating: number): MoodValue {
-  const safe = Math.min(5, Math.max(1, Math.round(rating)));
-  return MOOD_VALUES[safe - 1];
+  const safe = Math.min(MOOD_RATING_MAX, Math.max(MOOD_RATING_MIN, Math.round(rating)));
+  if (safe <= 2) return "angry";
+  if (safe <= 4) return "sad";
+  if (safe <= 6) return "ok";
+  if (safe <= 8) return "good";
+  return "happy";
 }
 
 export function parseMoodEntries(raw: string | null): MoodEntry[] {
@@ -47,7 +66,7 @@ export function parseMoodEntries(raw: string | null): MoodEntry[] {
           mood,
           rating:
             typeof value.rating === "number" && Number.isFinite(value.rating)
-              ? Math.min(5, Math.max(1, Math.round(value.rating)))
+              ? Math.min(MOOD_RATING_MAX, Math.max(MOOD_RATING_MIN, Math.round(value.rating)))
               : moodToRating(mood),
           loggedAt,
           calendarId: typeof value.calendarId === "string" ? value.calendarId : null,

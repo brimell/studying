@@ -11,11 +11,17 @@ import {
   parseJsonBody,
 } from "@/lib/api-runtime";
 import { fetchTrackerCalendars, getCalendarClient } from "@/lib/calendar";
-import { MOOD_VALUES, moodToRating, type MoodValue } from "@/lib/mood-tracker";
+import {
+  MOOD_RATING_MAX,
+  MOOD_RATING_MIN,
+  MOOD_VALUES,
+  moodToRating,
+  type MoodValue,
+} from "@/lib/mood-tracker";
 
 const moodPostSchema = z.object({
   mood: z.enum(MOOD_VALUES),
-  rating: z.number().int().min(1).max(5).optional(),
+  rating: z.number().int().min(MOOD_RATING_MIN).max(MOOD_RATING_MAX).optional(),
   calendarId: z.string().trim().min(1).optional(),
   loggedAt: z
     .string()
@@ -125,7 +131,7 @@ export async function POST(req: NextRequest) {
     const inserted = await calendar.events.insert({
       calendarId: selectedCalendar.id,
       requestBody: {
-        summary: `Mood: ${moodLabel(body.mood)} (${rating}/5)`,
+        summary: `Mood: ${moodLabel(body.mood)} (${rating}/10)`,
         description: `Logged from Dashboard mood tracker at ${loggedAt.toISOString()}`,
         start: { dateTime: loggedAt.toISOString() },
         end: { dateTime: endAt.toISOString() },

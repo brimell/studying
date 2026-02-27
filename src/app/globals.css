@@ -504,12 +504,34 @@ h3 {
   -webkit-tap-highlight-color: transparent;
 }
 
+.mood-feedback li.mood-dot {
+  border-radius: 999px;
+  background: transparent;
+  box-shadow: none;
+}
+
 .mood-feedback li button {
   border: none;
   background: transparent;
   padding: 0;
   cursor: pointer;
   border-radius: 50%;
+}
+
+.mood-feedback li.mood-dot button {
+  width: 14px;
+  height: 40px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+}
+
+.mood-feedback li.mood-dot .mood-dot-core {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: #9ca3af;
+  transition: all 0.2s ease;
 }
 
 .mood-feedback li button:disabled {
@@ -769,6 +791,13 @@ h3 {
   --sh: var(--active-shadow);
   --m: var(--active-mouth);
   --e: var(--active-eye);
+}
+
+.mood-feedback li.mood-dot.active .mood-dot-core {
+  width: 9px;
+  height: 9px;
+  background: #f4b555;
+  box-shadow: 0 0 0 4px rgba(244, 181, 85, 0.18);
 }
 
 .mood-feedback li.active div {

@@ -7,8 +7,11 @@ import {
   MOOD_TRACKER_CALENDAR_STORAGE_KEY,
   MOOD_TRACKER_ENTRIES_STORAGE_KEY,
   MOOD_TRACKER_UPDATED_EVENT,
+  MOOD_RATING_MAX,
+  MOOD_RATING_MIN,
   moodToRating,
   parseMoodEntries,
+  ratingToMood,
   type MoodEntry,
   type MoodValue,
 } from "@/lib/mood-tracker";
@@ -101,14 +104,35 @@ export default function MoodTrackerPopup({ onClose }: MoodTrackerPopupProps) {
     );
     return existingEntries[0] || null;
   });
-  const [selectedMood, setSelectedMood] = useState<MoodValue>(() => latestEntry?.mood || "good");
+  const [selectedRating, setSelectedRating] = useState<number>(() => {
+    if (latestEntry?.rating) return latestEntry.rating;
+    if (latestEntry?.mood) return moodToRating(latestEntry.mood);
+    return 7;
+  });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
+  const selectedMood = useMemo(() => ratingToMood(selectedRating), [selectedRating]);
   const selectedMoodLabel = useMemo(
     () => MOOD_OPTIONS.find((option) => option.value === selectedMood)?.label || "Mood",
     [selectedMood]
+  );
+
+  const ratingControls = useMemo(
+    () => [
+      { key: "face-angry", kind: "face" as const, rating: 1, mood: "angry" as MoodValue, label: "Angry" },
+      { key: "dot-2", kind: "dot" as const, rating: 2, label: "2" },
+      { key: "face-sad", kind: "face" as const, rating: 3, mood: "sad" as MoodValue, label: "Sad" },
+      { key: "dot-4", kind: "dot" as const, rating: 4, label: "4" },
+      { key: "face-ok", kind: "face" as const, rating: 5, mood: "ok" as MoodValue, label: "OK" },
+      { key: "dot-6", kind: "dot" as const, rating: 6, label: "6" },
+      { key: "face-good", kind: "face" as const, rating: 7, mood: "good" as MoodValue, label: "Good" },
+      { key: "dot-8", kind: "dot" as const, rating: 8, label: "8" },
+      { key: "face-happy", kind: "face" as const, rating: 9, mood: "happy" as MoodValue, label: "Happy" },
+      { key: "dot-10", kind: "dot" as const, rating: 10, label: "10" },
+    ],
+    []
   );
 
   const logMood = async () => {
@@ -117,7 +141,7 @@ export default function MoodTrackerPopup({ onClose }: MoodTrackerPopupProps) {
     setMessage(null);
 
     const nowIso = new Date().toISOString();
-    const rating = moodToRating(selectedMood);
+    const rating = Math.min(MOOD_RATING_MAX, Math.max(MOOD_RATING_MIN, Math.round(selectedRating)));
     const selectedCalendarId = window.localStorage.getItem(MOOD_TRACKER_CALENDAR_STORAGE_KEY);
 
     let calendarEventId: string | null = null;
@@ -221,22 +245,37 @@ export default function MoodTrackerPopup({ onClose }: MoodTrackerPopupProps) {
       </div>
 
       <ul className="mood-feedback" aria-label="Mood rating options">
-        {MOOD_OPTIONS.map((option) => {
-          const isActive = selectedMood === option.value;
+        {ratingControls.map((control) => {
+          if (control.kind === "dot") {
+            const isActive = selectedRating === control.rating;
+            return (
+              <li key={control.key} className={`mood-dot ${isActive ? "active" : ""}`}>
+                <button
+                  type="button"
+                  onClick={() => setSelectedRating(control.rating)}
+                  aria-label={`Set mood rating to ${control.rating} out of 10`}
+                  aria-pressed={isActive}
+                  disabled={busy}
+                >
+                  <span className="mood-dot-core" />
+                </button>
+              </li>
+            );
+          }
+
+          const isActive = selectedRating === control.rating;
+          const mood = control.mood;
           return (
-            <li key={option.value} className={`${option.value} ${isActive ? "active" : ""}`.trim()}>
+            <li key={control.key} className={`${mood} ${isActive ? "active" : ""}`.trim()}>
               <button
                 type="button"
-                onClick={() => setSelectedMood(option.value)}
-                aria-label={`Set mood to ${option.label}`}
+                onClick={() => setSelectedRating(control.rating)}
+                aria-label={`Set mood to ${control.label} (${control.rating}/10)`}
                 aria-pressed={isActive}
                 disabled={busy}
               >
                 <div>
-                  {(option.value === "angry" ||
-                    option.value === "sad" ||
-                    option.value === "good" ||
-                    option.value === "happy") && (
+                  {(mood === "angry" || mood === "sad" || mood === "good" || mood === "happy") && (
                     <>
                       <svg className="eye left" viewBox="0 0 7 4" aria-hidden="true">
                         <use href="#mood-eye" />
@@ -246,7 +285,7 @@ export default function MoodTrackerPopup({ onClose }: MoodTrackerPopupProps) {
                       </svg>
                     </>
                   )}
-                  {(option.value === "angry" || option.value === "sad" || option.value === "good") && (
+                  {(mood === "angry" || mood === "sad" || mood === "good") && (
                     <svg className="mouth" viewBox="0 0 18 7" aria-hidden="true">
                       <use href="#mood-mouth" />
                     </svg>
@@ -270,6 +309,7 @@ export default function MoodTrackerPopup({ onClose }: MoodTrackerPopupProps) {
       <div className="flex items-center justify-between gap-3">
         <p className="soft-text text-sm">
           Selected mood: <span className="font-semibold text-zinc-800">{selectedMoodLabel}</span>
+          <span className="ml-2 font-semibold text-zinc-800">{selectedRating}/10</span>
           {latestLabel ? <span className="ml-2">Last logged {latestLabel}</span> : null}
         </p>
         <button type="button" onClick={logMood} className="pill-btn pill-btn-primary" disabled={busy}>
