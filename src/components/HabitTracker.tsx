@@ -1952,7 +1952,7 @@ export default function HabitTracker() {
               <p className="text-sm text-zinc-500">No habits yet. Add one above to start tracking.</p>
             )}
 
-            <div className="space-y-4">
+            <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(360px,1fr))]">
               {orderedHabits.map((habit) => {
                 const isExamAwareStudyHabit = habit.slug === examAwareStudyHabitSlug;
                 const habitFuturePreview = habitFuturePreviewSettings[habit.slug] || {
