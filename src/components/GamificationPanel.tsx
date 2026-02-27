@@ -3,6 +3,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { HabitDefinition, HabitTrackerData, WorkoutPlannerPayload } from "@/lib/types";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
+import {
+  isStale,
+  readCache,
+  writeCache,
+  writeGlobalLastFetched,
+} from "@/lib/client-cache";
 import LoadingIcon from "./LoadingIcon";
 
 const TRACKER_CALENDAR_STORAGE_KEY = "study-stats.tracker-calendar-id";
@@ -90,14 +96,31 @@ export default function GamificationPanel() {
   const [workoutPayload, setWorkoutPayload] = useState<WorkoutPlannerPayload | null>(null);
   const [selectedStudyHabitSlug, setSelectedStudyHabitSlug] = useState<string | null>(null);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (force = false) => {
     try {
-      setLoading(true);
       setError(null);
 
       const trackerCalendarId = window.localStorage.getItem(TRACKER_CALENDAR_STORAGE_KEY);
       const selectedStudySlug = window.localStorage.getItem(STUDY_HABIT_STORAGE_KEY);
       setSelectedStudyHabitSlug(selectedStudySlug || null);
+      const cacheKey = `study-stats:streaks:${trackerCalendarId || "default"}:${selectedStudySlug || "default"}`;
+
+      const cached = readCache<{
+        habitData: HabitTrackerData | null;
+        workoutPayload: WorkoutPlannerPayload | null;
+        selectedStudyHabitSlug: string | null;
+      }>(cacheKey);
+      if (cached) {
+        setHabitData(cached.data.habitData);
+        setWorkoutPayload(cached.data.workoutPayload);
+        setSelectedStudyHabitSlug(cached.data.selectedStudyHabitSlug);
+        if (!force && !isStale(cached.fetchedAt)) {
+          setLoading(false);
+          return;
+        }
+      }
+
+      setLoading(true);
 
       const params = new URLSearchParams({ weeks: "26" });
       if (trackerCalendarId) params.set("trackerCalendarId", trackerCalendarId);
@@ -128,6 +151,12 @@ export default function GamificationPanel() {
       }
 
       setWorkoutPayload(nextWorkoutPayload);
+      const fetchedAt = writeCache(cacheKey, {
+        habitData: habitJson as HabitTrackerData,
+        workoutPayload: nextWorkoutPayload,
+        selectedStudyHabitSlug: selectedStudySlug || null,
+      });
+      writeGlobalLastFetched(fetchedAt);
     } catch (loadError: unknown) {
       setError(loadError instanceof Error ? loadError.message : "Failed to load streak data.");
     } finally {
@@ -180,15 +209,20 @@ export default function GamificationPanel() {
   }, [habitData, selectedStudyHabitSlug, workoutPayload]);
 
   return (
-    <div className="surface-card p-6">
-      {loading && (
+    <div className="surface-card p-6 relative">
+      {loading && !model && (
         <div className="h-32 flex items-center justify-center">
           <LoadingIcon />
         </div>
       )}
+      {loading && model && (
+        <div className="absolute top-3 right-3 z-10">
+          <span className="pill-btn text-[11px] px-2 py-1 stat-mono">Updating...</span>
+        </div>
+      )}
       {error && <p className="text-sm text-red-500">{error}</p>}
 
-      {!loading && !error && model && (
+      {model && (
         <div className="space-y-4">
           <div className="rounded-xl border border-sky-300 bg-sky-50 p-4">
             <p className="text-xs uppercase tracking-[0.12em] text-sky-700">Combined streak</p>

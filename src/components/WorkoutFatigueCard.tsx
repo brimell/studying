@@ -23,16 +23,6 @@ export default function WorkoutFatigueCard() {
     );
   }
 
-  if (loading) {
-    return (
-      <div className="surface-card p-6">
-        <div className="h-28 flex items-center justify-center">
-          <LoadingIcon />
-        </div>
-      </div>
-    );
-  }
-
   if (error) {
     return (
       <div className="rounded-2xl bg-white p-6 shadow-sm border border-red-200">
@@ -43,8 +33,19 @@ export default function WorkoutFatigueCard() {
   }
 
   return (
-    <div className="surface-card p-6">
-      <MuscleModel scores={scores} title="Muscle Fatigue (Recovery-Weighted)" compact />
+    <div className="surface-card p-6 relative">
+      {loading && (
+        <div className="absolute top-3 right-3 z-10">
+          <span className="pill-btn text-[11px] px-2 py-1 stat-mono">Updating...</span>
+        </div>
+      )}
+      {loading && !payload.logs.length && !payload.workouts.length ? (
+        <div className="h-28 flex items-center justify-center">
+          <LoadingIcon />
+        </div>
+      ) : (
+        <MuscleModel scores={scores} title="Muscle Fatigue (Recovery-Weighted)" compact />
+      )}
     </div>
   );
 }

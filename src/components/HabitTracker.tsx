@@ -1953,15 +1953,20 @@ export default function HabitTracker() {
   }, [data]);
 
   return (
-    <div className="surface-card px-6 pt-6 pb-2">
-      {loading && (
+    <div className="surface-card px-6 pt-6 pb-2 relative">
+      {loading && !data && (
         <div className="h-40 flex items-center justify-center">
           <LoadingIcon />
         </div>
       )}
+      {loading && data && (
+        <div className="absolute top-3 right-3 z-10">
+          <span className="pill-btn text-[11px] px-2 py-1 stat-mono">Updating...</span>
+        </div>
+      )}
       {error && <p className="text-sm text-red-500 mb-3">{error}</p>}
 
-      {data && !loading && (
+      {data && (
         <div className="space-y-3">
           <div>
             {actionError && <p className="text-sm text-red-500 mb-3">{actionError}</p>}

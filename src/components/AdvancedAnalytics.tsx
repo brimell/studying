@@ -15,12 +15,19 @@ import {
 } from "@/lib/daily-tracker";
 import { computeMuscleFatigue } from "@/lib/workouts";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
-import { fetchJsonWithDedupe } from "@/lib/client-cache";
+import {
+  fetchJsonWithDedupe,
+  isStale,
+  readCache,
+  writeCache,
+  writeGlobalLastFetched,
+} from "@/lib/client-cache";
 import LoadingIcon from "./LoadingIcon";
 
 const STUDY_CALENDAR_IDS_STORAGE_KEY = "study-stats.study.calendar-ids";
 const TRACKER_CALENDAR_STORAGE_KEY = "study-stats.tracker-calendar-id";
 const GOAL_FORECAST_TARGETS_STORAGE_KEY = "study-stats.advanced-analytics.goal-forecast-targets";
+const ADVANCED_ANALYTICS_CACHE_KEY = "study-stats:advanced-analytics";
 const WEEKLY_STUDY_GOAL_HOURS = 20;
 const MONTHLY_STUDY_GOAL_HOURS = 80;
 const WEEKLY_ALL_HABITS_GOAL_DAYS = 5;
@@ -835,12 +842,26 @@ export default function AdvancedAnalytics() {
     );
   }, [goalTargets.dailyHours, goalTargets.monthlyHours, goalTargets.weeklyHours]);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (force = false) => {
     try {
-      setLoading(true);
       setError(null);
 
       const calendarIds = readStudyCalendarIds();
+      const trackerCalendarId = window.localStorage.getItem(TRACKER_CALENDAR_STORAGE_KEY) || "";
+      const cacheKey = `${ADVANCED_ANALYTICS_CACHE_KEY}:${calendarIds.join(",") || "default"}:${
+        trackerCalendarId || "default"
+      }`;
+      const cached = readCache<AnalyticsState>(cacheKey);
+      if (cached) {
+        setState(cached.data);
+        if (!force && !isStale(cached.fetchedAt)) {
+          setLoading(false);
+          return;
+        }
+      }
+
+      setLoading(true);
+
       const baseParams = new URLSearchParams();
       if (calendarIds.length > 0) {
         baseParams.set("calendarIds", calendarIds.join(","));
@@ -916,9 +937,9 @@ export default function AdvancedAnalytics() {
 
       let habitData: HabitTrackerData | null = null;
       try {
-        const trackerCalendarId = window.localStorage.getItem(TRACKER_CALENDAR_STORAGE_KEY);
+        const localTrackerCalendarId = window.localStorage.getItem(TRACKER_CALENDAR_STORAGE_KEY);
         const params = new URLSearchParams({ weeks: "16" });
-        if (trackerCalendarId) params.set("trackerCalendarId", trackerCalendarId);
+        if (localTrackerCalendarId) params.set("trackerCalendarId", localTrackerCalendarId);
         const habitRes = await fetch(`/api/habit-tracker?${params.toString()}`);
         const habitJson = (await habitRes.json()) as HabitTrackerData | { error?: string };
         if (habitRes.ok) {
@@ -928,14 +949,17 @@ export default function AdvancedAnalytics() {
         // Non-fatal for advanced analytics.
       }
 
-      setState({
+      const nextState: AnalyticsState = {
         today: todayJson as TodayProgressData,
         daily: dailyJson as DailyStudyTimeData,
         distribution: distributionJson as StudyDistributionData,
         workoutPayload,
         habitData,
         dailyTrackerEntries: readDailyTrackerEntries(),
-      });
+      };
+      setState(nextState);
+      const fetchedAt = writeCache(cacheKey, nextState);
+      writeGlobalLastFetched(fetchedAt);
     } catch (fetchError: unknown) {
       setError(fetchError instanceof Error ? fetchError.message : "Failed to load advanced analytics.");
     } finally {
@@ -944,11 +968,11 @@ export default function AdvancedAnalytics() {
   }, [supabase]);
 
   useEffect(() => {
-    void fetchData();
+    void fetchData(false);
   }, [fetchData]);
 
   useEffect(() => {
-    const onRefresh = () => void fetchData();
+    const onRefresh = () => void fetchData(true);
     window.addEventListener("study-stats:refresh-all", onRefresh);
     window.addEventListener("study-stats:study-calendars-updated", onRefresh);
     window.addEventListener("study-stats:daily-tracker-updated", onRefresh);
@@ -1039,14 +1063,19 @@ export default function AdvancedAnalytics() {
   }, [goalTargets, state]);
 
   return (
-    <div className="surface-card p-6">
-      {loading && (
+    <div className="surface-card p-6 relative">
+      {loading && !analytics && (
         <div className="h-32 flex items-center justify-center">
           <LoadingIcon />
         </div>
       )}
+      {loading && analytics && (
+        <div className="absolute top-3 right-3 z-10">
+          <span className="pill-btn text-[11px] px-2 py-1 stat-mono">Updating...</span>
+        </div>
+      )}
       {error && <p className="text-sm text-red-500">{error}</p>}
-      {!loading && !error && analytics && (
+      {analytics && (
         <div className="space-y-4 text-sm">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div className="rounded-lg bg-zinc-50 border border-zinc-200 p-3">
