@@ -543,6 +543,14 @@ function RedOnlyOverlay({
     let cancelled = false;
     const cached = overlayImageCache.get(cacheKey);
     if (cached) {
+      window.requestAnimationFrame(() => {
+        if (cancelled) return;
+        setProcessedOverlay((previous) =>
+          previous.key === cacheKey && previous.src === cached
+            ? previous
+            : { key: cacheKey, src: cached }
+        );
+      });
       return () => {
         cancelled = true;
       };
