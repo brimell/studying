@@ -84,29 +84,33 @@ export default function Home() {
             </div>
 
             {menuOpen && (
-              <div className="surface-card-strong absolute right-0 mt-2 w-[min(24rem,calc(100vw-2rem))] p-3 z-[80] space-y-3">
-                <div className="flex flex-wrap gap-2">
-                  <Link href="/settings" className="pill-btn" onClick={() => setMenuOpen(false)}>
+              <div className="surface-card-strong absolute right-0 mt-2 w-[min(24rem,calc(100vw-2rem))] p-3 z-[80]">
+                <div className="flex flex-col gap-2">
+                  <Link
+                    href="/settings"
+                    className="pill-btn w-full text-left"
+                    onClick={() => setMenuOpen(false)}
+                  >
                     Settings
                   </Link>
-                  <Link href="/workouts" className="pill-btn" onClick={() => setMenuOpen(false)}>
+                  <Link
+                    href="/workouts"
+                    className="pill-btn w-full text-left"
+                    onClick={() => setMenuOpen(false)}
+                  >
                     Workout Section
                   </Link>
                   <button
                     type="button"
                     aria-pressed={wideScreen}
                     onClick={() => setWideScreen((previous) => !previous)}
-                    className="pill-btn"
+                    className="pill-btn w-full text-left"
                   >
                     {wideScreen ? "Standard Width" : "Wide Screen"}
                   </button>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <TopBarDataControls mode="refreshOnly" />
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <SupabaseAccountSync />
-                  <AuthButton />
+                  <TopBarDataControls mode="refreshOnly" stacked />
+                  <SupabaseAccountSync buttonClassName="w-full text-left" />
+                  <AuthButton compact className="w-full text-left" />
                 </div>
               </div>
             )}

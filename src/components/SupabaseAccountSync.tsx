@@ -72,7 +72,7 @@ function normalizeDisplayName(input: string | null | undefined): string {
   return value.slice(0, 60);
 }
 
-export default function SupabaseAccountSync() {
+export default function SupabaseAccountSync({ buttonClassName = "" }: { buttonClassName?: string }) {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"signin" | "signup">("signin");
@@ -514,7 +514,7 @@ export default function SupabaseAccountSync() {
       <button
         type="button"
         onClick={() => setOpen((previous) => !previous)}
-        className="pill-btn"
+        className={`pill-btn ${buttonClassName}`.trim()}
       >
         ☁️ Account Sync
       </button>

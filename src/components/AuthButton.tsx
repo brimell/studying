@@ -2,14 +2,19 @@
 
 import { signIn, signOut, useSession } from "next-auth/react";
 
-export default function AuthButton() {
+interface AuthButtonProps {
+  compact?: boolean;
+  className?: string;
+}
+
+export default function AuthButton({ compact = false, className = "" }: AuthButtonProps) {
   const { data: session, status } = useSession();
 
   if (status === "loading") {
     return (
       <button
         disabled
-        className="pill-btn animate-pulse"
+        className={`pill-btn animate-pulse ${className}`.trim()}
       >
         Loading...
       </button>
@@ -17,6 +22,17 @@ export default function AuthButton() {
   }
 
   if (session) {
+    if (compact) {
+      return (
+        <button
+          onClick={() => signOut()}
+          className={`pill-btn ${className}`.trim()}
+        >
+          Sign out
+        </button>
+      );
+    }
+
     return (
       <div className="flex items-center gap-3">
         {session.user?.image && (
@@ -43,7 +59,7 @@ export default function AuthButton() {
   return (
     <button
       onClick={() => signIn("google")}
-      className="pill-btn pill-btn-primary"
+      className={`pill-btn pill-btn-primary ${className}`.trim()}
     >
       Sign in with Google
     </button>

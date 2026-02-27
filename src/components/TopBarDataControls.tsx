@@ -40,8 +40,10 @@ function computeTopBarLevel(habits: HabitDefinition[]): number {
 
 export default function TopBarDataControls({
   mode = "full",
+  stacked = false,
 }: {
   mode?: TopBarDataControlsMode;
+  stacked?: boolean;
 }) {
   const showLevel = mode !== "refreshOnly";
   const showRefresh = mode !== "levelOnly";
@@ -109,26 +111,26 @@ export default function TopBarDataControls({
   };
 
   return (
-    <div className="flex items-center gap-2 shrink-0">
+    <div className={stacked ? "flex flex-col items-stretch gap-1.5 w-full shrink-0" : "flex items-center gap-2 shrink-0"}>
       {showLevel && (
         <div className="flex items-center gap-1.5">
-        <span className="pill-btn text-[11px] px-2 py-1">
-          Level <span className="stat-mono">{mounted && gamificationReady ? topBarLevel : "--"}</span>
-        </span>
-        <span className="pill-btn text-[11px] px-2 py-1 hidden md:inline-flex">
-          All habits streak: <span className="stat-mono">{mounted && gamificationReady ? `${allHabitsStreak}d` : "--"}</span>
-        </span>
+          <span className="pill-btn text-[11px] px-2 py-1">
+            Level <span className="stat-mono">{mounted && gamificationReady ? topBarLevel : "--"}</span>
+          </span>
+          <span className="pill-btn text-[11px] px-2 py-1 hidden md:inline-flex">
+            All habits streak: <span className="stat-mono">{mounted && gamificationReady ? `${allHabitsStreak}d` : "--"}</span>
+          </span>
         </div>
       )}
       {showRefresh && (
         <>
-          <p className="soft-text text-[11px] hidden lg:block">
+          <p className={stacked ? "soft-text text-[11px]" : "soft-text text-[11px] hidden lg:block"}>
             Last fetched {formatTimeSince(lastFetchedAt, now)}
           </p>
           <button
             onClick={refreshAll}
             disabled={refreshing}
-            className="pill-btn"
+            className={stacked ? "pill-btn w-full text-left" : "pill-btn"}
           >
             {refreshing ? "Refreshing..." : "Sync"}
           </button>
