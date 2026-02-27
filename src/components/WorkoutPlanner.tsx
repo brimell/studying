@@ -142,6 +142,7 @@ export default function WorkoutPlanner() {
   const [showCustomExerciseForm, setShowCustomExerciseForm] = useState(false);
   const [showCreateWorkoutModal, setShowCreateWorkoutModal] = useState(false);
   const [previewWorkoutId, setPreviewWorkoutId] = useState<string | null>(null);
+  const [exerciseInfoVisible, setExerciseInfoVisible] = useState<Record<string, boolean>>({});
   const [weeklyPlanName, setWeeklyPlanName] = useState("");
   const [weeklyPlanDays, setWeeklyPlanDays] = useState<Record<WorkoutWeekDay, string[]>>(
     emptyWeeklyPlanDays()
@@ -1024,11 +1025,37 @@ export default function WorkoutPlanner() {
                 </div>
                 <div className="mt-2 space-y-1">
                   {workout.exercises.map((exercise) => (
-                    <p key={exercise.id} className="text-xs text-zinc-500">
-                      {exercise.name}: {exercise.sets}x{exercise.reps} •{" "}
-                      Rest {exercise.restSeconds ?? DEFAULT_REST_SECONDS}s •{" "}
-                      {exercise.muscles.map((muscle) => MUSCLE_LABELS[muscle]).join(", ")}
-                    </p>
+                    <div
+                      key={exercise.id}
+                      className="rounded-md border border-zinc-200 bg-zinc-50/70 px-2.5 py-2"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-sm font-semibold leading-tight">{exercise.name}</p>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setExerciseInfoVisible((previous) => ({
+                              ...previous,
+                              [`saved-${workout.id}-${exercise.id}`]:
+                                !previous[`saved-${workout.id}-${exercise.id}`],
+                            }))
+                          }
+                          className="pill-btn px-2 py-0.5 text-[11px]"
+                          aria-label={`Toggle muscle info for ${exercise.name}`}
+                        >
+                          i
+                        </button>
+                      </div>
+                      <p className="text-xs text-zinc-500 mt-1 stat-mono">
+                        {exercise.sets} sets x {exercise.reps} reps • Rest{" "}
+                        {exercise.restSeconds ?? DEFAULT_REST_SECONDS}s
+                      </p>
+                      {exerciseInfoVisible[`saved-${workout.id}-${exercise.id}`] && (
+                        <p className="text-xs text-zinc-500 mt-1">
+                          Hits: {exercise.muscles.map((muscle) => MUSCLE_LABELS[muscle]).join(", ")}
+                        </p>
+                      )}
+                    </div>
                   ))}
                 </div>
                 <div className="mt-3 flex items-center gap-2">
@@ -1520,14 +1547,32 @@ export default function WorkoutPlanner() {
                     key={`preview-exercise-${exercise.id}`}
                     className="rounded-lg border border-zinc-200 bg-zinc-50 p-2 text-xs"
                   >
-                    <p className="font-medium">{exercise.name}</p>
-                    <p className="text-zinc-500">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-sm font-semibold leading-tight">{exercise.name}</p>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setExerciseInfoVisible((previous) => ({
+                            ...previous,
+                            [`preview-${previewWorkout.id}-${exercise.id}`]:
+                              !previous[`preview-${previewWorkout.id}-${exercise.id}`],
+                          }))
+                        }
+                        className="pill-btn px-2 py-0.5 text-[11px]"
+                        aria-label={`Toggle muscle info for ${exercise.name}`}
+                      >
+                        i
+                      </button>
+                    </div>
+                    <p className="text-zinc-500 mt-1 stat-mono">
                       {exercise.sets} sets x {exercise.reps} reps • Rest{" "}
                       {exercise.restSeconds ?? DEFAULT_REST_SECONDS}s
                     </p>
-                    <p className="text-zinc-500">
-                      {exercise.muscles.map((muscle) => MUSCLE_LABELS[muscle]).join(", ")}
-                    </p>
+                    {exerciseInfoVisible[`preview-${previewWorkout.id}-${exercise.id}`] && (
+                      <p className="text-zinc-500 mt-1">
+                        Hits: {exercise.muscles.map((muscle) => MUSCLE_LABELS[muscle]).join(", ")}
+                      </p>
+                    )}
                   </div>
                 ))}
               </div>
