@@ -20,6 +20,7 @@ import LoadingIcon from "./LoadingIcon";
 
 const STUDY_CALENDAR_IDS_STORAGE_KEY = "study-stats.study.calendar-ids";
 const TRACKER_CALENDAR_STORAGE_KEY = "study-stats.tracker-calendar-id";
+const GOAL_FORECAST_TARGETS_STORAGE_KEY = "study-stats.advanced-analytics.goal-forecast-targets";
 const WEEKLY_STUDY_GOAL_HOURS = 20;
 const MONTHLY_STUDY_GOAL_HOURS = 80;
 const WEEKLY_ALL_HABITS_GOAL_DAYS = 5;
@@ -64,6 +65,11 @@ interface GoalForecast {
   unit: "hours" | "days";
 }
 
+interface StudyGoalForecastTargets {
+  weeklyHours: number;
+  monthlyHours: number;
+}
+
 function readStudyCalendarIds(): string[] {
   const raw = window.localStorage.getItem(STUDY_CALENDAR_IDS_STORAGE_KEY);
   if (!raw) return [];
@@ -78,6 +84,33 @@ function readStudyCalendarIds(): string[] {
 
 function readDailyTrackerEntries(): DailyTrackerEntry[] {
   return parseDailyTrackerEntries(window.localStorage.getItem(DAILY_TRACKER_ENTRIES_STORAGE_KEY));
+}
+
+function clampForecastHours(value: number, fallback: number): number {
+  if (!Number.isFinite(value)) return fallback;
+  return Math.max(1, Math.min(300, Math.round(value)));
+}
+
+function readStudyGoalForecastTargets(): StudyGoalForecastTargets {
+  const fallback: StudyGoalForecastTargets = {
+    weeklyHours: WEEKLY_STUDY_GOAL_HOURS,
+    monthlyHours: MONTHLY_STUDY_GOAL_HOURS,
+  };
+  const raw = window.localStorage.getItem(GOAL_FORECAST_TARGETS_STORAGE_KEY);
+  if (!raw) return fallback;
+
+  try {
+    const parsed = JSON.parse(raw) as {
+      weeklyHours?: unknown;
+      monthlyHours?: unknown;
+    };
+    return {
+      weeklyHours: clampForecastHours(Number(parsed.weeklyHours), fallback.weeklyHours),
+      monthlyHours: clampForecastHours(Number(parsed.monthlyHours), fallback.monthlyHours),
+    };
+  } catch {
+    return fallback;
+  }
 }
 
 function mean(values: number[]): number {
@@ -392,7 +425,8 @@ function forecastContinuousGoal(
 
 function buildGoalForecasts(
   daily: DailyStudyTimeData,
-  habitData: HabitTrackerData | null
+  habitData: HabitTrackerData | null,
+  studyTargets: StudyGoalForecastTargets
 ): GoalForecast[] {
   const studyDailyValues = daily.entries.slice(-42).map((entry) => entry.hours);
   const studyDailyMean = mean(studyDailyValues);
@@ -403,7 +437,7 @@ function buildGoalForecasts(
       "study-weekly",
       "Study hours",
       "Weekly",
-      WEEKLY_STUDY_GOAL_HOURS,
+      studyTargets.weeklyHours,
       "hours",
       studyDailyMean,
       studyDailyStdDev,
@@ -413,7 +447,7 @@ function buildGoalForecasts(
       "study-monthly",
       "Study hours",
       "Monthly",
-      MONTHLY_STUDY_GOAL_HOURS,
+      studyTargets.monthlyHours,
       "hours",
       studyDailyMean,
       studyDailyStdDev,
@@ -476,6 +510,22 @@ export default function AdvancedAnalytics() {
     habitData: null,
     dailyTrackerEntries: [],
   });
+  const [goalTargets, setGoalTargets] = useState<StudyGoalForecastTargets>(() => {
+    if (typeof window === "undefined") {
+      return { weeklyHours: WEEKLY_STUDY_GOAL_HOURS, monthlyHours: MONTHLY_STUDY_GOAL_HOURS };
+    }
+    return readStudyGoalForecastTargets();
+  });
+
+  useEffect(() => {
+    window.localStorage.setItem(
+      GOAL_FORECAST_TARGETS_STORAGE_KEY,
+      JSON.stringify({
+        weeklyHours: goalTargets.weeklyHours,
+        monthlyHours: goalTargets.monthlyHours,
+      })
+    );
+  }, [goalTargets.monthlyHours, goalTargets.weeklyHours]);
 
   const fetchData = useCallback(async () => {
     try {
@@ -652,7 +702,7 @@ export default function AdvancedAnalytics() {
     const dailySignals = buildDailySignals(state.dailyTrackerEntries);
     const studyHoursByDate = new Map(daily.entries.map((entry) => [entry.date, entry.hours]));
     const anomalies = detectAnomalies(dailySignals, studyHoursByDate, state.habitData);
-    const goalForecasts = buildGoalForecasts(daily, state.habitData);
+    const goalForecasts = buildGoalForecasts(daily, state.habitData, goalTargets);
 
     return {
       recentAvg,
@@ -670,7 +720,7 @@ export default function AdvancedAnalytics() {
       anomalies,
       goalForecasts,
     };
-  }, [state]);
+  }, [goalTargets, state]);
 
   return (
     <div className="surface-card p-6">
@@ -774,6 +824,46 @@ export default function AdvancedAnalytics() {
             <p className="text-xs text-zinc-500">
               Forecasts use recent trend variability and show 95% confidence ranges.
             </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <label className="text-xs text-zinc-600 space-y-1">
+                <span>Weekly study target (hours)</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={300}
+                  value={goalTargets.weeklyHours}
+                  onChange={(event) =>
+                    setGoalTargets((previous) => ({
+                      ...previous,
+                      weeklyHours: clampForecastHours(
+                        Number(event.target.value),
+                        previous.weeklyHours
+                      ),
+                    }))
+                  }
+                  className="field-select w-full"
+                />
+              </label>
+              <label className="text-xs text-zinc-600 space-y-1">
+                <span>Monthly study target (hours)</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={300}
+                  value={goalTargets.monthlyHours}
+                  onChange={(event) =>
+                    setGoalTargets((previous) => ({
+                      ...previous,
+                      monthlyHours: clampForecastHours(
+                        Number(event.target.value),
+                        previous.monthlyHours
+                      ),
+                    }))
+                  }
+                  className="field-select w-full"
+                />
+              </label>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
               {analytics.goalForecasts.map((forecast) => (
                 <div key={forecast.id} className="rounded-md border border-zinc-200 bg-white px-3 py-2">
