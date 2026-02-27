@@ -206,8 +206,10 @@ function HomeContent() {
 
             {menuOpen && (
               <div
-                className={`surface-card-strong absolute w-[min(24rem,calc(100vw-2rem))] p-3 z-[80] ${
-                  useLeftSidebar ? "left-full top-0 ml-2" : "right-0 mt-2"
+                className={`surface-card-strong w-[min(24rem,calc(100vw-2rem))] p-3 z-[80] ${
+                  useLeftSidebar
+                    ? "fixed left-20 bottom-0 max-h-[100dvh] overflow-y-auto"
+                    : "absolute right-0 mt-2"
                 }`}
               >
                 <div className="flex flex-col gap-2">
