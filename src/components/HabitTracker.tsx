@@ -146,8 +146,8 @@ function getHeatCellColor(baseColor: string, level: 0 | 1 | 2 | 3 | 4): string {
 }
 
 function getFutureCellColor(): string {
-  // Darker than the "no activity" color so future days are clearly distinct.
-  return "rgba(50, 50, 56, 0.92)";
+  // Lighter than completed cells while still distinct from empty history cells.
+  return "rgba(186, 196, 212, 0.72)";
 }
 
 function resolveDefaultHabitColor(slug: string, preferred = "#10b981"): string {
