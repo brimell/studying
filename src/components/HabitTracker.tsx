@@ -482,6 +482,8 @@ export default function HabitTracker() {
   const [showAddHabitModal, setShowAddHabitModal] = useState(false);
   const [editingBinaryHabitSlug, setEditingBinaryHabitSlug] = useState<string | null>(null);
   const [editingDurationHabitSlug, setEditingDurationHabitSlug] = useState<string | null>(null);
+  const [showTrackerSettingsPanel, setShowTrackerSettingsPanel] = useState(false);
+  const [habitSettingsOpen, setHabitSettingsOpen] = useState<Record<string, boolean>>({});
   const habitDayQueueRef = useRef<QueuedHabitDayUpdate[]>([]);
   const habitDayQueueRunningRef = useRef(false);
   const milestoneSyncTimeoutRef = useRef<number | null>(null);
@@ -1859,32 +1861,29 @@ export default function HabitTracker() {
     setHabitTrackingCalendarDrafts(nextTrackingCalendars);
     setHabitSourceDrafts(nextSources);
     setHabitTermsDrafts(nextTerms);
+    setHabitSettingsOpen((previous) => {
+      const next: Record<string, boolean> = {};
+      for (const habit of data.habits) {
+        if (previous[habit.slug]) next[habit.slug] = true;
+      }
+      return next;
+    });
   }, [data]);
 
   return (
     <div className="surface-card p-6">
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <div>
           <h2 className="text-lg font-semibold">📊 Habit Tracker</h2>
-          <p className="text-xs text-zinc-500 mt-1">
-            All habits are configurable. Duration habits can scan multiple calendars.
-          </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <span className="text-xs text-zinc-500 self-center">
-            Number of previous days: {weeks * 7}
-          </span>
-          <select
-            value={weeks}
-            onChange={(event) => setWeeks(Number(event.target.value))}
-            className="text-sm border rounded-lg px-2 py-1 bg-zinc-50"
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowTrackerSettingsPanel((previous) => !previous)}
+            className="pill-btn px-2.5 py-1 text-xs"
           >
-            {[12, 20, 26, 52].map((value) => (
-              <option key={value} value={value}>
-                {value} weeks
-              </option>
-            ))}
-          </select>
+            {showTrackerSettingsPanel ? "Hide tracker settings" : "Tracker settings"}
+          </button>
         </div>
       </div>
 
@@ -1896,8 +1895,8 @@ export default function HabitTracker() {
       {error && <p className="text-sm text-red-500 mb-3">{error}</p>}
 
       {data && !loading && (
-        <div className="space-y-6">
-          <div className="border-t border-zinc-200 pt-6">
+        <div className="space-y-3">
+          <div className={`${showTrackerSettingsPanel ? "border-t border-zinc-200 pt-6" : "hidden"}`}>
             <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
               <h3 className="text-base font-semibold">🗓️ Exam and Coursework Dates</h3>
               <div className="flex items-center gap-2">
@@ -1948,8 +1947,8 @@ export default function HabitTracker() {
             )}
           </div>
 
-          <div className="border-t border-zinc-200 pt-6">
-            <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+          <div className="border-t border-zinc-200 pt-4">
+            <div className={`${showTrackerSettingsPanel ? "flex flex-wrap items-center justify-between gap-2 mb-4" : "hidden"}`}>
               <h3 className="text-base font-semibold">✅ Habit Trackers</h3>
               <div className="flex items-center gap-2">
                 <span className="text-xs text-zinc-500">{trackerRangeLabel}</span>
@@ -1963,9 +1962,9 @@ export default function HabitTracker() {
               </div>
             </div>
 
-            {actionError && <p className="text-sm text-red-500 mb-3">{actionError}</p>}
-            {actionSuccess && <p className="text-sm text-emerald-600 mb-3">{actionSuccess}</p>}
-            {habitColorSyncMessage && (
+            {showTrackerSettingsPanel && actionError && <p className="text-sm text-red-500 mb-3">{actionError}</p>}
+            {showTrackerSettingsPanel && actionSuccess && <p className="text-sm text-emerald-600 mb-3">{actionSuccess}</p>}
+            {showTrackerSettingsPanel && habitColorSyncMessage && (
               <p className="text-sm text-emerald-600 mb-3">{habitColorSyncMessage}</p>
             )}
 
@@ -1980,7 +1979,7 @@ export default function HabitTracker() {
               <p className="text-sm text-zinc-500">No habits yet. Add one above to start tracking.</p>
             )}
 
-            <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-zinc-500">
+            <div className={`${showTrackerSettingsPanel ? "mb-3 flex flex-wrap items-center gap-2 text-xs text-zinc-500" : "hidden"}`}>
               <span>Future preview</span>
               <select
                 value={futurePreviewMode}
@@ -2015,9 +2014,16 @@ export default function HabitTracker() {
               )}
             </div>
 
+            {!showTrackerSettingsPanel && (
+              <p className="text-xs text-zinc-500 mb-3">
+                Compact mode: open `Tracker settings` to edit habits, preview settings, and dates.
+              </p>
+            )}
+
             <div className="space-y-4">
               {orderedHabits.map((habit) => {
                 const isExamAwareStudyHabit = habit.slug === examAwareStudyHabitSlug;
+                const habitSettingsExpanded = Boolean(habitSettingsOpen[habit.slug]);
                 const shouldShowFutureDays =
                   Boolean(habitShowFutureDays[habit.slug]) ||
                   (futurePreviewMode === "auto" &&
@@ -2096,7 +2102,7 @@ export default function HabitTracker() {
                       setDragOverHabitSlug(null);
                     }}
                   >
-                    <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
                       <div>
                         <p className="font-medium text-sm flex items-center gap-2">
                           <span
@@ -2108,13 +2114,29 @@ export default function HabitTracker() {
                           </span>
                           <span>{habit.name}</span>
                         </p>
-                        <p className="text-xs text-zinc-500">
+                        {habitSettingsExpanded && (
+                          <p className="text-xs text-zinc-500">
                           {habit.mode === "duration"
                             ? `⏱️ Hours mode, current streak ${habit.currentStreak}d, longest ${habit.longestStreak}d, active ${habit.totalCompleted} days, total ${habit.totalHours.toFixed(1)}h`
                             : `✅ Yes/No mode, current streak ${habit.currentStreak}d, longest ${habit.longestStreak}d, completed ${habit.totalCompleted} days`}
-                        </p>
+                          </p>
+                        )}
                       </div>
                       <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setHabitSettingsOpen((previous) => ({
+                              ...previous,
+                              [habit.slug]: !previous[habit.slug],
+                            }))
+                          }
+                          className="pill-btn px-2 py-0.5 text-xs"
+                        >
+                          {habitSettingsExpanded ? "Hide settings" : "Settings"}
+                        </button>
+                        {habitSettingsExpanded && (
+                          <>
                         {habit.mode === "binary" && (
                           <button
                             type="button"
@@ -2187,10 +2209,13 @@ export default function HabitTracker() {
                         >
                           🗑️
                         </button>
+                          </>
+                        )}
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
+                    {habitSettingsExpanded && (
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
                       <StudyStatBadge
                         label="Current streak"
                         value={`${habit.currentStreak}d`}
@@ -2204,7 +2229,8 @@ export default function HabitTracker() {
                         value={`${habit.totalCompleted}`}
                       />
                       {/* Removed Total hours stat for binary habits */}
-                    </div>
+                      </div>
+                    )}
 
                     <div className="overflow-x-auto pb-2">
                       <div className="flex ml-8 mb-1 relative" style={{ gap: 0 }}>
@@ -2301,7 +2327,8 @@ export default function HabitTracker() {
                         ))}
                       </div>
 
-                      <div className="flex items-center gap-2 mt-3 text-xs text-zinc-500">
+                      {habitSettingsExpanded && (
+                        <div className="flex items-center gap-2 mt-3 text-xs text-zinc-500">
                         {habit.mode === "duration" ? (
                           <>
                             <span>Less</span>
@@ -2341,7 +2368,8 @@ export default function HabitTracker() {
                             <span>More</span>
                           </>
                         )}
-                      </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
