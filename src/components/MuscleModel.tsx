@@ -622,17 +622,21 @@ function OverlayPanel({
   overlays,
   hoveredEntryKeys,
   hasHover,
+  lazyRender = true,
 }: {
   baseSrc: string;
   alt: string;
   overlays: OverlayRenderEntry[];
   hoveredEntryKeys: Set<string>;
   hasHover: boolean;
+  lazyRender?: boolean;
 }) {
   const panelRef = useRef<HTMLDivElement | null>(null);
   const [isVisible, setIsVisible] = useState(false);
+  const showOverlays = !lazyRender || isVisible;
 
   useEffect(() => {
+    if (!lazyRender) return;
     if (isVisible) return;
     const node = panelRef.current;
     if (!node) return;
@@ -647,7 +651,7 @@ function OverlayPanel({
     );
     observer.observe(node);
     return () => observer.disconnect();
-  }, [isVisible]);
+  }, [isVisible, lazyRender]);
 
   return (
     <div
@@ -671,7 +675,7 @@ function OverlayPanel({
         }}
         style={{ opacity: 1 }}
       />
-      {isVisible &&
+      {showOverlays &&
         overlays.map((overlay) => {
           const highlighted =
             hoveredEntryKeys.size > 0 &&
@@ -699,6 +703,7 @@ interface MuscleModelProps {
   loadPoints?: Partial<Record<MuscleGroup, number>>;
   title?: string;
   compact?: boolean;
+  lazyOverlayRender?: boolean;
   showOrganPanel?: boolean;
   organOnly?: boolean;
   onHighlightedMusclesChange?: (muscles: MuscleGroup[]) => void;
@@ -719,6 +724,7 @@ export default function MuscleModel({
   loadPoints,
   title = "Muscle Load Map",
   compact = false,
+  lazyOverlayRender = true,
   showOrganPanel = true,
   organOnly = false,
   onHighlightedMusclesChange,
@@ -1056,6 +1062,7 @@ export default function MuscleModel({
                 overlays={organPanel.overlays}
                 hoveredEntryKeys={new Set<string>()}
                 hasHover={false}
+                lazyRender={lazyOverlayRender}
               />
         </div>
         {extraOrganNotes.length > 0 && (
@@ -1101,6 +1108,7 @@ export default function MuscleModel({
                     overlays={panel.overlays}
                     hoveredEntryKeys={activeHoveredKeys}
                     hasHover={hasHover}
+                    lazyRender={lazyOverlayRender}
                   />
                 ))}
               </div>
@@ -1120,6 +1128,7 @@ export default function MuscleModel({
                     overlays={panel.overlays}
                     hoveredEntryKeys={activeHoveredKeys}
                     hasHover={hasHover}
+                    lazyRender={lazyOverlayRender}
                   />
                 ))}
               </div>
@@ -1141,6 +1150,7 @@ export default function MuscleModel({
                   overlays={organPanel.overlays}
                   hoveredEntryKeys={new Set<string>()}
                   hasHover={false}
+                  lazyRender={lazyOverlayRender}
                 />
                 <div className="grid grid-cols-2 gap-x-3 gap-y-1 mt-2">
                   {topOrganEntries.map(([region, score]) => (
