@@ -24,6 +24,7 @@ export default function Home() {
   const searchParams = useSearchParams();
   const { data: session } = useSession();
   const [wideScreen, setWideScreen] = useState<boolean>(readWideScreenPreference);
+  const [useLeftSidebar, setUseLeftSidebar] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
@@ -41,6 +42,15 @@ export default function Home() {
       window.removeEventListener("study-stats:settings-updated", syncFromSettings);
       window.removeEventListener("storage", syncFromSettings);
     };
+  }, []);
+
+  useEffect(() => {
+    const updateSidebarMode = () => {
+      setUseLeftSidebar(window.innerWidth > window.innerHeight);
+    };
+    updateSidebarMode();
+    window.addEventListener("resize", updateSidebarMode);
+    return () => window.removeEventListener("resize", updateSidebarMode);
   }, []);
 
   const settingsOpen = searchParams.get("settings") === "1";
@@ -99,10 +109,22 @@ export default function Home() {
   }
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${useLeftSidebar ? "pl-72" : ""}`}>
       {/* Header */}
-      <header className="top-nav sticky top-0 z-50">
-        <div className={`${containerClass} py-2 flex flex-col gap-2 sm:h-16 sm:flex-row sm:items-center`}>
+      <header
+        className={
+          useLeftSidebar
+            ? "top-nav fixed left-0 top-0 z-50 h-[100dvh] w-72 border-r border-zinc-200"
+            : "top-nav sticky top-0 z-50"
+        }
+      >
+        <div
+          className={
+            useLeftSidebar
+              ? "h-full px-4 py-4 flex flex-col gap-3"
+              : `${containerClass} py-2 flex flex-col gap-2 sm:h-16 sm:flex-row sm:items-center`
+          }
+        >
           <button
             type="button"
             onClick={() => {
@@ -117,8 +139,8 @@ export default function Home() {
             Gym
           </Link>
 
-          <div className="relative ml-auto" ref={menuRef}>
-            <div className="flex items-center gap-2">
+          <div className={`relative ${useLeftSidebar ? "" : "ml-auto"}`} ref={menuRef}>
+            <div className={`flex items-center gap-2 ${useLeftSidebar ? "justify-between" : ""}`}>
               <TopBarDataControls mode="streakOnly" />
               <button
                 type="button"
@@ -135,7 +157,11 @@ export default function Home() {
             </div>
 
             {menuOpen && (
-              <div className="surface-card-strong absolute right-0 mt-2 w-[min(24rem,calc(100vw-2rem))] p-3 z-[80]">
+              <div
+                className={`surface-card-strong absolute mt-2 w-[min(24rem,calc(100vw-2rem))] p-3 z-[80] ${
+                  useLeftSidebar ? "left-0" : "right-0"
+                }`}
+              >
                 <div className="flex flex-col gap-2">
                   <button
                     type="button"
