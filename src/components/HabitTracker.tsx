@@ -1923,8 +1923,6 @@ export default function HabitTracker() {
 
   return (
     <div className="surface-card p-6">
-      <div className="mb-2" />
-
       {loading && (
         <div className="h-40 flex items-center justify-center text-zinc-400 animate-pulse">
           Loading...
@@ -1934,7 +1932,7 @@ export default function HabitTracker() {
 
       {data && !loading && (
         <div className="space-y-3">
-          <div className="pt-1">
+          <div>
             {actionError && <p className="text-sm text-red-500 mb-3">{actionError}</p>}
             {actionSuccess && <p className="text-sm text-emerald-600 mb-3">{actionSuccess}</p>}
             {habitColorSyncMessage && (
