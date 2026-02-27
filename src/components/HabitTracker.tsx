@@ -2054,8 +2054,10 @@ export default function HabitTracker() {
                           type="button"
                           onClick={() => setActiveHabitSettingsSlug(habit.slug)}
                           className="pill-btn px-2 py-0.5 text-xs"
+                          aria-label={`Open settings for ${habit.name}`}
+                          title={`Settings for ${habit.name}`}
                         >
-                          Settings
+                          ⚙
                         </button>
                       </div>
                     </div>
