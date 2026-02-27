@@ -141,6 +141,7 @@ export default function WorkoutPlanner() {
   const [exerciseMuscles, setExerciseMuscles] = useState<MuscleGroup[]>(DEFAULT_EXERCISE_MUSCLES);
   const [showCustomExerciseForm, setShowCustomExerciseForm] = useState(false);
   const [showCreateWorkoutModal, setShowCreateWorkoutModal] = useState(false);
+  const [previewWorkoutId, setPreviewWorkoutId] = useState<string | null>(null);
   const [weeklyPlanName, setWeeklyPlanName] = useState("");
   const [weeklyPlanDays, setWeeklyPlanDays] = useState<Record<WorkoutWeekDay, string[]>>(
     emptyWeeklyPlanDays()
@@ -152,10 +153,10 @@ export default function WorkoutPlanner() {
   const [logDateByWorkout, setLogDateByWorkout] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    if (!showCreateWorkoutModal) return;
+    if (!showCreateWorkoutModal && !previewWorkoutId) return;
     lockBodyScroll();
     return () => unlockBodyScroll();
-  }, [showCreateWorkoutModal]);
+  }, [previewWorkoutId, showCreateWorkoutModal]);
 
   const getTrackerCalendarId = async (): Promise<string | null> => {
     const stored = window.localStorage.getItem(TRACKER_CALENDAR_STORAGE_KEY);
@@ -602,6 +603,10 @@ export default function WorkoutPlanner() {
     () => new Map(workouts.map((workout) => [workout.id, workout])),
     [workouts]
   );
+  const previewWorkout = useMemo(
+    () => (previewWorkoutId ? workoutById.get(previewWorkoutId) || null : null),
+    [previewWorkoutId, workoutById]
+  );
   const nextScheduledWorkouts = useMemo(() => {
     if (!activeWeeklyPlan) return null;
 
@@ -904,6 +909,13 @@ export default function WorkoutPlanner() {
                         }
                         className="border rounded-lg px-2 py-1 text-xs bg-white"
                       />
+                      <button
+                        type="button"
+                        onClick={() => setPreviewWorkoutId(workout.id)}
+                        className="px-2 py-1 rounded-md text-xs bg-zinc-200 hover:bg-zinc-300"
+                      >
+                        Preview
+                      </button>
                       <button
                         type="button"
                         onClick={() => logWorkout(workout)}
@@ -1465,6 +1477,60 @@ export default function WorkoutPlanner() {
                   Save Workout
                 </button>
               </form>
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {previewWorkout &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[95] bg-black/45 backdrop-blur-sm flex items-center justify-center p-4"
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) setPreviewWorkoutId(null);
+            }}
+          >
+            <div
+              className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white p-5 shadow-xl border border-zinc-200"
+              onMouseDown={(event) => event.stopPropagation()}
+            >
+              <div className="flex items-center justify-between gap-3 mb-3">
+                <h2 className="text-lg font-semibold">{previewWorkout.name}</h2>
+                <button
+                  type="button"
+                  onClick={() => setPreviewWorkoutId(null)}
+                  className="px-2 py-1 rounded-md text-xs bg-zinc-200 hover:bg-zinc-300"
+                >
+                  Close
+                </button>
+              </div>
+
+              <MuscleModel
+                scores={workoutScoresById.get(previewWorkout.id) || fatigueScores}
+                loadPoints={workoutLoadById.get(previewWorkout.id)}
+                title="Workout Muscle Targets"
+                compact
+                showOrganPanel={false}
+              />
+
+              <div className="mt-3 space-y-2">
+                {previewWorkout.exercises.map((exercise) => (
+                  <div
+                    key={`preview-exercise-${exercise.id}`}
+                    className="rounded-lg border border-zinc-200 bg-zinc-50 p-2 text-xs"
+                  >
+                    <p className="font-medium">{exercise.name}</p>
+                    <p className="text-zinc-500">
+                      {exercise.sets} sets x {exercise.reps} reps • Rest{" "}
+                      {exercise.restSeconds ?? DEFAULT_REST_SECONDS}s
+                    </p>
+                    <p className="text-zinc-500">
+                      {exercise.muscles.map((muscle) => MUSCLE_LABELS[muscle]).join(", ")}
+                    </p>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>,
           document.body
