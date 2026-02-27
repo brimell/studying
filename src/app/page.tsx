@@ -10,12 +10,15 @@ import SupabaseAccountSync from "@/components/SupabaseAccountSync";
 
 const WIDE_SCREEN_STORAGE_KEY = "study-stats.layout.wide-screen";
 
+function readWideScreenPreference(): boolean {
+  if (typeof window === "undefined") return true;
+  const stored = window.localStorage.getItem(WIDE_SCREEN_STORAGE_KEY);
+  return stored === null ? true : stored === "true";
+}
+
 export default function Home() {
   const { data: session } = useSession();
-  const [wideScreen, setWideScreen] = useState<boolean>(() => {
-    if (typeof window === "undefined") return false;
-    return window.localStorage.getItem(WIDE_SCREEN_STORAGE_KEY) === "true";
-  });
+  const [wideScreen, setWideScreen] = useState<boolean>(readWideScreenPreference);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
@@ -25,7 +28,7 @@ export default function Home() {
 
   useEffect(() => {
     const syncFromSettings = () => {
-      setWideScreen(window.localStorage.getItem(WIDE_SCREEN_STORAGE_KEY) === "true");
+      setWideScreen(readWideScreenPreference());
     };
     window.addEventListener("study-stats:settings-updated", syncFromSettings);
     window.addEventListener("storage", syncFromSettings);

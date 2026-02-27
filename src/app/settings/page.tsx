@@ -54,8 +54,8 @@ function parseFuturePreview(
 
 export default function SettingsPage() {
   const [wideScreen, setWideScreen] = useState<boolean>(() => {
-    if (typeof window === "undefined") return false;
-    return parseBoolean(window.localStorage.getItem(WIDE_SCREEN_STORAGE_KEY));
+    if (typeof window === "undefined") return true;
+    return parseBoolean(window.localStorage.getItem(WIDE_SCREEN_STORAGE_KEY), true);
   });
   const [dailyDays, setDailyDays] = useState<number>(() => {
     if (typeof window === "undefined") return 30;
