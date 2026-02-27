@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { MuscleGroup } from "@/lib/types";
 import { MUSCLE_LABELS, UI_MUSCLE_GROUPS } from "@/lib/workouts";
 
@@ -610,31 +610,8 @@ function OverlayPanel({
   hoveredEntryKeys: Set<string>;
   hasHover: boolean;
 }) {
-  const panelRef = useRef<HTMLDivElement | null>(null);
-  const [isVisible, setIsVisible] = useState(false);
-
-  useEffect(() => {
-    if (isVisible) return;
-    const node = panelRef.current;
-    if (!node) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (!entries.some((entry) => entry.isIntersecting)) return;
-        setIsVisible(true);
-        observer.disconnect();
-      },
-      { rootMargin: "120px 0px" }
-    );
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, [isVisible]);
-
   return (
-    <div
-      ref={panelRef}
-      className="rounded-md border border-zinc-200 overflow-hidden bg-white relative aspect-[3/4] isolate"
-    >
+    <div className="rounded-md border border-zinc-200 overflow-hidden bg-white relative aspect-[3/4] isolate">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={baseSrc}
@@ -652,24 +629,23 @@ function OverlayPanel({
         }}
         style={{ opacity: 1 }}
       />
-      {isVisible &&
-        overlays.map((overlay) => {
-          const highlighted =
-            hoveredEntryKeys.size > 0 &&
-            overlay.hoverKeys.some((hoverKey) => hoveredEntryKeys.has(hoverKey));
-          const dimmed = hasHover && !highlighted;
-          return (
-            <RedOnlyOverlay
-              key={overlay.key}
-              src={overlay.src}
-              baseSrc={baseSrc}
-              opacity={hasHover ? (highlighted ? 0.98 : 0.02) : overlay.opacity}
-              delayMs={overlay.delayMs}
-              highlighted={highlighted}
-              dimmed={dimmed}
-            />
-          );
-        })}
+      {overlays.map((overlay) => {
+        const highlighted =
+          hoveredEntryKeys.size > 0 &&
+          overlay.hoverKeys.some((hoverKey) => hoveredEntryKeys.has(hoverKey));
+        const dimmed = hasHover && !highlighted;
+        return (
+          <RedOnlyOverlay
+            key={overlay.key}
+            src={overlay.src}
+            baseSrc={baseSrc}
+            opacity={hasHover ? (highlighted ? 0.98 : 0.02) : overlay.opacity}
+            delayMs={overlay.delayMs}
+            highlighted={highlighted}
+            dimmed={dimmed}
+          />
+        );
+      })}
     </div>
   );
 }
