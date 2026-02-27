@@ -1,10 +1,7 @@
 "use client";
 
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { createPortal } from "react-dom";
 import { formatTimeSince, readGlobalLastFetched } from "@/lib/client-cache";
-import { lockBodyScroll, unlockBodyScroll } from "@/lib/scroll-lock";
-import StudyProjection from "@/components/StudyProjection";
 import type { HabitDefinition, HabitTrackerData } from "@/lib/types";
 
 const TRACKER_CALENDAR_STORAGE_KEY = "study-stats.tracker-calendar-id";
@@ -51,7 +48,6 @@ export default function TopBarDataControls() {
   );
   const [now, setNow] = useState(() => Date.now());
   const [refreshing, setRefreshing] = useState(false);
-  const [showStudyProjection, setShowStudyProjection] = useState(false);
   const [topBarLevel, setTopBarLevel] = useState(1);
   const [allHabitsStreak, setAllHabitsStreak] = useState(0);
   const [gamificationReady, setGamificationReady] = useState(false);
@@ -61,12 +57,6 @@ export default function TopBarDataControls() {
     const timer = window.setInterval(() => setNow(Date.now()), 60_000);
     return () => window.clearInterval(timer);
   }, []);
-
-  useEffect(() => {
-    if (!showStudyProjection) return;
-    lockBodyScroll();
-    return () => unlockBodyScroll();
-  }, [showStudyProjection]);
 
   useEffect(() => {
     let cancelled = false;
@@ -120,14 +110,6 @@ export default function TopBarDataControls() {
           All habits streak: {mounted && gamificationReady ? `${allHabitsStreak}d` : "--"}
         </span>
       </div>
-      <button
-        type="button"
-        onClick={() => setShowStudyProjection(true)}
-        className="pill-btn"
-      >
-        <span className="sm:hidden">Plan</span>
-        <span className="hidden sm:inline">Project Studying</span>
-      </button>
       <p className="soft-text text-[11px] hidden lg:block">
         Last fetched {formatTimeSince(lastFetchedAt, now)}
       </p>
@@ -138,35 +120,6 @@ export default function TopBarDataControls() {
       >
         {refreshing ? "Refreshing..." : "Sync"}
       </button>
-
-      {mounted &&
-        showStudyProjection &&
-        createPortal(
-          <div
-            className="fixed inset-0 z-[200] flex items-center justify-center bg-zinc-900/55 p-4 overflow-y-auto"
-            onMouseDown={(event) => {
-              if (event.target === event.currentTarget) setShowStudyProjection(false);
-            }}
-          >
-            <div
-              className="surface-card-strong w-full max-w-4xl max-h-[90vh] overflow-y-auto p-4 my-auto"
-              onMouseDown={(event) => event.stopPropagation()}
-            >
-              <div className="flex items-center justify-between mb-3">
-                <h4 className="text-sm font-semibold">Project Studying</h4>
-                <button
-                  type="button"
-                  onClick={() => setShowStudyProjection(false)}
-                  className="pill-btn"
-                >
-                  Close
-                </button>
-              </div>
-              <StudyProjection />
-            </div>
-          </div>,
-          document.body
-        )}
     </div>
   );
 }

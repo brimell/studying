@@ -1,8 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { Session } from "@supabase/supabase-js";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
+import { lockBodyScroll, unlockBodyScroll } from "@/lib/scroll-lock";
+import StudyProjection from "@/components/StudyProjection";
 
 const PROJECTION_EXAM_DATE_STORAGE_KEY = "study-stats.projection.exam-date";
 const PROJECTION_COUNTDOWN_START_STORAGE_KEY = "study-stats.projection.countdown-start";
@@ -42,10 +45,12 @@ export default function FirstExamCountdown() {
   const [countdownStartDate, setCountdownStartDate] = useState(() =>
     toDateInputValue(getTodayAtNoon())
   );
+  const [showStudyProjection, setShowStudyProjection] = useState(false);
   const [localHydrated, setLocalHydrated] = useState(false);
   const syncTimeoutRef = useRef<number | null>(null);
   const hydratedFromCloudRef = useRef(false);
   const cloudHydrationCompleteRef = useRef(false);
+  const mounted = typeof window !== "undefined";
 
   const callApi = useCallback(
     async (
@@ -164,6 +169,12 @@ export default function FirstExamCountdown() {
     };
   }, [callApi, countdownStartDate, firstExamDate, localHydrated, session, supabase]);
 
+  useEffect(() => {
+    if (!showStudyProjection) return;
+    lockBodyScroll();
+    return () => unlockBodyScroll();
+  }, [showStudyProjection]);
+
   const now = getTodayAtNoon();
   const examDateObject = parseDateInput(firstExamDate);
   const countdownStartObject = parseDateInput(countdownStartDate);
@@ -191,7 +202,16 @@ export default function FirstExamCountdown() {
 
   return (
     <div className="surface-card p-6">
-      <h2 className="text-lg font-semibold mb-4">First Exam Countdown</h2>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-lg font-semibold">First Exam Countdown</h2>
+        <button
+          type="button"
+          onClick={() => setShowStudyProjection(true)}
+          className="pill-btn"
+        >
+          Project Future Studying
+        </button>
+      </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
         <label className="flex flex-col gap-1 text-sm">
           First exam date
@@ -231,6 +251,35 @@ export default function FirstExamCountdown() {
           <span>{progressLabel}</span>
         </div>
       </div>
+
+      {mounted &&
+        showStudyProjection &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[200] flex items-center justify-center bg-zinc-900/55 p-4 overflow-y-auto"
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) setShowStudyProjection(false);
+            }}
+          >
+            <div
+              className="surface-card-strong w-full max-w-4xl max-h-[90vh] overflow-y-auto p-4 my-auto"
+              onMouseDown={(event) => event.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-sm font-semibold">Project Future Studying</h4>
+                <button
+                  type="button"
+                  onClick={() => setShowStudyProjection(false)}
+                  className="pill-btn"
+                >
+                  Close
+                </button>
+              </div>
+              <StudyProjection />
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   );
 }
