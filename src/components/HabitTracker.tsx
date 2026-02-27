@@ -1972,7 +1972,9 @@ export default function HabitTracker() {
             <div className="space-y-4">
               {orderedHabits.map((habit) => {
                 const isExamAwareStudyHabit = habit.slug === examAwareStudyHabitSlug;
-                const shouldShowFutureDays = Boolean(habitShowFutureDays[habit.slug]);
+                const shouldShowFutureDays =
+                  Boolean(habitShowFutureDays[habit.slug]) ||
+                  (futurePreviewMode === "auto" && isExamAwareStudyHabit);
                 const habitDaysForGrid =
                   shouldShowFutureDays
                     ? (() => {
