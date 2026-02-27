@@ -114,11 +114,14 @@ export default function TopBarDataControls({
     <div className={stacked ? "flex flex-col items-stretch gap-1.5 w-full shrink-0" : "flex items-center gap-2 shrink-0"}>
       {showLevel && (
         <div className="flex items-center gap-1.5">
-          <span className="pill-btn text-[11px] px-2 py-1">
-            Level <span className="stat-mono">{mounted && gamificationReady ? topBarLevel : "--"}</span>
+          <span className="pill-btn text-[11px] px-2 py-1 inline-flex items-center gap-1">
+            <span>Level</span>
+            <span className="stat-mono leading-none">{mounted && gamificationReady ? topBarLevel : "--"}</span>
           </span>
-          <span className="pill-btn text-[11px] px-2 py-1 hidden md:inline-flex">
-            All habits streak: <span className="stat-mono">{mounted && gamificationReady ? `${allHabitsStreak}d` : "--"}</span>
+          <span className="pill-btn text-[11px] px-2 py-1 hidden md:inline-flex items-center gap-1.5">
+            <span>All habits streak</span>
+            <span className="text-zinc-400">:</span>
+            <span className="stat-mono leading-none">{mounted && gamificationReady ? `${allHabitsStreak}d` : "--"}</span>
           </span>
         </div>
       )}
