@@ -63,6 +63,7 @@ const googleEnv = getGoogleAuthEnv();
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   secret: googleEnv.nextAuthSecret,
+  trustHost: true,
   providers: [
     Google({
       clientId: googleEnv.clientId,

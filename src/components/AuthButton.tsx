@@ -146,10 +146,15 @@ export default function AuthButton({ compact = false, className = "" }: AuthButt
 
   return (
     <button
-      onClick={() => signIn("google")}
+      onClick={startGoogleAuth}
       className={`pill-btn pill-btn-primary ${className}`.trim()}
     >
       Update Google authorisation for this session
     </button>
   );
 }
+  const startGoogleAuth = () => {
+    const callbackUrl =
+      typeof window !== "undefined" ? `${window.location.origin}/` : "/";
+    void signIn("google", { callbackUrl });
+  };
