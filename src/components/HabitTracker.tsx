@@ -1163,7 +1163,7 @@ export default function HabitTracker() {
     if (!data) return null;
     if (selectedStudyHabitSlug) {
       const directMatch = data.habits.find((habit) => habit.slug === selectedStudyHabitSlug);
-      if (directMatch) return directMatch;
+      if (directMatch && directMatch.mode === "duration") return directMatch;
     }
     return (
       data.habits.find((habit) => habit.name.trim().toLowerCase() === "studying") ||
@@ -2020,7 +2020,9 @@ export default function HabitTracker() {
                 const isExamAwareStudyHabit = habit.slug === examAwareStudyHabitSlug;
                 const shouldShowFutureDays =
                   Boolean(habitShowFutureDays[habit.slug]) ||
-                  (futurePreviewMode === "auto" && isExamAwareStudyHabit);
+                  (futurePreviewMode === "auto" &&
+                    isExamAwareStudyHabit &&
+                    habit.mode === "duration");
                 const habitDaysForGrid =
                   shouldShowFutureDays
                     ? (() => {
