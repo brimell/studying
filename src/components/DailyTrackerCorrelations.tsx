@@ -21,6 +21,8 @@ const MIN_POINTS_FOR_WEEKLY_TIMELINE = 4;
 const MIN_ABS_CORRELATION = 0.3;
 const MAX_RESULTS = 16;
 const STUDY_CALENDAR_IDS_STORAGE_KEY = "study-stats.study.calendar-ids";
+const CORRELATION_X_STORAGE_KEY = "study-stats.daily-tracker-correlations.x-metric";
+const CORRELATION_Y_STORAGE_KEY = "study-stats.daily-tracker-correlations.y-metric";
 
 type MetricKey =
   | "sleep"
@@ -46,6 +48,10 @@ const METRIC_LABELS: Record<MetricKey, string> = {
   headache: "Headache",
   coughing: "Coughing",
 };
+
+function isMetricKey(value: string): value is MetricKey {
+  return value in METRIC_LABELS;
+}
 
 const TRACKER_UPDATED_EVENTS = [
   "study-stats:daily-tracker-updated",
@@ -392,8 +398,26 @@ function computeWeeklyCorrelationTimeline(
 export default function DailyTrackerCorrelations() {
   const [entries, setEntries] = useState<DailyTrackerEntry[]>([]);
   const [studyHoursByDate, setStudyHoursByDate] = useState<Map<string, number>>(new Map());
-  const [xMetric, setXMetric] = useState<MetricKey>("sleep");
-  const [yMetric, setYMetric] = useState<MetricKey>("mood");
+  const [xMetric, setXMetric] = useState<MetricKey>(() => {
+    if (typeof window === "undefined") return "sleep";
+    const stored = window.localStorage.getItem(CORRELATION_X_STORAGE_KEY);
+    return stored && isMetricKey(stored) ? stored : "sleep";
+  });
+  const [yMetric, setYMetric] = useState<MetricKey>(() => {
+    if (typeof window === "undefined") return "mood";
+    const stored = window.localStorage.getItem(CORRELATION_Y_STORAGE_KEY);
+    return stored && isMetricKey(stored) ? stored : "mood";
+  });
+
+  useEffect(() => {
+    window.localStorage.setItem(CORRELATION_X_STORAGE_KEY, xMetric);
+    window.dispatchEvent(new CustomEvent("study-stats:settings-updated"));
+  }, [xMetric]);
+
+  useEffect(() => {
+    window.localStorage.setItem(CORRELATION_Y_STORAGE_KEY, yMetric);
+    window.dispatchEvent(new CustomEvent("study-stats:settings-updated"));
+  }, [yMetric]);
 
   useEffect(() => {
     const loadEntries = () => {

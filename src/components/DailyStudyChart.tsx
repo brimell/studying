@@ -62,10 +62,12 @@ export default function DailyStudyChart() {
 
   useEffect(() => {
     window.localStorage.setItem(DAILY_DAYS_STORAGE_KEY, String(days));
+    window.dispatchEvent(new CustomEvent("study-stats:settings-updated"));
   }, [days]);
 
   useEffect(() => {
     window.localStorage.setItem(DAILY_SUBJECT_STORAGE_KEY, subject);
+    window.dispatchEvent(new CustomEvent("study-stats:settings-updated"));
   }, [subject]);
 
   const cacheKey = useMemo(

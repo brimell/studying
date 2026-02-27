@@ -63,6 +63,7 @@ export default function SubjectDistribution() {
 
   useEffect(() => {
     window.localStorage.setItem(DISTRIBUTION_DAYS_STORAGE_KEY, String(days));
+    window.dispatchEvent(new CustomEvent("study-stats:settings-updated"));
   }, [days]);
 
   const cacheKey = useMemo(
