@@ -448,7 +448,7 @@ export default function DailyTrackerPopup({ onClose }: DailyTrackerPopupProps) {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="h-full min-h-0 flex flex-col gap-4">
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold">Daily Tracker</h2>
@@ -495,7 +495,7 @@ export default function DailyTrackerPopup({ onClose }: DailyTrackerPopupProps) {
         )}
       </div>
 
-      <div className="max-h-[65vh] overflow-y-auto space-y-4 pr-1">
+      <div className="min-h-0 flex-1 overflow-y-auto space-y-4 pr-1">
         <section className="rounded-lg border border-zinc-200 p-3 space-y-2">
           <h3 className="font-semibold">Morning</h3>
           <NumberScale
