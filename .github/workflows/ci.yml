@@ -20,7 +20,11 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --include=optional
+
+      - name: Ensure lightningcss Linux binary is present
+        if: runner.os == 'Linux'
+        run: npm install --no-save lightningcss-linux-x64-gnu@1.31.1
 
       - name: Lint + typecheck + build
         run: npm run test
