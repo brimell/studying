@@ -853,8 +853,22 @@ export default function MuscleModel({
     [normalizedGradeByMuscle, simplifyLabels, sorted]
   );
   const skeletalPanels = useMemo(
-    () =>
-      (["anterior", "posterior"] as const).map((view) => {
+    () => {
+      const hoverKeysByRegion = new Map<SkeletalRegionKey, Set<string>>();
+      for (const { muscle, score } of nonZero) {
+        if (score <= 0) continue;
+        const group = getCommonGroupKey(muscle);
+        const effects = BONE_EFFECTS_BY_GROUP[group];
+        for (const [region, weight] of Object.entries(effects) as Array<[SkeletalRegionKey, number]>) {
+          if (weight <= 0) continue;
+          const existing = hoverKeysByRegion.get(region) || new Set<string>();
+          existing.add(muscle);
+          existing.add(String(group));
+          hoverKeysByRegion.set(region, existing);
+        }
+      }
+
+      return (["anterior", "posterior"] as const).map((view) => {
         const baseSrc = toSkeletalPath(
           view === "anterior" ? "View=Anterior.svg" : "View=Posterior.svg"
         );
@@ -865,11 +879,12 @@ export default function MuscleModel({
             src: toSkeletalPath(SKELETAL_REGION_FILES[region][view]),
             opacity: normalizedGradeToOpacity(score),
             delayMs: index * 20,
-            hoverKeys: [region],
+            hoverKeys: [...(hoverKeysByRegion.get(region) || new Set<string>())],
           }));
         return { key: `skeleton-${view}`, view, baseSrc, overlays };
-      }),
-    [normalizedBoneScores]
+      });
+    },
+    [nonZero, normalizedBoneScores]
   );
   const organPanel = useMemo(() => {
     const baseSrc = toOrganPath("Reproductive Organ=None.svg");
@@ -977,8 +992,8 @@ export default function MuscleModel({
                     baseSrc={panel.baseSrc}
                     alt={`${panel.view === "anterior" ? "Anterior" : "Posterior"} skeletal model`}
                     overlays={panel.overlays}
-                    hoveredEntryKey={null}
-                    hasHover={false}
+                    hoveredEntryKey={hoveredEntryKey}
+                    hasHover={hasHover}
                   />
                 ))}
               </div>
