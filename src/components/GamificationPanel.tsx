@@ -507,7 +507,7 @@ export default function GamificationPanel() {
           <div className="rounded-xl border border-sky-300 bg-sky-50 p-4">
             <p className="text-xs uppercase tracking-[0.12em] text-sky-700">Combined streak</p>
             <div className="mt-2 flex items-end justify-between gap-4">
-              <p className="stat-mono text-6xl md:text-7xl font-bold leading-none text-sky-900">
+              <p className="stat-mono text-7xl md:text-8xl font-bold leading-none text-sky-900">
                 {model.combinedCurrentStreak}
                 <span className="ml-2 text-2xl md:text-3xl align-baseline">days</span>
               </p>
