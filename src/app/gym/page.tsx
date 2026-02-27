@@ -4,8 +4,8 @@ import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import type { Session } from "@supabase/supabase-js";
 import { WorkoutDataProvider } from "@/components/WorkoutDataProvider";
+import { DEFAULT_DISPLAY_NAME, getDisplayNameFromMetadata } from "@/lib/display-name";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 
 const WIDE_SCREEN_STORAGE_KEY = "study-stats.layout.wide-screen";
@@ -13,14 +13,6 @@ const SupabaseAccountSync = dynamic(() => import("@/components/SupabaseAccountSy
 const WorkoutPlanner = dynamic(() => import("@/components/WorkoutPlanner"), {
   loading: () => <div className="surface-card p-6 animate-pulse h-44" />,
 });
-const DEFAULT_DISPLAY_NAME = "John Doe";
-
-function getDisplayNameFromSession(session: Session | null): string {
-  const raw = session?.user.user_metadata?.display_name;
-  if (typeof raw !== "string") return DEFAULT_DISPLAY_NAME;
-  const normalized = raw.trim();
-  return normalized || DEFAULT_DISPLAY_NAME;
-}
 
 function readWideScreenPreference(): boolean {
   if (typeof window === "undefined") return true;
@@ -34,7 +26,7 @@ export default function GymPage() {
   const [wideScreen, setWideScreen] = useState<boolean>(readWideScreenPreference);
   const [useLeftSidebar, setUseLeftSidebar] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [accountSession, setAccountSession] = useState<Session | null>(null);
+  const [accountDisplayName, setAccountDisplayName] = useState(DEFAULT_DISPLAY_NAME);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -62,12 +54,21 @@ export default function GymPage() {
     if (!supabase) return;
 
     let mounted = true;
+    const syncDisplayNameFromUser = async () => {
+      const { data } = await supabase.auth.getUser();
+      if (!mounted) return;
+      setAccountDisplayName(getDisplayNameFromMetadata(data.user?.user_metadata));
+    };
+
     void supabase.auth.getSession().then(({ data }) => {
       if (!mounted) return;
-      setAccountSession(data.session);
+      const nextSession = data.session;
+      setAccountDisplayName(getDisplayNameFromMetadata(nextSession?.user.user_metadata));
+      void syncDisplayNameFromUser();
     });
     const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      setAccountSession(nextSession);
+      setAccountDisplayName(getDisplayNameFromMetadata(nextSession?.user.user_metadata));
+      void syncDisplayNameFromUser();
     });
     return () => {
       mounted = false;
@@ -97,7 +98,7 @@ export default function GymPage() {
   const containerClass = wideScreen
     ? "w-full px-4 sm:px-6 lg:px-8"
     : "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8";
-  const userLabel = getDisplayNameFromSession(accountSession);
+  const userLabel = accountDisplayName;
 
   return (
     <div className={`app-shell ${useLeftSidebar ? "pl-[4.5rem]" : ""}`}>

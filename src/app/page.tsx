@@ -7,6 +7,11 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { Session } from "@supabase/supabase-js";
 import TopBarDataControls from "@/components/TopBarDataControls";
+import {
+  DEFAULT_DISPLAY_NAME,
+  getDisplayNameFromMetadata,
+  normalizeDisplayName,
+} from "@/lib/display-name";
 import { lockBodyScroll, unlockBodyScroll } from "@/lib/scroll-lock";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 
@@ -17,20 +22,6 @@ const Dashboard = dynamic(() => import("@/components/Dashboard"), {
 const DailyTrackerPopup = dynamic(() => import("@/components/DailyTrackerPopup"));
 const GamificationPanel = dynamic(() => import("@/components/GamificationPanel"));
 const GlobalSettingsPanel = dynamic(() => import("@/components/GlobalSettingsPanel"));
-const DEFAULT_DISPLAY_NAME = "John Doe";
-
-function normalizeDisplayName(input: string): string {
-  const value = input.trim();
-  if (!value) return DEFAULT_DISPLAY_NAME;
-  return value.slice(0, 60);
-}
-
-function getDisplayNameFromSession(session: Session | null): string {
-  const raw = session?.user.user_metadata?.display_name;
-  if (typeof raw !== "string") return DEFAULT_DISPLAY_NAME;
-  const normalized = raw.trim();
-  return normalized || DEFAULT_DISPLAY_NAME;
-}
 
 function readWideScreenPreference(): boolean {
   if (typeof window === "undefined") return true;
@@ -57,11 +48,12 @@ function HomeContent() {
   const [dailyTrackerOpen, setDailyTrackerOpen] = useState(false);
   const [accountSession, setAccountSession] = useState<Session | null>(null);
   const [displayNameDraft, setDisplayNameDraft] = useState(DEFAULT_DISPLAY_NAME);
+  const [accountDisplayName, setAccountDisplayName] = useState(DEFAULT_DISPLAY_NAME);
   const [updatingDisplayName, setUpdatingDisplayName] = useState(false);
   const [displayNameError, setDisplayNameError] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
-  const userLabel = getDisplayNameFromSession(accountSession);
+  const userLabel = accountDisplayName;
 
   useEffect(() => {
     window.localStorage.setItem(WIDE_SCREEN_STORAGE_KEY, String(wideScreen));
@@ -83,16 +75,28 @@ function HomeContent() {
     if (!supabase) return;
 
     let mounted = true;
+    const syncDisplayNameFromUser = async () => {
+      const { data } = await supabase.auth.getUser();
+      if (!mounted) return;
+      setAccountDisplayName(getDisplayNameFromMetadata(data.user?.user_metadata));
+    };
+
     void supabase.auth.getSession().then(({ data }) => {
       if (!mounted) return;
       const nextSession = data.session;
       setAccountSession(nextSession);
-      setDisplayNameDraft(getDisplayNameFromSession(nextSession));
+      const nextDisplayName = getDisplayNameFromMetadata(nextSession?.user.user_metadata);
+      setDisplayNameDraft(nextDisplayName);
+      setAccountDisplayName(nextDisplayName);
+      void syncDisplayNameFromUser();
     });
 
     const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       setAccountSession(nextSession);
-      setDisplayNameDraft(getDisplayNameFromSession(nextSession));
+      const nextDisplayName = getDisplayNameFromMetadata(nextSession?.user.user_metadata);
+      setDisplayNameDraft(nextDisplayName);
+      setAccountDisplayName(nextDisplayName);
+      void syncDisplayNameFromUser();
     });
 
     return () => {
@@ -218,7 +222,7 @@ function HomeContent() {
   async function updateDisplayName() {
     if (!supabase || !accountSession) return;
     const normalized = normalizeDisplayName(displayNameDraft);
-    if (normalized === getDisplayNameFromSession(accountSession)) return;
+    if (normalized === getDisplayNameFromMetadata(accountSession.user.user_metadata)) return;
 
     setDisplayNameError(null);
     setUpdatingDisplayName(true);
@@ -232,6 +236,7 @@ function HomeContent() {
       setDisplayNameError(error.message);
     } else {
       setDisplayNameDraft(normalized);
+      setAccountDisplayName(normalized);
     }
     setUpdatingDisplayName(false);
   }
@@ -355,7 +360,7 @@ function HomeContent() {
                       disabled={
                         updatingDisplayName ||
                         normalizeDisplayName(displayNameDraft) ===
-                          getDisplayNameFromSession(accountSession)
+                          getDisplayNameFromMetadata(accountSession?.user.user_metadata)
                       }
                     >
                       {updatingDisplayName ? "Saving..." : "Save display name"}

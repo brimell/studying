@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import type { Session } from "@supabase/supabase-js";
 import LoadingIcon from "@/components/LoadingIcon";
+import { DEFAULT_DISPLAY_NAME, hasExplicitDisplayName } from "@/lib/display-name";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 
 function normalizeNextTarget(pathname: string, query: string): string {
@@ -26,12 +27,25 @@ export default function AppAccountGate({ children }: { children: React.ReactNode
     if (!supabase) return;
 
     let mounted = true;
+
+    const ensureDisplayNameStored = async (activeSession: Session | null) => {
+      if (!activeSession) return;
+      if (hasExplicitDisplayName(activeSession.user.user_metadata)) return;
+      await supabase.auth.updateUser({
+        data: {
+          ...activeSession.user.user_metadata,
+          display_name: DEFAULT_DISPLAY_NAME,
+        },
+      });
+    };
+
     void supabase.auth
       .getSession()
       .then(({ data }) => {
         if (!mounted) return;
         setSession(data.session);
         setLoading(false);
+        void ensureDisplayNameStored(data.session);
       })
       .catch(() => {
         if (!mounted) return;
@@ -42,6 +56,7 @@ export default function AppAccountGate({ children }: { children: React.ReactNode
     const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession);
       setLoading(false);
+      void ensureDisplayNameStored(nextSession);
     });
 
     return () => {
