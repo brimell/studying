@@ -28,6 +28,8 @@ const HABIT_FUTURE_PREVIEW_SETTINGS_STORAGE_KEY = "study-stats.habit-tracker.fut
 const HABIT_ORDER_STORAGE_KEY = "study-stats.habit-tracker.order";
 const STUDY_HABIT_STORAGE_KEY = "study-stats.habit-tracker.study-habit";
 const PROJECTION_EXAM_DATE_STORAGE_KEY = "study-stats.projection.exam-date";
+const OPEN_ADD_HABIT_EVENT = "study-stats:open-add-habit";
+const OPEN_ADD_MILESTONE_EVENT = "study-stats:open-add-milestone";
 const DEFAULT_CUSTOM_FUTURE_PREVIEW_DAYS = 35;
 const DEFAULT_STUDY_HABIT_NAME = "Studying";
 const DEFAULT_GYM_HABIT_NAME = "Gym";
@@ -115,6 +117,10 @@ interface MatchTermDraftEntry {
 }
 
 type FuturePreviewMode = "auto" | "custom";
+interface HabitFuturePreviewSetting {
+  mode: FuturePreviewMode;
+  customDays: number;
+}
 
 function isHexColor(value: string): boolean {
   return /^#[0-9a-f]{6}$/i.test(value);
@@ -465,10 +471,9 @@ export default function HabitTracker() {
   const [habitColors, setHabitColors] = useState<Record<string, string>>({});
   const [habitWorkoutLinks, setHabitWorkoutLinks] = useState<Record<string, WorkoutLinkEntry>>({});
   const [habitShowFutureDays, setHabitShowFutureDays] = useState<Record<string, boolean>>({});
-  const [futurePreviewMode, setFuturePreviewMode] = useState<FuturePreviewMode>("auto");
-  const [futurePreviewCustomDays, setFuturePreviewCustomDays] = useState(
-    DEFAULT_CUSTOM_FUTURE_PREVIEW_DAYS
-  );
+  const [habitFuturePreviewSettings, setHabitFuturePreviewSettings] = useState<
+    Record<string, HabitFuturePreviewSetting>
+  >({});
   const [habitOrder, setHabitOrder] = useState<string[]>([]);
   const [draggingHabitSlug, setDraggingHabitSlug] = useState<string | null>(null);
   const [dragOverHabitSlug, setDragOverHabitSlug] = useState<string | null>(null);
@@ -482,7 +487,6 @@ export default function HabitTracker() {
   const [showAddHabitModal, setShowAddHabitModal] = useState(false);
   const [editingBinaryHabitSlug, setEditingBinaryHabitSlug] = useState<string | null>(null);
   const [editingDurationHabitSlug, setEditingDurationHabitSlug] = useState<string | null>(null);
-  const [showTrackerSettingsPanel, setShowTrackerSettingsPanel] = useState(false);
   const [habitSettingsOpen, setHabitSettingsOpen] = useState<Record<string, boolean>>({});
   const habitDayQueueRef = useRef<QueuedHabitDayUpdate[]>([]);
   const habitDayQueueRunningRef = useRef(false);
@@ -508,6 +512,17 @@ export default function HabitTracker() {
     lockBodyScroll();
     return () => unlockBodyScroll();
   }, [hasOpenModal]);
+
+  useEffect(() => {
+    const onOpenAddHabit = () => setShowAddHabitModal(true);
+    const onOpenAddMilestone = () => setShowAddMilestoneModal(true);
+    window.addEventListener(OPEN_ADD_HABIT_EVENT, onOpenAddHabit);
+    window.addEventListener(OPEN_ADD_MILESTONE_EVENT, onOpenAddMilestone);
+    return () => {
+      window.removeEventListener(OPEN_ADD_HABIT_EVENT, onOpenAddHabit);
+      window.removeEventListener(OPEN_ADD_MILESTONE_EVENT, onOpenAddMilestone);
+    };
+  }, []);
 
   useEffect(() => {
     const raw = window.localStorage.getItem(HABIT_WEEKS_STORAGE_KEY);
@@ -685,14 +700,48 @@ export default function HabitTracker() {
     try {
       const parsed = JSON.parse(raw) as unknown;
       if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return;
-      const mode = (parsed as { mode?: unknown }).mode;
-      const days = (parsed as { customDays?: unknown }).customDays;
-      if (mode === "auto" || mode === "custom") setFuturePreviewMode(mode);
-      if (typeof days === "number") setFuturePreviewCustomDays(clampFuturePreviewDays(days));
+      const next: Record<string, HabitFuturePreviewSetting> = {};
+
+      // New per-habit shape: { [slug]: { mode, customDays } }
+      for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
+        if (typeof key !== "string") continue;
+        if (!value || typeof value !== "object" || Array.isArray(value)) continue;
+        const mode = (value as { mode?: unknown }).mode;
+        const customDays = (value as { customDays?: unknown }).customDays;
+        if (mode !== "auto" && mode !== "custom") continue;
+        if (typeof customDays !== "number") continue;
+        next[key] = {
+          mode,
+          customDays: clampFuturePreviewDays(customDays),
+        };
+      }
+
+      // Legacy global shape fallback: { mode, customDays }
+      if (Object.keys(next).length === 0) {
+        const mode = (parsed as { mode?: unknown }).mode;
+        const customDays = (parsed as { customDays?: unknown }).customDays;
+        if ((mode === "auto" || mode === "custom") && typeof customDays === "number") {
+          const fallbackValue = {
+            mode,
+            customDays: clampFuturePreviewDays(customDays),
+          } as HabitFuturePreviewSetting;
+          setHabitFuturePreviewSettings((previous) => {
+            if (!data?.habits?.length) return previous;
+            const seeded: Record<string, HabitFuturePreviewSetting> = {};
+            for (const habit of data.habits) {
+              seeded[habit.slug] = fallbackValue;
+            }
+            return seeded;
+          });
+          return;
+        }
+      }
+
+      setHabitFuturePreviewSettings(next);
     } catch {
       // Ignore malformed localStorage payload.
     }
-  }, []);
+  }, [data]);
 
   useEffect(() => {
     const raw = window.localStorage.getItem(HABIT_ORDER_STORAGE_KEY);
@@ -797,10 +846,7 @@ export default function HabitTracker() {
       );
       window.localStorage.setItem(
         HABIT_FUTURE_PREVIEW_SETTINGS_STORAGE_KEY,
-        JSON.stringify({
-          mode: futurePreviewMode,
-          customDays: clampFuturePreviewDays(futurePreviewCustomDays),
-        })
+        JSON.stringify(habitFuturePreviewSettings)
       );
       window.localStorage.setItem(HABIT_ORDER_STORAGE_KEY, JSON.stringify(habitOrder));
     }, 140);
@@ -813,8 +859,7 @@ export default function HabitTracker() {
     };
   }, [
     habitColors,
-    futurePreviewCustomDays,
-    futurePreviewMode,
+    habitFuturePreviewSettings,
     habitShowFutureDays,
     habitWorkoutLinks,
     habitOrder,
@@ -1872,17 +1917,7 @@ export default function HabitTracker() {
 
   return (
     <div className="surface-card p-6">
-      <div className="flex flex-wrap items-center justify-end gap-3 mb-4">
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setShowTrackerSettingsPanel((previous) => !previous)}
-            className="pill-btn px-2.5 py-1 text-xs"
-          >
-            {showTrackerSettingsPanel ? "Hide tracker settings" : "Tracker settings"}
-          </button>
-        </div>
-      </div>
+      <div className="mb-2" />
 
       {loading && (
         <div className="h-40 flex items-center justify-center text-zinc-400 animate-pulse">
@@ -1893,19 +1928,10 @@ export default function HabitTracker() {
 
       {data && !loading && (
         <div className="space-y-3">
-          <div className={`${showTrackerSettingsPanel ? "border-t border-zinc-200 pt-6" : "hidden"}`}>
+          <div className="border-t border-zinc-200 pt-6">
             <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
               <h3 className="text-base font-semibold">🗓️ Exam and Coursework Dates</h3>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-zinc-500">Outlined in red on the study calendar</span>
-                <button
-                  type="button"
-                  onClick={() => setShowAddMilestoneModal(true)}
-                  className="px-3 py-1.5 rounded-md text-xs bg-red-500 hover:bg-red-600 text-white transition-colors"
-                >
-                  ➕ Add date
-                </button>
-              </div>
+              <span className="text-xs text-zinc-500">Outlined in red on the study calendar</span>
             </div>
 
             {milestones.length === 0 && (
@@ -1945,23 +1971,16 @@ export default function HabitTracker() {
           </div>
 
           <div className="border-t border-zinc-200 pt-4">
-            <div className={`${showTrackerSettingsPanel ? "flex flex-wrap items-center justify-between gap-2 mb-4" : "hidden"}`}>
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
               <h3 className="text-base font-semibold">✅ Habit Trackers</h3>
               <div className="flex items-center gap-2">
                 <span className="text-xs text-zinc-500">{trackerRangeLabel}</span>
-                <button
-                  type="button"
-                  onClick={() => setShowAddHabitModal(true)}
-                  className="px-3 py-1.5 rounded-md text-xs bg-sky-500 hover:bg-sky-600 text-white transition-colors"
-                >
-                  ➕ Add habit
-                </button>
               </div>
             </div>
 
-            {showTrackerSettingsPanel && actionError && <p className="text-sm text-red-500 mb-3">{actionError}</p>}
-            {showTrackerSettingsPanel && actionSuccess && <p className="text-sm text-emerald-600 mb-3">{actionSuccess}</p>}
-            {showTrackerSettingsPanel && habitColorSyncMessage && (
+            {actionError && <p className="text-sm text-red-500 mb-3">{actionError}</p>}
+            {actionSuccess && <p className="text-sm text-emerald-600 mb-3">{actionSuccess}</p>}
+            {habitColorSyncMessage && (
               <p className="text-sm text-emerald-600 mb-3">{habitColorSyncMessage}</p>
             )}
 
@@ -1976,56 +1995,15 @@ export default function HabitTracker() {
               <p className="text-sm text-zinc-500">No habits yet. Add one above to start tracking.</p>
             )}
 
-            <div className={`${showTrackerSettingsPanel ? "mb-3 flex flex-wrap items-center gap-2 text-xs text-zinc-500" : "hidden"}`}>
-              <span>Future preview</span>
-              <select
-                value={futurePreviewMode}
-                onChange={(event) => setFuturePreviewMode(event.target.value as FuturePreviewMode)}
-                className="rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1 text-xs"
-              >
-                <option value="auto">Auto</option>
-                <option value="custom">Custom</option>
-              </select>
-              {futurePreviewMode === "custom" ? (
-                <>
-                  <input
-                    type="number"
-                    min={1}
-                    max={365}
-                    step={1}
-                    value={futurePreviewCustomDays}
-                    onChange={(event) =>
-                      setFuturePreviewCustomDays(
-                        clampFuturePreviewDays(Number(event.target.value || "0"))
-                      )
-                    }
-                    className="w-20 rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1 text-xs"
-                    aria-label="Custom future preview days"
-                  />
-                  <span>days ahead</span>
-                </>
-              ) : (
-                <span>
-                  (until last exam date, or 1 month if no exams)
-                </span>
-              )}
-            </div>
-
-            {!showTrackerSettingsPanel && (
-              <p className="text-xs text-zinc-500 mb-3">
-                Compact mode: open `Tracker settings` to edit habits, preview settings, and dates.
-              </p>
-            )}
-
             <div className="space-y-4">
               {orderedHabits.map((habit) => {
                 const isExamAwareStudyHabit = habit.slug === examAwareStudyHabitSlug;
                 const habitSettingsExpanded = Boolean(habitSettingsOpen[habit.slug]);
-                const shouldShowFutureDays =
-                  Boolean(habitShowFutureDays[habit.slug]) ||
-                  (futurePreviewMode === "auto" &&
-                    isExamAwareStudyHabit &&
-                    habit.mode === "duration");
+                const habitFuturePreview = habitFuturePreviewSettings[habit.slug] || {
+                  mode: "auto" as FuturePreviewMode,
+                  customDays: DEFAULT_CUSTOM_FUTURE_PREVIEW_DAYS,
+                };
+                const shouldShowFutureDays = Boolean(habitShowFutureDays[habit.slug]);
                 const habitDaysForGrid =
                   shouldShowFutureDays
                     ? (() => {
@@ -2033,8 +2011,11 @@ export default function HabitTracker() {
                         const lastTrackedDate =
                           next[next.length - 1]?.date || data.trackerRange.endDate;
                         const finalEndDate =
-                          futurePreviewMode === "custom"
-                            ? addDays(lastTrackedDate, clampFuturePreviewDays(futurePreviewCustomDays))
+                          habitFuturePreview.mode === "custom"
+                            ? addDays(
+                                lastTrackedDate,
+                                clampFuturePreviewDays(habitFuturePreview.customDays)
+                              )
                             : isExamAwareStudyHabit &&
                                 latestExamDate !== "" &&
                                 latestExamDate > lastTrackedDate
@@ -2171,6 +2152,58 @@ export default function HabitTracker() {
                           />
                           <span>Show future days</span>
                         </label>
+                        {shouldShowFutureDays && (
+                          <>
+                            <label className="flex items-center gap-1 text-xs text-zinc-500">
+                              <span>Future preview</span>
+                              <select
+                                value={habitFuturePreview.mode}
+                                onChange={(event) =>
+                                  setHabitFuturePreviewSettings((previous) => ({
+                                    ...previous,
+                                    [habit.slug]: {
+                                      mode:
+                                        event.target.value === "custom" ? "custom" : "auto",
+                                      customDays: clampFuturePreviewDays(
+                                        previous[habit.slug]?.customDays ??
+                                          DEFAULT_CUSTOM_FUTURE_PREVIEW_DAYS
+                                      ),
+                                    },
+                                  }))
+                                }
+                                className="rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1 text-xs"
+                              >
+                                <option value="auto">Auto</option>
+                                <option value="custom">Custom</option>
+                              </select>
+                            </label>
+                            {habitFuturePreview.mode === "custom" && (
+                              <label className="flex items-center gap-1 text-xs text-zinc-500">
+                                <span>Days</span>
+                                <input
+                                  type="number"
+                                  min={1}
+                                  max={365}
+                                  step={1}
+                                  value={habitFuturePreview.customDays}
+                                  onChange={(event) =>
+                                    setHabitFuturePreviewSettings((previous) => ({
+                                      ...previous,
+                                      [habit.slug]: {
+                                        mode: previous[habit.slug]?.mode || "auto",
+                                        customDays: clampFuturePreviewDays(
+                                          Number(event.target.value || "0")
+                                        ),
+                                      },
+                                    }))
+                                  }
+                                  className="w-16 rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1 text-xs"
+                                  aria-label={`Custom future days for ${habit.name}`}
+                                />
+                              </label>
+                            )}
+                          </>
+                        )}
                         <label className="flex items-center gap-1 text-xs text-zinc-500">
                           <span>Color</span>
                           <select

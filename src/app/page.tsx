@@ -198,6 +198,26 @@ export default function Home() {
                   >
                     Settings
                   </button>
+                  <button
+                    type="button"
+                    className="pill-btn w-full text-left"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      window.dispatchEvent(new CustomEvent("study-stats:open-add-habit"));
+                    }}
+                  >
+                    Add habit
+                  </button>
+                  <button
+                    type="button"
+                    className="pill-btn w-full text-left"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      window.dispatchEvent(new CustomEvent("study-stats:open-add-milestone"));
+                    }}
+                  >
+                    Add exam/coursework
+                  </button>
                   <TopBarDataControls mode="refreshOnly" stacked showLastFetched={false} />
                   <AuthButton compact className="w-full text-left" />
                 </div>
