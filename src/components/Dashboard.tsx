@@ -345,14 +345,10 @@ export default function Dashboard() {
 
   const getCardStyle = (id: CardId): CSSProperties | undefined => {
     if (!isDesktop) return undefined;
-    const { colSpan, rowSpan } = resolveCardLayout(cardSizes[id], gridColumns);
-    const effectiveRowSpan =
-      id === "today-progress" || id === "first-exam-countdown" || id === "habit-tracker"
-        ? 1
-        : rowSpan;
+    const { colSpan } = resolveCardLayout(cardSizes[id], gridColumns);
     return {
       gridColumn: `span ${colSpan} / span ${colSpan}`,
-      gridRow: `span ${effectiveRowSpan} / span ${effectiveRowSpan}`,
+      gridRow: "span 1 / span 1",
     };
   };
 
