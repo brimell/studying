@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { signIn, signOut, useSession } from "next-auth/react";
+import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
 
 interface AuthButtonProps {
   compact?: boolean;
@@ -9,26 +10,94 @@ interface AuthButtonProps {
 }
 
 const GOOGLE_LINKED_STORAGE_KEY = "study-stats.google-linked-account";
+const GOOGLE_LINKED_METADATA_KEY = "google_linked_once";
 
 export default function AuthButton({ compact = false, className = "" }: AuthButtonProps) {
   const { data: session, status } = useSession();
-  const [linkedBeforeSnapshot] = useState(() => {
+  const supabase = useMemo(() => getSupabaseBrowserClient(), []);
+  const [linkedBeforeSnapshot, setLinkedBeforeSnapshot] = useState(() => {
     if (typeof window === "undefined") return false;
     return Boolean(window.localStorage.getItem(GOOGLE_LINKED_STORAGE_KEY));
   });
   const hasLinkedBefore = Boolean(session?.user?.email) || linkedBeforeSnapshot;
 
   useEffect(() => {
+    if (!supabase) return;
+    let cancelled = false;
+
+    const loadLinkedFromSupabaseMetadata = async () => {
+      const { data } = await supabase.auth.getUser();
+      if (cancelled) return;
+      const linkedFromMetadata = Boolean(
+        data.user?.user_metadata?.[GOOGLE_LINKED_METADATA_KEY]
+      );
+      if (!linkedFromMetadata) return;
+      setLinkedBeforeSnapshot(true);
+      if (typeof window !== "undefined" && !window.localStorage.getItem(GOOGLE_LINKED_STORAGE_KEY)) {
+        window.localStorage.setItem(
+          GOOGLE_LINKED_STORAGE_KEY,
+          JSON.stringify({
+            linkedAt: new Date().toISOString(),
+            source: "supabase-metadata",
+          })
+        );
+      }
+    };
+
+    void loadLinkedFromSupabaseMetadata();
+    return () => {
+      cancelled = true;
+    };
+  }, [supabase]);
+
+  useEffect(() => {
     if (typeof window === "undefined") return;
     if (status === "loading" || !session?.user?.email) return;
-    if (session?.user?.email) {
+
+    let cancelled = false;
+    const persistLocalLinkedSnapshot = async () => {
       const snapshot = JSON.stringify({
-        email: session.user.email,
+        email: session.user?.email,
         linkedAt: new Date().toISOString(),
       });
       window.localStorage.setItem(GOOGLE_LINKED_STORAGE_KEY, snapshot);
-    }
+      if (!cancelled) setLinkedBeforeSnapshot(true);
+    };
+
+    void persistLocalLinkedSnapshot();
+    return () => {
+      cancelled = true;
+    };
   }, [session, status]);
+
+  useEffect(() => {
+    if (!supabase) return;
+    if (status === "loading" || !session?.user?.email) return;
+
+    let cancelled = false;
+    const persistLinkedToSupabaseMetadata = async () => {
+      const { data } = await supabase.auth.getUser();
+      if (cancelled) return;
+      const existingLinked = Boolean(
+        data.user?.user_metadata?.[GOOGLE_LINKED_METADATA_KEY]
+      );
+      if (existingLinked) return;
+
+      await supabase.auth.updateUser({
+        data: {
+          ...(data.user?.user_metadata || {}),
+          [GOOGLE_LINKED_METADATA_KEY]: true,
+          google_linked_email: session.user?.email || null,
+          google_linked_at: new Date().toISOString(),
+        },
+      });
+    };
+
+    void persistLinkedToSupabaseMetadata();
+    return () => {
+      cancelled = true;
+    }
+  }, [session, status, supabase]);
 
   if (status === "loading") {
     return (
