@@ -34,7 +34,12 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${inter.variable} antialiased`}
       >
-        <Providers>{children}</Providers>
+        <div className="relative h-[100dvh] w-screen overflow-hidden bg-background">
+          <div className="vintage-tv-bg pointer-events-none absolute inset-0" />
+          <div className="relative z-[1] h-full overflow-y-auto">
+            <Providers>{children}</Providers>
+          </div>
+        </div>
       </body>
     </html>
   );
