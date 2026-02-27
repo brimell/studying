@@ -1109,7 +1109,7 @@ export default function WorkoutPlanner() {
               return (
                 <div
                   key={`next-${workoutId}-${index}`}
-                  className="rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2"
+                  className="rounded-md bg-zinc-50/70 px-3 py-2"
                 >
                   <div className="flex items-center justify-between gap-2">
                     <div>
@@ -1179,10 +1179,10 @@ export default function WorkoutPlanner() {
             {injuryInsights.map((insight) => (
               <div
                 key={insight.id}
-                className={`rounded-md border px-3 py-2 ${
+                className={`rounded-md px-3 py-2 ${
                   insight.type === "warning"
-                    ? "border-amber-300 bg-amber-50/70"
-                    : "border-emerald-300 bg-emerald-50/70"
+                    ? "bg-amber-50/70"
+                    : "bg-emerald-50/70"
                 }`}
               >
                 <p className="text-sm font-semibold">{insight.title}</p>
@@ -1194,7 +1194,7 @@ export default function WorkoutPlanner() {
       </section>
 
       {(loading || saving) && (
-        <div className="rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-2 text-sm text-zinc-500">
+        <div className="rounded-xl bg-zinc-50 px-4 py-2 text-sm text-zinc-500">
           {loading ? "Loading planner..." : "Saving..."}
         </div>
       )}
@@ -1210,7 +1210,7 @@ export default function WorkoutPlanner() {
         showOrganPanel={false}
       />
 
-      <section className="rounded-2xl bg-white p-5 shadow-sm border border-zinc-200">
+      <section className="rounded-2xl bg-white p-5 shadow-sm">
         <h2 className="text-lg font-semibold mb-1">How Exercise Supports Organs</h2>
         <p className="text-xs text-zinc-500 mb-3">
           This info card estimates internal-system support based on the muscle groups your workouts load.
@@ -1228,7 +1228,7 @@ export default function WorkoutPlanner() {
       <div className="grid grid-cols-1 gap-5">
         <section
           ref={weeklyPlanSectionRef}
-          className="rounded-2xl bg-white p-5 shadow-sm border border-zinc-200"
+          className="rounded-2xl bg-white p-5 shadow-sm"
         >
           <h2 className="text-lg font-semibold mb-3">Saved Workouts</h2>
           <div className="space-y-3">
@@ -1242,7 +1242,7 @@ export default function WorkoutPlanner() {
                   : highlightedMusclesByWorkout[workout.id] || [];
 
               return (
-                <div key={workout.id} className="rounded-lg border border-zinc-200 p-2">
+                <div key={workout.id} className="rounded-lg bg-zinc-50/40 p-2.5">
                 <div className="flex flex-wrap items-center justify-between gap-1.5">
                   <div className="min-w-0">
                     <p className="text-xs font-semibold truncate">{workout.name}</p>
@@ -1300,7 +1300,7 @@ export default function WorkoutPlanner() {
                   </div>
                 </div>
                 <div className="mt-1.5 grid grid-cols-1 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] gap-2 items-stretch">
-                  <div className="rounded-md border border-zinc-200 bg-zinc-50/50 p-1.5 min-h-[16rem] h-full">
+                  <div className="rounded-md bg-white/70 p-1.5 min-h-[16rem] h-full">
                     <MuscleModel
                       scores={workoutScoresById.get(workout.id) || fatigueScores}
                       loadPoints={workoutLoadById.get(workout.id)}
@@ -1313,7 +1313,7 @@ export default function WorkoutPlanner() {
                       }
                     />
                   </div>
-                  <div className="rounded-md border border-zinc-200 bg-zinc-50/50 p-1.5 min-h-[16rem] h-full flex flex-col">
+                  <div className="rounded-md bg-white/70 p-1.5 min-h-[16rem] h-full flex flex-col">
                     <div className="space-y-1 overflow-y-auto pr-1 flex-1">
                       {workout.exercises.map((exercise, exerciseIndex) => {
                         const exerciseHoverKey = `${workout.id}-${exercise.id}-${exerciseIndex}`;
@@ -1358,10 +1358,10 @@ export default function WorkoutPlanner() {
                             }));
                           }}
                           tabIndex={0}
-                          className={`rounded-md border px-2 py-1 transition-colors ${
+                          className={`rounded-md px-2 py-1 transition-colors ${
                             isRowHighlighted
-                              ? "border-sky-300 bg-sky-50/70"
-                              : "border-zinc-200 bg-zinc-50/70"
+                              ? "bg-sky-50/70 ring-1 ring-sky-200"
+                              : "bg-zinc-50/60"
                           }`}
                         >
                           <div className="flex items-start justify-between gap-2">
@@ -1405,10 +1405,10 @@ export default function WorkoutPlanner() {
           </div>
         </section>
 
-        <section className="rounded-2xl bg-white p-5 shadow-sm border border-zinc-200">
+        <section className="rounded-2xl bg-white p-5 shadow-sm">
           <h2 className="text-lg font-semibold mb-3">Weekly Workout Plans</h2>
 
-          <form onSubmit={saveWeeklyPlan} className="rounded-lg border border-zinc-200 p-3 space-y-3">
+          <form onSubmit={saveWeeklyPlan} className="rounded-lg bg-zinc-50/50 p-3 space-y-3">
             <input
               type="text"
               value={weeklyPlanName}
@@ -1418,7 +1418,7 @@ export default function WorkoutPlanner() {
             />
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
               {WORKOUT_WEEK_DAYS.map((day) => (
-                <div key={day} className="rounded-lg border border-zinc-200 p-2 text-xs">
+                <div key={day} className="rounded-lg bg-white/70 p-2 text-xs">
                   <p className="font-medium mb-1">{WEEKDAY_LABELS[day]}</p>
                   <div className="space-y-1 max-h-32 overflow-y-auto pr-1">
                     {payload.workouts.length === 0 && <p className="text-zinc-500">No workouts</p>}
@@ -1487,7 +1487,7 @@ export default function WorkoutPlanner() {
               );
 
               return (
-                <div key={plan.id} className="rounded-lg border border-zinc-200 p-3">
+                <div key={plan.id} className="rounded-lg bg-zinc-50/45 p-3">
                   <div className="flex items-center justify-between gap-2">
                     <p className="font-medium">{plan.name}</p>
                     <div className="flex items-center gap-2">
@@ -1542,7 +1542,7 @@ export default function WorkoutPlanner() {
                     {nonZeroMuscles.map(({ muscle, load, hitDays, pct }) => (
                       <div
                         key={`${plan.id}-${muscle}`}
-                        className="rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1.5 text-xs"
+                        className="rounded-md bg-white/80 px-2 py-1.5 text-xs"
                       >
                         <div className="flex items-center justify-between">
                           <span>{MUSCLE_LABELS[muscle]}</span>
@@ -1555,7 +1555,7 @@ export default function WorkoutPlanner() {
                     ))}
                   </div>
 
-                  <div className="mt-3 rounded-md border border-amber-200 bg-amber-50/60 px-3 py-2 text-xs">
+                  <div className="mt-3 rounded-md bg-amber-50/60 px-3 py-2 text-xs">
                     <p className="font-medium text-amber-800">Missing muscle groups</p>
                     <p className="text-amber-700 mt-1">
                       {missingMuscles.length > 0
@@ -2110,7 +2110,7 @@ export default function WorkoutPlanner() {
           document.body
         )}
 
-      <section className="rounded-2xl bg-white p-5 shadow-sm border border-zinc-200">
+      <section className="rounded-2xl bg-white p-5 shadow-sm">
         <h2 className="text-lg font-semibold mb-3">Workout History</h2>
         <div className="space-y-2">
           {payload.logs.length === 0 && <p className="text-sm text-zinc-500">No logged workouts yet.</p>}
@@ -2119,7 +2119,7 @@ export default function WorkoutPlanner() {
             return (
               <div
                 key={log.id}
-                className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 flex items-center justify-between gap-2"
+                className="rounded-lg bg-zinc-50/70 px-3 py-2 flex items-center justify-between gap-2"
               >
                 <div>
                   <p className="text-sm font-medium">{workout?.name || "Deleted workout"}</p>
