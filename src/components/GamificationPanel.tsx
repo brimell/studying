@@ -504,6 +504,22 @@ export default function GamificationPanel() {
 
       {!loading && !error && model && (
         <div className="space-y-4">
+          <div className="rounded-xl border border-sky-300 bg-sky-50 p-4">
+            <p className="text-xs uppercase tracking-[0.12em] text-sky-700">Combined streak</p>
+            <div className="mt-2 flex items-end justify-between gap-4">
+              <p className="stat-mono text-6xl md:text-7xl font-bold leading-none text-sky-900">
+                {model.combinedCurrentStreak}
+                <span className="ml-2 text-2xl md:text-3xl align-baseline">days</span>
+              </p>
+              <div className="text-right">
+                <p className="text-[11px] text-sky-700">Longest combined</p>
+                <p className="stat-mono text-lg font-semibold text-sky-900">
+                  {model.combinedLongestStreak}d
+                </p>
+              </div>
+            </div>
+          </div>
+
           <div className="rounded-lg border border-emerald-200 bg-emerald-50/70 p-3">
             <div className="flex items-end justify-between gap-3">
               <div>
@@ -526,15 +542,7 @@ export default function GamificationPanel() {
             </p>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-            <div className="rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2">
-              <p className="text-[11px] text-zinc-500">Combined streak</p>
-              <p className="font-semibold text-sm stat-mono">{model.combinedCurrentStreak} days</p>
-            </div>
-            <div className="rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2">
-              <p className="text-[11px] text-zinc-500">Longest combined streak</p>
-              <p className="font-semibold text-sm stat-mono">{model.combinedLongestStreak} days</p>
-            </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
             <div className="rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2">
               <p className="text-[11px] text-zinc-500">Study streak</p>
               <p className="font-semibold text-sm stat-mono">{model.studyCurrentStreak} days</p>
