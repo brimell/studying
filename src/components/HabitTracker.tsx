@@ -24,10 +24,10 @@ const HABIT_MATCH_TERMS_STORAGE_KEY = "study-stats.habit-tracker.new-habit.match
 const HABIT_COLORS_STORAGE_KEY = "study-stats.habit-tracker.colors";
 const HABIT_WORKOUT_LINKS_STORAGE_KEY = "study-stats.habit-tracker.workout-links";
 const HABIT_SHOW_FUTURE_DAYS_STORAGE_KEY = "study-stats.habit-tracker.show-future-days";
+const HABIT_FUTURE_PREVIEW_SETTINGS_STORAGE_KEY = "study-stats.habit-tracker.future-preview";
 const HABIT_ORDER_STORAGE_KEY = "study-stats.habit-tracker.order";
 const STUDY_HABIT_STORAGE_KEY = "study-stats.habit-tracker.study-habit";
-const STUDY_FUTURE_PREVIEW_DAYS = 35;
-const STUDY_FUTURE_PREVIEW_MAX_MONTHS = 6;
+const DEFAULT_CUSTOM_FUTURE_PREVIEW_DAYS = 35;
 const DEFAULT_STUDY_HABIT_NAME = "Studying";
 const DEFAULT_GYM_HABIT_NAME = "Gym";
 const DEFAULT_HABITS = [
@@ -112,6 +112,8 @@ interface MatchTermDraftEntry {
   subject: string;
   terms: string;
 }
+
+type FuturePreviewMode = "auto" | "custom";
 
 function isHexColor(value: string): boolean {
   return /^#[0-9a-f]{6}$/i.test(value);
@@ -246,6 +248,11 @@ function normalizeHours(hours: number): number {
 
 function normalizeHabitName(name: string): string {
   return name.trim().toLowerCase();
+}
+
+function clampFuturePreviewDays(value: number): number {
+  if (!Number.isFinite(value)) return DEFAULT_CUSTOM_FUTURE_PREVIEW_DAYS;
+  return Math.max(1, Math.min(365, Math.round(value)));
 }
 
 function createMatchTermDraftEntry(subject = "", terms = ""): MatchTermDraftEntry {
@@ -457,6 +464,10 @@ export default function HabitTracker() {
   const [habitColors, setHabitColors] = useState<Record<string, string>>({});
   const [habitWorkoutLinks, setHabitWorkoutLinks] = useState<Record<string, WorkoutLinkEntry>>({});
   const [habitShowFutureDays, setHabitShowFutureDays] = useState<Record<string, boolean>>({});
+  const [futurePreviewMode, setFuturePreviewMode] = useState<FuturePreviewMode>("auto");
+  const [futurePreviewCustomDays, setFuturePreviewCustomDays] = useState(
+    DEFAULT_CUSTOM_FUTURE_PREVIEW_DAYS
+  );
   const [habitOrder, setHabitOrder] = useState<string[]>([]);
   const [draggingHabitSlug, setDraggingHabitSlug] = useState<string | null>(null);
   const [dragOverHabitSlug, setDragOverHabitSlug] = useState<string | null>(null);
@@ -524,7 +535,7 @@ export default function HabitTracker() {
 
   useEffect(() => {
     const raw = window.localStorage.getItem(HABIT_COLORS_STORAGE_KEY);
-    let next: Record<string, string> = {};
+    const next: Record<string, string> = {};
     try {
       if (raw) {
         const parsed = JSON.parse(raw) as unknown;
@@ -664,6 +675,21 @@ export default function HabitTracker() {
   }, []);
 
   useEffect(() => {
+    const raw = window.localStorage.getItem(HABIT_FUTURE_PREVIEW_SETTINGS_STORAGE_KEY);
+    if (!raw) return;
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return;
+      const mode = (parsed as { mode?: unknown }).mode;
+      const days = (parsed as { customDays?: unknown }).customDays;
+      if (mode === "auto" || mode === "custom") setFuturePreviewMode(mode);
+      if (typeof days === "number") setFuturePreviewCustomDays(clampFuturePreviewDays(days));
+    } catch {
+      // Ignore malformed localStorage payload.
+    }
+  }, []);
+
+  useEffect(() => {
     const raw = window.localStorage.getItem(HABIT_ORDER_STORAGE_KEY);
     if (!raw) return;
     try {
@@ -764,6 +790,13 @@ export default function HabitTracker() {
         HABIT_SHOW_FUTURE_DAYS_STORAGE_KEY,
         JSON.stringify(habitShowFutureDays)
       );
+      window.localStorage.setItem(
+        HABIT_FUTURE_PREVIEW_SETTINGS_STORAGE_KEY,
+        JSON.stringify({
+          mode: futurePreviewMode,
+          customDays: clampFuturePreviewDays(futurePreviewCustomDays),
+        })
+      );
       window.localStorage.setItem(HABIT_ORDER_STORAGE_KEY, JSON.stringify(habitOrder));
     }, 140);
 
@@ -775,6 +808,8 @@ export default function HabitTracker() {
     };
   }, [
     habitColors,
+    futurePreviewCustomDays,
+    futurePreviewMode,
     habitShowFutureDays,
     habitWorkoutLinks,
     habitOrder,
@@ -1236,6 +1271,13 @@ export default function HabitTracker() {
 
   const milestoneDateSet = useMemo(() => {
     return new Set(milestones.map((milestone) => milestone.date));
+  }, [milestones]);
+
+  const latestExamDate = useMemo(() => {
+    return milestones.reduce((latest, milestone) => {
+      if (milestone.type !== "exam") return latest;
+      return milestone.date > latest ? milestone.date : latest;
+    }, "");
   }, [milestones]);
 
   useEffect(() => {
@@ -1867,6 +1909,41 @@ export default function HabitTracker() {
               <p className="text-sm text-zinc-500">No habits yet. Add one above to start tracking.</p>
             )}
 
+            <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-zinc-500">
+              <span>Future preview</span>
+              <select
+                value={futurePreviewMode}
+                onChange={(event) => setFuturePreviewMode(event.target.value as FuturePreviewMode)}
+                className="rounded-md border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 px-2 py-1 text-xs"
+              >
+                <option value="auto">Auto</option>
+                <option value="custom">Custom</option>
+              </select>
+              {futurePreviewMode === "custom" ? (
+                <>
+                  <input
+                    type="number"
+                    min={1}
+                    max={365}
+                    step={1}
+                    value={futurePreviewCustomDays}
+                    onChange={(event) =>
+                      setFuturePreviewCustomDays(
+                        clampFuturePreviewDays(Number(event.target.value || "0"))
+                      )
+                    }
+                    className="w-20 rounded-md border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 px-2 py-1 text-xs"
+                    aria-label="Custom future preview days"
+                  />
+                  <span>days ahead</span>
+                </>
+              ) : (
+                <span>
+                  (until last exam date, or 1 month if no exams)
+                </span>
+              )}
+            </div>
+
             <div className="space-y-4">
               {orderedHabits.map((habit) => {
                 const isSelectedStudyHabit = habit.slug === selectedStudyHabitSlug;
@@ -1877,26 +1954,12 @@ export default function HabitTracker() {
                         const next = [...habit.days];
                         const lastTrackedDate =
                           next[next.length - 1]?.date || data.trackerRange.endDate;
-                        const previewEndDate = addDays(lastTrackedDate, STUDY_FUTURE_PREVIEW_DAYS);
-                        const maxAllowedEndDate = addMonths(
-                          lastTrackedDate,
-                          STUDY_FUTURE_PREVIEW_MAX_MONTHS
-                        );
-                        const targetEndDate = isSelectedStudyHabit
-                          ? (() => {
-                              const lastMilestoneDate = milestones.reduce((latest, milestone) => {
-                                if (milestone.date <= lastTrackedDate) return latest;
-                                return milestone.date > latest ? milestone.date : latest;
-                              }, "");
-                              const milestoneWithinLimit =
-                                lastMilestoneDate !== "" && lastMilestoneDate <= maxAllowedEndDate
-                                  ? lastMilestoneDate
-                                  : "";
-                              return milestoneWithinLimit !== "" ? milestoneWithinLimit : maxAllowedEndDate;
-                            })()
-                          : previewEndDate;
                         const finalEndDate =
-                          targetEndDate > previewEndDate ? targetEndDate : previewEndDate;
+                          futurePreviewMode === "custom"
+                            ? addDays(lastTrackedDate, clampFuturePreviewDays(futurePreviewCustomDays))
+                            : latestExamDate !== "" && latestExamDate > lastTrackedDate
+                              ? latestExamDate
+                              : addMonths(lastTrackedDate, 1);
                         for (
                           let date = addDays(lastTrackedDate, 1);
                           date <= finalEndDate;
