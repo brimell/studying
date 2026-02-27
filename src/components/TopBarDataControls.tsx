@@ -7,15 +7,15 @@ import { lockBodyScroll, unlockBodyScroll } from "@/lib/scroll-lock";
 import StudyProjection from "@/components/StudyProjection";
 
 export default function TopBarDataControls() {
-  const [lastFetchedAt, setLastFetchedAt] = useState<number | null>(null);
-  const [now, setNow] = useState(Date.now());
+  const [lastFetchedAt, setLastFetchedAt] = useState<number | null>(() =>
+    typeof window === "undefined" ? null : readGlobalLastFetched()
+  );
+  const [now, setNow] = useState(() => Date.now());
   const [refreshing, setRefreshing] = useState(false);
   const [showStudyProjection, setShowStudyProjection] = useState(false);
-  const [mounted, setMounted] = useState(false);
+  const mounted = typeof window !== "undefined";
 
   useEffect(() => {
-    setLastFetchedAt(readGlobalLastFetched());
-
     const onUpdate = () => setLastFetchedAt(readGlobalLastFetched());
     window.addEventListener("study-stats:last-fetched-updated", onUpdate);
 
@@ -27,10 +27,6 @@ export default function TopBarDataControls() {
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 60_000);
     return () => window.clearInterval(timer);
-  }, []);
-
-  useEffect(() => {
-    setMounted(true);
   }, []);
 
   useEffect(() => {
