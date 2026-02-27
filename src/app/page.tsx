@@ -66,11 +66,12 @@ export default function Home() {
     <div className="app-shell">
       {/* Header */}
       <header className="top-nav sticky top-0 z-50">
-        <div className={`${containerClass} py-2 flex flex-col gap-2 sm:h-16 sm:flex-row sm:items-center sm:justify-between`}>
+        <div className={`${containerClass} py-2 flex flex-col gap-2 sm:h-16 sm:flex-row sm:items-center`}>
           <h1 className="text-lg sm:text-xl font-bold tracking-tight text-zinc-900">Dashboard</h1>
 
-          <div className="relative" ref={menuRef}>
+          <div className="relative ml-auto" ref={menuRef}>
             <div className="flex items-center gap-2">
+              <TopBarDataControls mode="levelOnly" />
               <button
                 type="button"
                 onClick={() => setMenuOpen((current) => !current)}
@@ -80,11 +81,10 @@ export default function Home() {
               >
                 {userLabel}
               </button>
-              <TopBarDataControls mode="levelOnly" />
             </div>
 
             {menuOpen && (
-              <div className="surface-card-strong absolute left-0 mt-2 w-[min(24rem,calc(100vw-2rem))] p-3 z-[80] space-y-3">
+              <div className="surface-card-strong absolute right-0 mt-2 w-[min(24rem,calc(100vw-2rem))] p-3 z-[80] space-y-3">
                 <div className="flex flex-wrap gap-2">
                   <Link href="/settings" className="pill-btn" onClick={() => setMenuOpen(false)}>
                     Settings
@@ -102,15 +102,14 @@ export default function Home() {
                   </button>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
+                  <TopBarDataControls mode="refreshOnly" />
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
                   <SupabaseAccountSync />
                   <AuthButton />
                 </div>
               </div>
             )}
-          </div>
-
-          <div className="w-full sm:w-auto flex items-center gap-2 sm:justify-end overflow-x-auto pb-1 sm:pb-0">
-            <TopBarDataControls mode="refreshOnly" />
           </div>
         </div>
       </header>
