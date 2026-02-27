@@ -6,6 +6,8 @@ import { fetchJsonWithDedupe } from "@/lib/client-cache";
 import type { HabitDefinition, HabitTrackerData } from "@/lib/types";
 
 const TRACKER_CALENDAR_STORAGE_KEY = "study-stats.tracker-calendar-id";
+const STUDY_HABIT_STORAGE_KEY = "study-stats.habit-tracker.study-habit";
+const HABIT_WORKOUT_LINKS_STORAGE_KEY = "study-stats.habit-tracker.workout-links";
 type TopBarDataControlsMode = "full" | "levelOnly" | "refreshOnly";
 type TopBarDataControlsModeExtended =
   | TopBarDataControlsMode
@@ -13,7 +15,7 @@ type TopBarDataControlsModeExtended =
   | "inlineLevel"
   | "streakIconOnly";
 
-function computeAllHabitsStreak(habits: HabitDefinition[]): number {
+function computeStreakForHabits(habits: HabitDefinition[]): number {
   if (habits.length === 0) return 0;
   const dateKeys = habits[0].days.map((day) => day.date);
   let streak = 0;
@@ -29,6 +31,48 @@ function computeAllHabitsStreak(habits: HabitDefinition[]): number {
   }
 
   return streak;
+}
+
+function readWorkoutLinkedHabitSlugs(): Set<string> {
+  const raw = window.localStorage.getItem(HABIT_WORKOUT_LINKS_STORAGE_KEY);
+  if (!raw) return new Set<string>();
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const slugs = Object.entries(parsed)
+      .filter(([, value]) => typeof value === "string" && value.trim().length > 0)
+      .map(([slug]) => slug);
+    return new Set(slugs);
+  } catch {
+    return new Set<string>();
+  }
+}
+
+function resolveCombinedHabits(habits: HabitDefinition[]): HabitDefinition[] {
+  if (habits.length === 0) return [];
+
+  const selectedStudySlug = window.localStorage.getItem(STUDY_HABIT_STORAGE_KEY);
+  const workoutLinkedSlugs = readWorkoutLinkedHabitSlugs();
+
+  const studyHabit =
+    (selectedStudySlug && habits.find((habit) => habit.slug === selectedStudySlug)) ||
+    habits.find((habit) => habit.mode === "duration") ||
+    null;
+
+  const gymHabits = habits.filter(
+    (habit) => workoutLinkedSlugs.has(habit.slug) || habit.mode === "binary"
+  );
+  const gymHabit = gymHabits.sort((left, right) => right.currentStreak - left.currentStreak)[0] || null;
+
+  if (studyHabit && gymHabit && studyHabit.slug !== gymHabit.slug) {
+    return [studyHabit, gymHabit];
+  }
+
+  return habits;
+}
+
+function computeAllHabitsStreak(habits: HabitDefinition[]): number {
+  const combinedHabits = resolveCombinedHabits(habits);
+  return computeStreakForHabits(combinedHabits);
 }
 
 function computeTopBarLevel(habits: HabitDefinition[]): number {
@@ -81,7 +125,7 @@ export default function TopBarDataControls({
   }, []);
 
   useEffect(() => {
-    if (!showLevel) return;
+    if (!showLevel && !showStreakPill && !showStreakIconOnly) return;
     let cancelled = false;
 
     const loadGamification = async () => {
@@ -123,7 +167,7 @@ export default function TopBarDataControls({
       cancelled = true;
       window.removeEventListener("study-stats:refresh-all", loadGamification);
     };
-  }, [showLevel]);
+  }, [showLevel, showStreakIconOnly, showStreakPill]);
 
   const refreshAll = () => {
     setRefreshing(true);
