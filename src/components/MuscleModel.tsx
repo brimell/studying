@@ -624,7 +624,7 @@ function OverlayPanel({
   return (
     <div
       ref={panelRef}
-      className="rounded-md border border-zinc-200 dark:border-zinc-700 overflow-hidden bg-white relative aspect-[3/4] isolate"
+      className="rounded-md border border-zinc-200 overflow-hidden bg-white relative aspect-[3/4] isolate"
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
@@ -946,13 +946,13 @@ export default function MuscleModel({
   }, [organPanel, skeletalPanels, showOrganPanel]);
 
   return (
-    <div className="rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 p-3">
+    <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-3">
       <div className="flex items-center justify-between gap-2 mb-2">
         <p className="text-sm font-medium">{title}</p>
         <button
           type="button"
           onClick={() => setSimplifyLabels((current) => !current)}
-          className="rounded-md border border-zinc-300 dark:border-zinc-600 px-2 py-1 text-[11px] hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
+          className="rounded-md border border-zinc-300 px-2 py-1 text-[11px] hover:bg-zinc-100 transition-colors"
         >
           {simplifyLabels ? "Show Scientific Names" : "Simplify Names"}
         </button>
@@ -960,9 +960,9 @@ export default function MuscleModel({
       <div className={`grid ${compact ? "grid-cols-1" : "md:grid-cols-[240px,1fr]"} gap-3`}>
         <div className="w-full overflow-x-auto pb-1">
           <div className="flex items-start gap-3 min-w-max">
-            <div className="w-full min-w-[320px] max-w-[360px] rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-2">
+            <div className="w-full min-w-[320px] max-w-[360px] rounded-lg border border-zinc-200 bg-white p-2">
               <p className="text-xs font-medium mb-2">Overlay view (outer + inner muscle groups)</p>
-              <div className="grid grid-cols-2 gap-2 text-[10px] text-zinc-500 dark:text-zinc-400 mb-1 px-1">
+              <div className="grid grid-cols-2 gap-2 text-[10px] text-zinc-500 mb-1 px-1">
                 <span>Anterior</span>
                 <span>Posterior</span>
               </div>
@@ -979,9 +979,9 @@ export default function MuscleModel({
                 ))}
               </div>
             </div>
-            <div className="w-full min-w-[320px] max-w-[360px] rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-2">
+            <div className="w-full min-w-[320px] max-w-[360px] rounded-lg border border-zinc-200 bg-white p-2">
               <p className="text-xs font-medium mb-2">Skeletal support impact</p>
-              <div className="grid grid-cols-2 gap-2 text-[10px] text-zinc-500 dark:text-zinc-400 mb-1 px-1">
+              <div className="grid grid-cols-2 gap-2 text-[10px] text-zinc-500 mb-1 px-1">
                 <span>Anterior</span>
                 <span>Posterior</span>
               </div>
@@ -999,14 +999,14 @@ export default function MuscleModel({
               </div>
               <div className="grid grid-cols-2 gap-x-3 gap-y-1 mt-2">
                 {topBoneEntries.map(([region, score]) => (
-                  <div key={`bone-impact-${region}`} className="text-[10px] text-zinc-500 dark:text-zinc-400">
+                  <div key={`bone-impact-${region}`} className="text-[10px] text-zinc-500">
                     {SKELETAL_REGION_LABELS[region]} {Math.round(score)}%
                   </div>
                 ))}
               </div>
             </div>
             {showOrganPanel && (
-              <div className="w-full min-w-[320px] max-w-[360px] rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-2">
+              <div className="w-full min-w-[320px] max-w-[360px] rounded-lg border border-zinc-200 bg-white p-2">
                 <p className="text-xs font-medium mb-2">Internal system support impact</p>
                 <OverlayPanel
                   key={organPanel.key}
@@ -1018,7 +1018,7 @@ export default function MuscleModel({
                 />
                 <div className="grid grid-cols-2 gap-x-3 gap-y-1 mt-2">
                   {topOrganEntries.map(([region, score]) => (
-                    <div key={`organ-impact-${region}`} className="text-[10px] text-zinc-500 dark:text-zinc-400">
+                    <div key={`organ-impact-${region}`} className="text-[10px] text-zinc-500">
                       {ORGAN_REGION_LABELS[region]} {Math.round(score)}%
                     </div>
                   ))}
@@ -1034,10 +1034,10 @@ export default function MuscleModel({
           {displayEntries.map((entry) => (
             <div
               key={entry.key}
-              className={`rounded-md border bg-white dark:bg-zinc-900 px-2 py-1.5 transition-colors ${
+              className={`rounded-md border bg-white px-2 py-1.5 transition-colors ${
                 hoveredEntryKey === entry.key
-                  ? "border-red-400/70 dark:border-red-400/60 bg-red-50/60 dark:bg-red-900/20"
-                  : "border-zinc-200 dark:border-zinc-700"
+                  ? "border-red-400/70 bg-red-50/60"
+                  : "border-zinc-200"
               }`}
               onMouseEnter={() => setHoveredEntryKey(entry.key)}
               onMouseLeave={() => setHoveredEntryKey((current) => (current === entry.key ? null : current))}
@@ -1049,7 +1049,7 @@ export default function MuscleModel({
                 <span>{entry.label}</span>
                 <span className="font-medium">{entry.score}%</span>
               </div>
-              <div className="h-1.5 rounded-full bg-zinc-200 dark:bg-zinc-700 mt-1">
+              <div className="h-1.5 rounded-full bg-zinc-200 mt-1">
                 <div
                   className="h-full rounded-full transition-all"
                   style={{

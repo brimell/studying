@@ -398,7 +398,7 @@ export default function StudyProjection() {
             type="date"
             value={endDate}
             onChange={(e) => setEndDate(e.target.value)}
-            className="border rounded-lg px-3 py-2 bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
+            className="border rounded-lg px-3 py-2 bg-zinc-50"
           />
         </label>
         <label className="flex flex-col gap-1 text-sm">
@@ -409,7 +409,7 @@ export default function StudyProjection() {
             max={16}
             value={hoursPerDay}
             onChange={(e) => setHoursPerDay(Number(e.target.value))}
-            className="border rounded-lg px-3 py-2 bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
+            className="border rounded-lg px-3 py-2 bg-zinc-50"
           />
         </label>
       </div>
@@ -419,7 +419,7 @@ export default function StudyProjection() {
         <StatCard label="Hours / subject" value={hoursPerSubject} />
       </div>
 
-      <div className="mt-6 border-t border-zinc-200 dark:border-zinc-800 pt-4">
+      <div className="mt-6 border-t border-zinc-200 pt-4">
         <h3 className="text-base font-semibold mb-1">Target Pace Planner</h3>
         <p className="text-xs text-zinc-500 mb-4">
           Set weekly/monthly target hours per subject. Gaps and required pace update automatically.
@@ -428,7 +428,7 @@ export default function StudyProjection() {
           <button
             type="button"
             onClick={addSubject}
-            className="px-3 py-1.5 rounded-md text-xs bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors"
+            className="px-3 py-1.5 rounded-md text-xs bg-zinc-200 hover:bg-zinc-300 transition-colors"
           >
             Add subject
           </button>
@@ -442,13 +442,13 @@ export default function StudyProjection() {
             return (
               <div
                 key={subject.id}
-                className="rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 p-3"
+                className="rounded-xl border border-zinc-200 bg-zinc-50 p-3"
               >
                 <div className="flex justify-end mb-2">
                   <button
                     type="button"
                     onClick={() => removeSubject(subject.id)}
-                    className="px-2 py-1 rounded-md text-xs bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors"
+                    className="px-2 py-1 rounded-md text-xs bg-zinc-200 hover:bg-zinc-300 transition-colors"
                   >
                     Remove
                   </button>
@@ -460,7 +460,7 @@ export default function StudyProjection() {
                       type="text"
                       value={subject.name}
                       onChange={(e) => updateSubjectTarget(subject.id, "name", e.target.value)}
-                      className="border rounded-lg px-3 py-2 bg-white dark:bg-zinc-900 dark:border-zinc-700"
+                      className="border rounded-lg px-3 py-2 bg-white"
                     />
                   </label>
                   <label className="flex flex-col gap-1 text-sm">
@@ -473,7 +473,7 @@ export default function StudyProjection() {
                       onChange={(e) =>
                         updateSubjectTarget(subject.id, "weeklyTargetHours", e.target.value)
                       }
-                      className="border rounded-lg px-3 py-2 bg-white dark:bg-zinc-900 dark:border-zinc-700"
+                      className="border rounded-lg px-3 py-2 bg-white"
                     />
                   </label>
                   <label className="flex flex-col gap-1 text-sm">
@@ -486,7 +486,7 @@ export default function StudyProjection() {
                       onChange={(e) =>
                         updateSubjectTarget(subject.id, "monthlyTargetHours", e.target.value)
                       }
-                      className="border rounded-lg px-3 py-2 bg-white dark:bg-zinc-900 dark:border-zinc-700"
+                      className="border rounded-lg px-3 py-2 bg-white"
                     />
                   </label>
                 </div>
@@ -519,7 +519,7 @@ export default function StudyProjection() {
           {targetAnalysis.map((subject) => (
             <div
               key={`${subject.id}-required-pace`}
-              className="rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-4"
+              className="rounded-xl border border-zinc-200 bg-white p-4"
             >
               <p className="text-sm font-semibold mb-2">{subject.name}</p>
               <div className="space-y-1 text-sm">
@@ -549,7 +549,7 @@ export default function StudyProjection() {
 
 function StatCard({ label, value }: { label: string; value: number }) {
   return (
-    <div className="bg-zinc-50 dark:bg-zinc-800 rounded-xl p-4">
+    <div className="bg-zinc-50 rounded-xl p-4">
       <p className="text-2xl font-bold">{value}</p>
       <p className="text-xs text-zinc-500 mt-1">{label}</p>
     </div>

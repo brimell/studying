@@ -257,51 +257,51 @@ export default function GamificationPanel() {
 
       {!loading && !error && model && (
         <div className="space-y-4">
-          <div className="rounded-lg border border-emerald-200 dark:border-emerald-900 bg-emerald-50/70 dark:bg-emerald-950/30 p-3">
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50/70 p-3">
             <div className="flex items-end justify-between gap-3">
               <div>
-                <p className="text-xs text-emerald-700 dark:text-emerald-300">Level</p>
-                <p className="text-2xl font-bold text-emerald-800 dark:text-emerald-200">{model.level}</p>
+                <p className="text-xs text-emerald-700">Level</p>
+                <p className="text-2xl font-bold text-emerald-800">{model.level}</p>
               </div>
               <div className="text-right">
-                <p className="text-xs text-emerald-700 dark:text-emerald-300">Reward Points</p>
-                <p className="text-lg font-semibold text-emerald-800 dark:text-emerald-200">
+                <p className="text-xs text-emerald-700">Reward Points</p>
+                <p className="text-lg font-semibold text-emerald-800">
                   {model.totalPoints}
                 </p>
               </div>
             </div>
-            <div className="mt-2 h-2 rounded-full bg-emerald-200/80 dark:bg-emerald-900/70 overflow-hidden">
+            <div className="mt-2 h-2 rounded-full bg-emerald-200/80 overflow-hidden">
               <div
                 className="h-full rounded-full bg-emerald-500 transition-all duration-500"
                 style={{ width: `${Math.min(100, (model.pointsIntoLevel / model.pointsForNextLevel) * 100)}%` }}
               />
             </div>
-            <p className="mt-1 text-[11px] text-emerald-700 dark:text-emerald-300">
+            <p className="mt-1 text-[11px] text-emerald-700">
               {model.pointsRemaining} points to next level
             </p>
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-            <div className="rounded-md border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 px-3 py-2">
+            <div className="rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2">
               <p className="text-[11px] text-zinc-500">Study streak</p>
               <p className="font-semibold text-sm">{model.studyCurrentStreak} days</p>
             </div>
-            <div className="rounded-md border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 px-3 py-2">
+            <div className="rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2">
               <p className="text-[11px] text-zinc-500">Longest study streak</p>
               <p className="font-semibold text-sm">{model.studyLongestStreak} days</p>
             </div>
-            <div className="rounded-md border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 px-3 py-2">
+            <div className="rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2">
               <p className="text-[11px] text-zinc-500">Workout streak</p>
               <p className="font-semibold text-sm">{model.workoutCurrentStreak} days</p>
             </div>
-            <div className="rounded-md border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 px-3 py-2">
+            <div className="rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2">
               <p className="text-[11px] text-zinc-500">Unlocked badges</p>
               <p className="font-semibold text-sm">{model.unlockedBadgeCount}/{model.badges.length}</p>
             </div>
           </div>
 
           <div>
-            <p className="text-xs font-medium text-zinc-600 dark:text-zinc-300 mb-2">Badges</p>
+            <p className="text-xs font-medium text-zinc-600 mb-2">Badges</p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
               {model.badges.map((badge) => {
                 const unlocked = badge.metric >= badge.target;
@@ -311,8 +311,8 @@ export default function GamificationPanel() {
                     key={badge.id}
                     className={`rounded-md border px-3 py-2 ${
                       unlocked
-                        ? "border-amber-300 dark:border-amber-800 bg-amber-50/70 dark:bg-amber-950/30"
-                        : "border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800"
+                        ? "border-amber-300 bg-amber-50/70"
+                        : "border-zinc-200 bg-zinc-50"
                     }`}
                   >
                     <div className="flex items-center justify-between gap-2">
@@ -320,7 +320,7 @@ export default function GamificationPanel() {
                       <span className="text-[11px] text-zinc-500">+{badge.points} pts</span>
                     </div>
                     <p className="text-xs text-zinc-500 mt-0.5">{badge.description}</p>
-                    <div className="mt-1 h-1.5 rounded-full bg-zinc-200 dark:bg-zinc-700 overflow-hidden">
+                    <div className="mt-1 h-1.5 rounded-full bg-zinc-200 overflow-hidden">
                       <div
                         className={`h-full rounded-full ${unlocked ? "bg-amber-500" : "bg-sky-500"}`}
                         style={{ width: `${progress}%` }}
@@ -336,7 +336,7 @@ export default function GamificationPanel() {
           </div>
 
           <div>
-            <p className="text-xs font-medium text-zinc-600 dark:text-zinc-300 mb-2">Rewards</p>
+            <p className="text-xs font-medium text-zinc-600 mb-2">Rewards</p>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
               {model.rewardTiers.map((reward) => {
                 const unlocked = model.totalPoints >= reward.threshold;
@@ -345,8 +345,8 @@ export default function GamificationPanel() {
                     key={reward.threshold}
                     className={`rounded-md border px-3 py-2 ${
                       unlocked
-                        ? "border-emerald-300 dark:border-emerald-800 bg-emerald-50/70 dark:bg-emerald-950/30"
-                        : "border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800"
+                        ? "border-emerald-300 bg-emerald-50/70"
+                        : "border-zinc-200 bg-zinc-50"
                     }`}
                   >
                     <p className="text-sm font-medium">{reward.title}</p>

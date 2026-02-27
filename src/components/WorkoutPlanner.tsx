@@ -706,7 +706,7 @@ export default function WorkoutPlanner() {
 
   if (!supabase) {
     return (
-      <div className="rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-5">
+      <div className="rounded-xl border border-zinc-200 bg-white p-5">
         <p className="text-sm text-zinc-500">
           Supabase is not configured. Add `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
         </p>
@@ -716,7 +716,7 @@ export default function WorkoutPlanner() {
 
   if (!session) {
     return (
-      <div className="rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-5">
+      <div className="rounded-xl border border-zinc-200 bg-white p-5">
         <h2 className="text-lg font-semibold mb-2">Workout Section</h2>
         <p className="text-sm text-zinc-500">
           Sign in via `☁️ Account Sync` to save workouts in Supabase and sync across devices.
@@ -766,7 +766,7 @@ export default function WorkoutPlanner() {
               return (
                 <div
                   key={`next-${workoutId}-${index}`}
-                  className="rounded-md border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 px-3 py-2"
+                  className="rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2"
                 >
                   <p className="text-sm font-medium">{workout.name}</p>
                   <p className="text-xs text-zinc-500">
@@ -780,7 +780,7 @@ export default function WorkoutPlanner() {
       </section>
 
       {(loading || saving) && (
-        <div className="rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 px-4 py-2 text-sm text-zinc-500">
+        <div className="rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-2 text-sm text-zinc-500">
           {loading ? "Loading planner..." : "Saving..."}
         </div>
       )}
@@ -796,7 +796,7 @@ export default function WorkoutPlanner() {
         showOrganPanel={false}
       />
 
-      <section className="rounded-2xl bg-white dark:bg-zinc-900 p-5 shadow-sm border border-zinc-200 dark:border-zinc-800">
+      <section className="rounded-2xl bg-white p-5 shadow-sm border border-zinc-200">
         <h2 className="text-lg font-semibold mb-1">How Exercise Supports Organs</h2>
         <p className="text-xs text-zinc-500 mb-3">
           This info card estimates internal-system support based on the muscle groups your workouts load.
@@ -813,7 +813,7 @@ export default function WorkoutPlanner() {
       <div className="grid grid-cols-1 gap-5">
         <section
           ref={weeklyPlanSectionRef}
-          className="rounded-2xl bg-white dark:bg-zinc-900 p-5 shadow-sm border border-zinc-200 dark:border-zinc-800"
+          className="rounded-2xl bg-white p-5 shadow-sm border border-zinc-200"
         >
           <h2 className="text-lg font-semibold mb-3">Saved Workouts</h2>
           <div className="space-y-3">
@@ -821,13 +821,13 @@ export default function WorkoutPlanner() {
               <p className="text-sm text-zinc-500">No workouts saved yet.</p>
             )}
             {payload.workouts.map((workout) => (
-              <div key={workout.id} className="rounded-lg border border-zinc-200 dark:border-zinc-700 p-3">
+              <div key={workout.id} className="rounded-lg border border-zinc-200 p-3">
                 <div className="flex items-center justify-between gap-2">
                   <p className="font-medium">{workout.name}</p>
                   <button
                     type="button"
                     onClick={() => removeWorkout(workout.id)}
-                    className="px-2 py-1 rounded-md text-xs bg-zinc-200 dark:bg-zinc-700"
+                    className="px-2 py-1 rounded-md text-xs bg-zinc-200"
                   >
                     🗑️
                   </button>
@@ -860,7 +860,7 @@ export default function WorkoutPlanner() {
                         [workout.id]: event.target.value,
                       }))
                     }
-                    className="border rounded-lg px-2 py-1 text-xs bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
+                    className="border rounded-lg px-2 py-1 text-xs bg-zinc-50"
                   />
                   <button
                     type="button"
@@ -876,20 +876,20 @@ export default function WorkoutPlanner() {
           </div>
         </section>
 
-        <section className="rounded-2xl bg-white dark:bg-zinc-900 p-5 shadow-sm border border-zinc-200 dark:border-zinc-800">
+        <section className="rounded-2xl bg-white p-5 shadow-sm border border-zinc-200">
           <h2 className="text-lg font-semibold mb-3">Weekly Workout Plans</h2>
 
-          <form onSubmit={saveWeeklyPlan} className="rounded-lg border border-zinc-200 dark:border-zinc-700 p-3 space-y-3">
+          <form onSubmit={saveWeeklyPlan} className="rounded-lg border border-zinc-200 p-3 space-y-3">
             <input
               type="text"
               value={weeklyPlanName}
               onChange={(event) => setWeeklyPlanName(event.target.value)}
               placeholder="Plan name (e.g. Weekly Push/Pull/Legs)"
-              className="w-full border rounded-lg px-3 py-2 text-sm bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
+              className="w-full border rounded-lg px-3 py-2 text-sm bg-zinc-50"
             />
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
               {WORKOUT_WEEK_DAYS.map((day) => (
-                <div key={day} className="rounded-lg border border-zinc-200 dark:border-zinc-700 p-2 text-xs">
+                <div key={day} className="rounded-lg border border-zinc-200 p-2 text-xs">
                   <p className="font-medium mb-1">{WEEKDAY_LABELS[day]}</p>
                   <div className="space-y-1 max-h-32 overflow-y-auto pr-1">
                     {payload.workouts.length === 0 && <p className="text-zinc-500">No workouts</p>}
@@ -929,7 +929,7 @@ export default function WorkoutPlanner() {
                 <button
                   type="button"
                   onClick={cancelEditingWeeklyPlan}
-                  className="px-4 py-2 rounded-lg bg-zinc-200 dark:bg-zinc-700 text-sm font-medium"
+                  className="px-4 py-2 rounded-lg bg-zinc-200 text-sm font-medium"
                 >
                   Cancel Edit
                 </button>
@@ -958,7 +958,7 @@ export default function WorkoutPlanner() {
               );
 
               return (
-                <div key={plan.id} className="rounded-lg border border-zinc-200 dark:border-zinc-700 p-3">
+                <div key={plan.id} className="rounded-lg border border-zinc-200 p-3">
                   <div className="flex items-center justify-between gap-2">
                     <p className="font-medium">{plan.name}</p>
                     <div className="flex items-center gap-2">
@@ -972,7 +972,7 @@ export default function WorkoutPlanner() {
                       <button
                         type="button"
                         onClick={() => removeWeeklyPlan(plan.id)}
-                        className="px-2 py-1 rounded-md text-xs bg-zinc-200 dark:bg-zinc-700"
+                        className="px-2 py-1 rounded-md text-xs bg-zinc-200"
                       >
                         🗑️
                       </button>
@@ -985,7 +985,7 @@ export default function WorkoutPlanner() {
                         .map((workoutId) => workoutById.get(workoutId)?.name)
                         .filter((name): name is string => Boolean(name));
                       return (
-                        <div key={`${plan.id}-${day}`} className="rounded-md bg-zinc-50 dark:bg-zinc-800 px-2 py-1">
+                        <div key={`${plan.id}-${day}`} className="rounded-md bg-zinc-50 px-2 py-1">
                           <p className="font-medium">{WEEKDAY_LABELS[day]}</p>
                           <p className="text-zinc-500 truncate">
                             {workoutNames.length > 0 ? workoutNames.join(", ") : "Rest"}
@@ -1013,7 +1013,7 @@ export default function WorkoutPlanner() {
                     {nonZeroMuscles.map(({ muscle, load, hitDays, pct }) => (
                       <div
                         key={`${plan.id}-${muscle}`}
-                        className="rounded-md border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 px-2 py-1.5 text-xs"
+                        className="rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1.5 text-xs"
                       >
                         <div className="flex items-center justify-between">
                           <span>{MUSCLE_LABELS[muscle]}</span>
@@ -1026,9 +1026,9 @@ export default function WorkoutPlanner() {
                     ))}
                   </div>
 
-                  <div className="mt-3 rounded-md border border-amber-200 dark:border-amber-900 bg-amber-50/60 dark:bg-amber-950/30 px-3 py-2 text-xs">
-                    <p className="font-medium text-amber-800 dark:text-amber-300">Missing muscle groups</p>
-                    <p className="text-amber-700 dark:text-amber-400 mt-1">
+                  <div className="mt-3 rounded-md border border-amber-200 bg-amber-50/60 px-3 py-2 text-xs">
+                    <p className="font-medium text-amber-800">Missing muscle groups</p>
+                    <p className="text-amber-700 mt-1">
                       {missingMuscles.length > 0
                         ? missingMuscles.map((muscle) => MUSCLE_LABELS[muscle]).join(", ")
                         : "None — all tracked muscle groups are hit in this plan."}
@@ -1051,7 +1051,7 @@ export default function WorkoutPlanner() {
             }}
           >
             <div
-              className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white dark:bg-zinc-900 p-5 shadow-xl border border-zinc-200 dark:border-zinc-800"
+              className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white p-5 shadow-xl border border-zinc-200"
               onMouseDown={(event) => event.stopPropagation()}
             >
               <div className="flex items-center justify-between gap-3 mb-3">
@@ -1059,7 +1059,7 @@ export default function WorkoutPlanner() {
                 <button
                   type="button"
                   onClick={() => setShowCreateWorkoutModal(false)}
-                  className="px-2 py-1 rounded-md text-xs bg-zinc-200 dark:bg-zinc-700"
+                  className="px-2 py-1 rounded-md text-xs bg-zinc-200"
                 >
                   Close
                 </button>
@@ -1081,17 +1081,17 @@ export default function WorkoutPlanner() {
                   value={newWorkoutName}
                   onChange={(event) => setNewWorkoutName(event.target.value)}
                   placeholder="Workout name (e.g. Push Day)"
-                  className="w-full border rounded-lg px-3 py-2 text-sm bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
+                  className="w-full border rounded-lg px-3 py-2 text-sm bg-zinc-50"
                 />
 
-                <div className="rounded-lg border border-zinc-200 dark:border-zinc-700 p-3 space-y-2">
+                <div className="rounded-lg border border-zinc-200 p-3 space-y-2">
                   <p className="text-sm font-medium">Add Exercise</p>
                   <input
                     type="text"
                     value={exerciseSearch}
                     onChange={(event) => setExerciseSearch(event.target.value)}
                     placeholder="Search known exercises (from library)"
-                    className="w-full border rounded-lg px-3 py-2 text-sm bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
+                    className="w-full border rounded-lg px-3 py-2 text-sm bg-zinc-50"
                   />
                   <div className="grid grid-cols-2 gap-2">
                     <input
@@ -1101,7 +1101,7 @@ export default function WorkoutPlanner() {
                       max={30}
                       onChange={(event) => setExerciseSets(Number(event.target.value))}
                       placeholder="Sets"
-                      className="border rounded-lg px-3 py-2 text-sm bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
+                      className="border rounded-lg px-3 py-2 text-sm bg-zinc-50"
                     />
                     <input
                       type="number"
@@ -1110,7 +1110,7 @@ export default function WorkoutPlanner() {
                       max={100}
                       onChange={(event) => setExerciseReps(Number(event.target.value))}
                       placeholder="Reps"
-                      className="border rounded-lg px-3 py-2 text-sm bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
+                      className="border rounded-lg px-3 py-2 text-sm bg-zinc-50"
                     />
                     <input
                       type="number"
@@ -1119,17 +1119,17 @@ export default function WorkoutPlanner() {
                       max={600}
                       onChange={(event) => setExerciseRestSeconds(Number(event.target.value))}
                       placeholder="Rest (seconds)"
-                      className="border rounded-lg px-3 py-2 text-sm bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700 col-span-2"
+                      className="border rounded-lg px-3 py-2 text-sm bg-zinc-50 col-span-2"
                     />
                   </div>
-                  <div className="rounded-md border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 h-44 overflow-y-auto">
+                  <div className="rounded-md border border-zinc-200 bg-zinc-50 h-44 overflow-y-auto">
                     {filteredKnownExercises.length === 0 && (
                       <p className="px-3 py-2 text-xs text-zinc-500">No matching known exercises.</p>
                     )}
                     {filteredKnownExercises.map((exercise) => (
                       <div
                         key={exercise.id}
-                        className="flex items-center justify-between gap-2 px-3 py-2 border-b border-zinc-200 dark:border-zinc-700 last:border-b-0"
+                        className="flex items-center justify-between gap-2 px-3 py-2 border-b border-zinc-200 last:border-b-0"
                       >
                         <div className="min-w-0">
                           <p className="text-sm font-medium truncate">{exercise.name}</p>
@@ -1140,7 +1140,7 @@ export default function WorkoutPlanner() {
                         <button
                           type="button"
                           onClick={() => addKnownExerciseToDraft(exercise)}
-                          className="px-2 py-1 rounded-md text-xs bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors shrink-0"
+                          className="px-2 py-1 rounded-md text-xs bg-zinc-200 hover:bg-zinc-300 transition-colors shrink-0"
                         >
                           Add
                         </button>
@@ -1150,18 +1150,18 @@ export default function WorkoutPlanner() {
                   <button
                     type="button"
                     onClick={() => setShowCustomExerciseForm((current) => !current)}
-                    className="px-3 py-1.5 rounded-md text-xs bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors"
+                    className="px-3 py-1.5 rounded-md text-xs bg-zinc-200 hover:bg-zinc-300 transition-colors"
                   >
                     {showCustomExerciseForm ? "Hide Custom Exercise" : "Add Custom Exercise"}
                   </button>
                   {showCustomExerciseForm && (
-                    <div className="rounded-lg border border-zinc-200 dark:border-zinc-700 p-3 space-y-2 bg-white dark:bg-zinc-900">
+                    <div className="rounded-lg border border-zinc-200 p-3 space-y-2 bg-white">
                       <input
                         type="text"
                         value={exerciseName}
                         onChange={(event) => setExerciseName(event.target.value)}
                         placeholder="Custom exercise name"
-                        className="w-full border rounded-lg px-3 py-2 text-sm bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
+                        className="w-full border rounded-lg px-3 py-2 text-sm bg-zinc-50"
                       />
                       <div className="grid grid-cols-2 gap-2">
                         <input
@@ -1171,7 +1171,7 @@ export default function WorkoutPlanner() {
                           max={30}
                           onChange={(event) => setExerciseSets(Number(event.target.value))}
                           placeholder="Sets"
-                          className="border rounded-lg px-3 py-2 text-sm bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
+                          className="border rounded-lg px-3 py-2 text-sm bg-zinc-50"
                         />
                         <input
                           type="number"
@@ -1180,7 +1180,7 @@ export default function WorkoutPlanner() {
                           max={100}
                           onChange={(event) => setExerciseReps(Number(event.target.value))}
                           placeholder="Reps"
-                          className="border rounded-lg px-3 py-2 text-sm bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
+                          className="border rounded-lg px-3 py-2 text-sm bg-zinc-50"
                         />
                         <input
                           type="number"
@@ -1189,7 +1189,7 @@ export default function WorkoutPlanner() {
                           max={600}
                           onChange={(event) => setExerciseRestSeconds(Number(event.target.value))}
                           placeholder="Rest (seconds)"
-                          className="border rounded-lg px-3 py-2 text-sm bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700 col-span-2"
+                          className="border rounded-lg px-3 py-2 text-sm bg-zinc-50 col-span-2"
                         />
                       </div>
                       <div className="grid grid-cols-2 sm:grid-cols-3 gap-1">
@@ -1213,7 +1213,7 @@ export default function WorkoutPlanner() {
                       <button
                         type="button"
                         onClick={addExerciseToDraft}
-                        className="px-3 py-1.5 rounded-md text-xs bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors"
+                        className="px-3 py-1.5 rounded-md text-xs bg-zinc-200 hover:bg-zinc-300 transition-colors"
                       >
                         Add Custom Exercise
                       </button>
@@ -1228,14 +1228,14 @@ export default function WorkoutPlanner() {
                   {draftExercises.map((exercise) => (
                     <div
                       key={exercise.id}
-                      className="rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 p-2 text-xs"
+                      className="rounded-lg border border-zinc-200 bg-zinc-50 p-2 text-xs"
                     >
                       <div className="flex items-center justify-between gap-2">
                         <p className="font-medium">{exercise.name}</p>
                         <button
                           type="button"
                           onClick={() => removeDraftExercise(exercise.id)}
-                          className="px-1.5 py-0.5 rounded bg-zinc-200 dark:bg-zinc-700"
+                          className="px-1.5 py-0.5 rounded bg-zinc-200"
                         >
                           🗑️
                         </button>
@@ -1255,7 +1255,7 @@ export default function WorkoutPlanner() {
                             updateDraftExercise(exercise.id, "sets", Number(event.target.value))
                           }
                           placeholder="Sets"
-                          className="border rounded px-2 py-1 text-xs bg-white dark:bg-zinc-900 dark:border-zinc-700"
+                          className="border rounded px-2 py-1 text-xs bg-white"
                         />
                         <input
                           type="number"
@@ -1266,7 +1266,7 @@ export default function WorkoutPlanner() {
                             updateDraftExercise(exercise.id, "reps", Number(event.target.value))
                           }
                           placeholder="Reps"
-                          className="border rounded px-2 py-1 text-xs bg-white dark:bg-zinc-900 dark:border-zinc-700"
+                          className="border rounded px-2 py-1 text-xs bg-white"
                         />
                         <input
                           type="number"
@@ -1281,7 +1281,7 @@ export default function WorkoutPlanner() {
                             )
                           }
                           placeholder="Rest (sec)"
-                          className="border rounded px-2 py-1 text-xs bg-white dark:bg-zinc-900 dark:border-zinc-700"
+                          className="border rounded px-2 py-1 text-xs bg-white"
                         />
                       </div>
                     </div>
@@ -1301,7 +1301,7 @@ export default function WorkoutPlanner() {
           document.body
         )}
 
-      <section className="rounded-2xl bg-white dark:bg-zinc-900 p-5 shadow-sm border border-zinc-200 dark:border-zinc-800">
+      <section className="rounded-2xl bg-white p-5 shadow-sm border border-zinc-200">
         <h2 className="text-lg font-semibold mb-3">Workout History</h2>
         <div className="space-y-2">
           {payload.logs.length === 0 && <p className="text-sm text-zinc-500">No logged workouts yet.</p>}
@@ -1310,7 +1310,7 @@ export default function WorkoutPlanner() {
             return (
               <div
                 key={log.id}
-                className="rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 px-3 py-2 flex items-center justify-between gap-2"
+                className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 flex items-center justify-between gap-2"
               >
                 <div>
                   <p className="text-sm font-medium">{workout?.name || "Deleted workout"}</p>
@@ -1319,7 +1319,7 @@ export default function WorkoutPlanner() {
                 <button
                   type="button"
                   onClick={() => removeLog(log.id)}
-                  className="px-2 py-1 rounded-md text-xs bg-zinc-200 dark:bg-zinc-700"
+                  className="px-2 py-1 rounded-md text-xs bg-zinc-200"
                 >
                   🗑️
                 </button>

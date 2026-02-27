@@ -32,7 +32,7 @@ export default function WorkoutFatigueCard() {
 
   if (error) {
     return (
-      <div className="rounded-2xl bg-white dark:bg-zinc-900 p-6 shadow-sm border border-red-200 dark:border-red-900">
+      <div className="rounded-2xl bg-white p-6 shadow-sm border border-red-200">
         <h2 className="text-lg font-semibold mb-2">Workout Fatigue</h2>
         <p className="text-sm text-red-500">{error}</p>
       </div>

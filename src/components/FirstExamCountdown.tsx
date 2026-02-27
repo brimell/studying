@@ -199,7 +199,7 @@ export default function FirstExamCountdown() {
             type="date"
             value={firstExamDate}
             onChange={(e) => setFirstExamDate(e.target.value)}
-            className="border rounded-lg px-3 py-2 bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
+            className="border rounded-lg px-3 py-2 bg-zinc-50"
           />
         </label>
         <label className="flex flex-col gap-1 text-sm">
@@ -208,18 +208,18 @@ export default function FirstExamCountdown() {
             type="date"
             value={countdownStartDate}
             onChange={(e) => setCountdownStartDate(e.target.value)}
-            className="border rounded-lg px-3 py-2 bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
+            className="border rounded-lg px-3 py-2 bg-zinc-50"
           />
         </label>
       </div>
 
-      <div className="rounded-xl bg-zinc-50 dark:bg-zinc-800 p-4">
+      <div className="rounded-xl bg-zinc-50 p-4">
         <p className="text-sm text-zinc-500 mb-2">Until first exam</p>
         <p className="text-2xl font-bold mb-3">
           {weeksUntilExam} week{weeksUntilExam === 1 ? "" : "s"} {remainingDays} day
           {remainingDays === 1 ? "" : "s"}
         </p>
-        <div className="w-full h-3 bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden">
+        <div className="w-full h-3 bg-zinc-200 rounded-full overflow-hidden">
           <div
             className="h-full bg-sky-500 transition-all duration-700"
             style={{ width: `${countdownProgress}%` }}

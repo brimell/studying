@@ -133,7 +133,7 @@ export default function DailyStudyChart() {
           <select
             value={subject}
             onChange={(e) => setSubject(e.target.value)}
-            className="text-sm border rounded-lg px-2 py-1 bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
+            className="text-sm border rounded-lg px-2 py-1 bg-zinc-50"
           >
             <option value="">All Subjects</option>
             {Object.keys(DEFAULT_SUBJECTS).map((s) => (
@@ -145,7 +145,7 @@ export default function DailyStudyChart() {
           <select
             value={days}
             onChange={(e) => setDays(Number(e.target.value))}
-            className="text-sm border rounded-lg px-2 py-1 bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
+            className="text-sm border rounded-lg px-2 py-1 bg-zinc-50"
           >
             {[7, 14, 30, 60, 90].map((d) => (
               <option key={d} value={d}>

@@ -1877,7 +1877,7 @@ export default function HabitTracker() {
           <select
             value={weeks}
             onChange={(event) => setWeeks(Number(event.target.value))}
-            className="text-sm border rounded-lg px-2 py-1 bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
+            className="text-sm border rounded-lg px-2 py-1 bg-zinc-50"
           >
             {[12, 20, 26, 52].map((value) => (
               <option key={value} value={value}>
@@ -1897,7 +1897,7 @@ export default function HabitTracker() {
 
       {data && !loading && (
         <div className="space-y-6">
-          <div className="border-t border-zinc-200 dark:border-zinc-800 pt-6">
+          <div className="border-t border-zinc-200 pt-6">
             <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
               <h3 className="text-base font-semibold">🗓️ Exam and Coursework Dates</h3>
               <div className="flex items-center gap-2">
@@ -1921,7 +1921,7 @@ export default function HabitTracker() {
                 {milestones.map((milestone) => (
                   <div
                     key={milestone.id}
-                    className="flex items-center justify-between gap-3 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 px-3 py-2"
+                    className="flex items-center justify-between gap-3 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2"
                   >
                     <div className="min-w-0">
                       <p className="text-sm font-medium truncate">{milestone.title}</p>
@@ -1938,7 +1938,7 @@ export default function HabitTracker() {
                     <button
                       type="button"
                       onClick={() => removeMilestone(milestone.id)}
-                      className="px-2 py-1 rounded-md text-xs bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors shrink-0"
+                      className="px-2 py-1 rounded-md text-xs bg-zinc-200 hover:bg-zinc-300 transition-colors shrink-0"
                     >
                       Remove
                     </button>
@@ -1948,7 +1948,7 @@ export default function HabitTracker() {
             )}
           </div>
 
-          <div className="border-t border-zinc-200 dark:border-zinc-800 pt-6">
+          <div className="border-t border-zinc-200 pt-6">
             <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
               <h3 className="text-base font-semibold">✅ Habit Trackers</h3>
               <div className="flex items-center gap-2">
@@ -1985,7 +1985,7 @@ export default function HabitTracker() {
               <select
                 value={futurePreviewMode}
                 onChange={(event) => setFuturePreviewMode(event.target.value as FuturePreviewMode)}
-                className="rounded-md border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 px-2 py-1 text-xs"
+                className="rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1 text-xs"
               >
                 <option value="auto">Auto</option>
                 <option value="custom">Custom</option>
@@ -2003,7 +2003,7 @@ export default function HabitTracker() {
                         clampFuturePreviewDays(Number(event.target.value || "0"))
                       )
                     }
-                    className="w-20 rounded-md border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 px-2 py-1 text-xs"
+                    className="w-20 rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1 text-xs"
                     aria-label="Custom future preview days"
                   />
                   <span>days ahead</span>
@@ -2063,10 +2063,10 @@ export default function HabitTracker() {
                 return (
                   <div
                     key={habit.slug}
-                    className={`rounded-xl border bg-zinc-50 dark:bg-zinc-800 p-3 ${
+                    className={`rounded-xl border bg-zinc-50 p-3 ${
                       dragOverHabitSlug === habit.slug
-                        ? "border-sky-400 dark:border-sky-500"
-                        : "border-zinc-200 dark:border-zinc-700"
+                        ? "border-sky-400"
+                        : "border-zinc-200"
                     }`}
                     draggable
                     onDragStart={(event) => {
@@ -2122,7 +2122,7 @@ export default function HabitTracker() {
                               setActionError(null);
                               setEditingBinaryHabitSlug(habit.slug);
                             }}
-                            className="px-2 py-1 rounded-md text-xs bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors"
+                            className="px-2 py-1 rounded-md text-xs bg-zinc-200 hover:bg-zinc-300 transition-colors"
                           >
                             Edit tracking source
                           </button>
@@ -2134,7 +2134,7 @@ export default function HabitTracker() {
                               setActionError(null);
                               setEditingDurationHabitSlug(habit.slug);
                             }}
-                            className="px-2 py-1 rounded-md text-xs bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors"
+                            className="px-2 py-1 rounded-md text-xs bg-zinc-200 hover:bg-zinc-300 transition-colors"
                           >
                             Edit time tracking sources
                           </button>
@@ -2162,7 +2162,7 @@ export default function HabitTracker() {
                                 [habit.slug]: event.target.value,
                               }))
                             }
-                            className="rounded-md border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 px-2 py-1 text-xs"
+                            className="rounded-md border border-zinc-200 bg-zinc-50 px-2 py-1 text-xs"
                             aria-label={`Set ${habit.name} color`}
                           >
                             {HABIT_COLOR_OPTIONS.map((option) => (
@@ -2183,7 +2183,7 @@ export default function HabitTracker() {
                             void removeHabit(habit.name);
                           }}
                           disabled={actionLoading}
-                          className="px-2 py-1 rounded-md text-xs bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors"
+                          className="px-2 py-1 rounded-md text-xs bg-zinc-200 hover:bg-zinc-300 transition-colors"
                         >
                           🗑️
                         </button>
@@ -2276,7 +2276,7 @@ export default function HabitTracker() {
                                             : "hover:ring-1 hover:ring-zinc-400"
                                         }`
                                       : day.completed
-                                        ? `${getBinaryCompletedColorClass(habitColor)} hover:opacity-90 ring-1 ring-zinc-400/30 dark:ring-zinc-300/30`
+                                        ? `${getBinaryCompletedColorClass(habitColor)} hover:opacity-90 ring-1 ring-zinc-400/30`
                                         : isFutureDay
                                           ? ""
                                           : "hover:ring-1 hover:ring-zinc-400"
@@ -2333,7 +2333,7 @@ export default function HabitTracker() {
                         ) : (
                           <>
                             <span>Less</span>
-                            <div className="w-[13px] h-[13px] rounded-[2px] bg-zinc-200 dark:bg-zinc-700" />
+                            <div className="w-[13px] h-[13px] rounded-[2px] bg-zinc-200" />
                             <div
                               className="w-[13px] h-[13px] rounded-[2px]"
                               style={{ backgroundColor: habitColor }}
@@ -2359,7 +2359,7 @@ export default function HabitTracker() {
                 }}
               >
                 <div
-                  className="w-full max-w-2xl rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-4 my-auto shadow-2xl"
+                  className="w-full max-w-2xl rounded-xl border border-zinc-200 bg-white p-4 my-auto shadow-2xl"
                   onMouseDown={(event) => event.stopPropagation()}
                 >
                 <div className="flex items-center justify-between mb-3">
@@ -2369,7 +2369,7 @@ export default function HabitTracker() {
                   <button
                     type="button"
                     onClick={() => setEditingDurationHabitSlug(null)}
-                    className="px-2 py-1 rounded-md text-xs bg-zinc-200 dark:bg-zinc-700"
+                    className="px-2 py-1 rounded-md text-xs bg-zinc-200"
                   >
                     Close
                   </button>
@@ -2377,7 +2377,7 @@ export default function HabitTracker() {
 
                 <div className="space-y-3">
                   <p className="text-xs text-zinc-500">Select calendars to scan for this habit.</p>
-                  <label className="inline-flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-300">
+                  <label className="inline-flex items-center gap-2 text-xs text-zinc-600">
                     <input
                       type="checkbox"
                       checked={selectedStudyHabitSlug === editingDurationHabit.slug}
@@ -2457,7 +2457,7 @@ export default function HabitTracker() {
                               }))
                             }
                             placeholder="Subject (e.g. Maths)"
-                            className="border rounded-lg px-2 py-1.5 text-sm bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
+                            className="border rounded-lg px-2 py-1.5 text-sm bg-zinc-50"
                           />
                           <input
                             type="text"
@@ -2476,7 +2476,7 @@ export default function HabitTracker() {
                               }))
                             }
                             placeholder="Terms (e.g. math, maths, mathematics)"
-                            className="border rounded-lg px-2 py-1.5 text-sm bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
+                            className="border rounded-lg px-2 py-1.5 text-sm bg-zinc-50"
                           />
                           <button
                             type="button"
@@ -2495,7 +2495,7 @@ export default function HabitTracker() {
                               })
                             }
                             disabled={entries.length <= 1}
-                            className="px-2 py-1.5 rounded-md text-xs bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 disabled:opacity-50"
+                            className="px-2 py-1.5 rounded-md text-xs bg-zinc-200 hover:bg-zinc-300 disabled:opacity-50"
                           >
                             Remove
                           </button>
@@ -2515,7 +2515,7 @@ export default function HabitTracker() {
                             ],
                           }))
                         }
-                        className="px-3 py-1.5 rounded-md text-xs bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors"
+                        className="px-3 py-1.5 rounded-md text-xs bg-zinc-200 hover:bg-zinc-300 transition-colors"
                       >
                         Add new subject to match
                       </button>
@@ -2527,7 +2527,7 @@ export default function HabitTracker() {
                   <button
                     type="button"
                     onClick={() => setEditingDurationHabitSlug(null)}
-                    className="px-3 py-1.5 rounded-md text-xs bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors"
+                    className="px-3 py-1.5 rounded-md text-xs bg-zinc-200 hover:bg-zinc-300 transition-colors"
                   >
                     Cancel
                   </button>
@@ -2566,7 +2566,7 @@ export default function HabitTracker() {
                 }}
               >
                 <div
-                  className="w-full max-w-xl rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-4 my-auto shadow-2xl"
+                  className="w-full max-w-xl rounded-xl border border-zinc-200 bg-white p-4 my-auto shadow-2xl"
                   onMouseDown={(event) => event.stopPropagation()}
                 >
                   <div className="flex items-center justify-between mb-3">
@@ -2576,7 +2576,7 @@ export default function HabitTracker() {
                     <button
                       type="button"
                       onClick={() => setEditingBinaryHabitSlug(null)}
-                      className="px-2 py-1 rounded-md text-xs bg-zinc-200 dark:bg-zinc-700"
+                      className="px-2 py-1 rounded-md text-xs bg-zinc-200"
                     >
                       Close
                     </button>
@@ -2597,7 +2597,7 @@ export default function HabitTracker() {
                             [editingBinaryHabit.slug]: event.target.value || null,
                           }))
                         }
-                        className="mt-1 w-full border rounded-lg px-3 py-2 text-sm bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
+                        className="mt-1 w-full border rounded-lg px-3 py-2 text-sm bg-zinc-50"
                         disabled={actionLoading || !hasWritableCalendars}
                       >
                         {calendars.map((calendarOption) => (
@@ -2626,7 +2626,7 @@ export default function HabitTracker() {
                           }))
                         }
                       />
-                      <span className="text-zinc-600 dark:text-zinc-300">
+                      <span className="text-zinc-600">
                         Link to workout planner logs
                       </span>
                     </label>
@@ -2636,7 +2636,7 @@ export default function HabitTracker() {
                     <button
                       type="button"
                       onClick={() => setEditingBinaryHabitSlug(null)}
-                      className="px-3 py-1.5 rounded-md text-xs bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors"
+                      className="px-3 py-1.5 rounded-md text-xs bg-zinc-200 hover:bg-zinc-300 transition-colors"
                     >
                       Cancel
                     </button>
@@ -2674,7 +2674,7 @@ export default function HabitTracker() {
                 }}
               >
                 <div
-                  className="w-full max-w-xl rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-4"
+                  className="w-full max-w-xl rounded-xl border border-zinc-200 bg-white p-4"
                   onMouseDown={(event) => event.stopPropagation()}
                 >
                 <div className="flex items-center justify-between mb-3">
@@ -2682,7 +2682,7 @@ export default function HabitTracker() {
                   <button
                     type="button"
                     onClick={() => setShowAddMilestoneModal(false)}
-                    className="px-2 py-1 rounded-md text-xs bg-zinc-200 dark:bg-zinc-700"
+                    className="px-2 py-1 rounded-md text-xs bg-zinc-200"
                   >
                     Close
                   </button>
@@ -2693,7 +2693,7 @@ export default function HabitTracker() {
                     onChange={(event) =>
                       setNewMilestoneType(event.target.value as "exam" | "coursework")
                     }
-                    className="text-sm border rounded-lg px-3 py-2 bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
+                    className="text-sm border rounded-lg px-3 py-2 bg-zinc-50"
                   >
                     <option value="exam">🧪 Exam</option>
                     <option value="coursework">📚 Coursework</option>
@@ -2703,13 +2703,13 @@ export default function HabitTracker() {
                     value={newMilestoneTitle}
                     onChange={(event) => setNewMilestoneTitle(event.target.value)}
                     placeholder="Title (optional)"
-                    className="flex-1 min-w-48 border rounded-lg px-3 py-2 text-sm bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
+                    className="flex-1 min-w-48 border rounded-lg px-3 py-2 text-sm bg-zinc-50"
                   />
                   <input
                     type="date"
                     value={newMilestoneDate}
                     onChange={(event) => setNewMilestoneDate(event.target.value)}
-                    className="text-sm border rounded-lg px-3 py-2 bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
+                    className="text-sm border rounded-lg px-3 py-2 bg-zinc-50"
                     required
                   />
                   <button
@@ -2735,7 +2735,7 @@ export default function HabitTracker() {
                 }}
               >
                 <div
-                  className="w-full max-w-2xl rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-4"
+                  className="w-full max-w-2xl rounded-xl border border-zinc-200 bg-white p-4"
                   onMouseDown={(event) => event.stopPropagation()}
                 >
                 <div className="flex items-center justify-between mb-3">
@@ -2743,7 +2743,7 @@ export default function HabitTracker() {
                   <button
                     type="button"
                     onClick={() => setShowAddHabitModal(false)}
-                    className="px-2 py-1 rounded-md text-xs bg-zinc-200 dark:bg-zinc-700"
+                    className="px-2 py-1 rounded-md text-xs bg-zinc-200"
                   >
                     Close
                   </button>
@@ -2753,7 +2753,7 @@ export default function HabitTracker() {
                   <select
                     value={newHabitMode}
                     onChange={(event) => setNewHabitMode(event.target.value as HabitMode)}
-                    className="text-sm border rounded-lg px-3 py-2 bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
+                    className="text-sm border rounded-lg px-3 py-2 bg-zinc-50"
                     disabled={!selectedTrackerCalendarId || actionLoading}
                     aria-label="Select habit tracking mode"
                   >
@@ -2765,7 +2765,7 @@ export default function HabitTracker() {
                     value={newHabitName}
                     onChange={(event) => setNewHabitName(event.target.value)}
                     placeholder="Add a habit (e.g. 🏋️ Gym)"
-                    className="flex-1 min-w-56 border rounded-lg px-3 py-2 text-sm bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
+                    className="flex-1 min-w-56 border rounded-lg px-3 py-2 text-sm bg-zinc-50"
                     disabled={!selectedTrackerCalendarId || actionLoading}
                   />
                   <button
@@ -2782,7 +2782,7 @@ export default function HabitTracker() {
                   </button>
                 </form>
 
-                <div className="mb-3 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 p-3">
+                <div className="mb-3 rounded-lg border border-zinc-200 bg-zinc-50 p-3">
                   <div className="flex items-center justify-between gap-2 mb-2">
                     <p className="text-sm font-medium">Defaults</p>
                     <span className="text-xs text-zinc-500">
@@ -2797,7 +2797,7 @@ export default function HabitTracker() {
                       return (
                         <div
                           key={`default-habit-${defaultHabit.key}`}
-                          className="flex items-center justify-between gap-3 rounded-md border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2"
+                          className="flex items-center justify-between gap-3 rounded-md border border-zinc-200 bg-white px-3 py-2"
                         >
                           <div>
                             <p className="text-sm font-medium">{defaultHabit.name}</p>
@@ -2812,7 +2812,7 @@ export default function HabitTracker() {
                               alreadyAdded ||
                               actionLoading
                             }
-                            className="px-3 py-1.5 rounded-md text-xs bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 disabled:opacity-50 transition-colors"
+                            className="px-3 py-1.5 rounded-md text-xs bg-zinc-200 hover:bg-zinc-300 disabled:opacity-50 transition-colors"
                           >
                             {alreadyAdded ? "Added" : "Add default"}
                           </button>
@@ -2839,7 +2839,7 @@ export default function HabitTracker() {
                 )}
 
                 {newHabitMode === "duration" && (
-                  <div className="rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 p-3 space-y-3">
+                  <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 space-y-3">
                     <p className="text-xs text-zinc-500">Select calendars to scan for this time-tracking habit.</p>
                     <div className="grid sm:grid-cols-2 gap-2">
                       {sourceCalendars.map((calendarOption) => (
@@ -2883,7 +2883,7 @@ export default function HabitTracker() {
                                 )
                               }
                               placeholder="Subject (e.g. Maths)"
-                              className="border rounded-lg px-2 py-1.5 text-sm bg-white dark:bg-zinc-900 dark:border-zinc-700"
+                              className="border rounded-lg px-2 py-1.5 text-sm bg-white"
                             />
                             <input
                               type="text"
@@ -2896,7 +2896,7 @@ export default function HabitTracker() {
                                 )
                               }
                               placeholder="Terms (e.g. math, maths, mathematics)"
-                              className="border rounded-lg px-2 py-1.5 text-sm bg-white dark:bg-zinc-900 dark:border-zinc-700"
+                              className="border rounded-lg px-2 py-1.5 text-sm bg-white"
                             />
                             <button
                               type="button"
@@ -2908,7 +2908,7 @@ export default function HabitTracker() {
                                 )
                               }
                               disabled={newHabitMatchEntries.length <= 1}
-                              className="px-2 py-1.5 rounded-md text-xs bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 disabled:opacity-50"
+                              className="px-2 py-1.5 rounded-md text-xs bg-zinc-200 hover:bg-zinc-300 disabled:opacity-50"
                             >
                               Remove
                             </button>
@@ -2922,7 +2922,7 @@ export default function HabitTracker() {
                               createMatchTermDraftEntry(),
                             ])
                           }
-                          className="px-3 py-1.5 rounded-md text-xs bg-zinc-200 dark:bg-zinc-700 hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors"
+                          className="px-3 py-1.5 rounded-md text-xs bg-zinc-200 hover:bg-zinc-300 transition-colors"
                         >
                           Add new subject to match
                         </button>
@@ -2932,14 +2932,14 @@ export default function HabitTracker() {
                 )}
 
                 {newHabitMode === "binary" && (
-                  <div className="rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 p-3 space-y-2">
+                  <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 space-y-2">
                     <label className="block">
                       <span className="text-xs text-zinc-500">Tracking calendar for this habit</span>
                       <select
                         value={newHabitTrackingCalendarId || ""}
                         onChange={(event) => setNewHabitTrackingCalendarId(event.target.value || null)}
                         disabled={!hasWritableCalendars || actionLoading}
-                        className="mt-1 w-full border rounded-lg px-3 py-2 text-sm bg-white dark:bg-zinc-900 dark:border-zinc-700"
+                        className="mt-1 w-full border rounded-lg px-3 py-2 text-sm bg-white"
                       >
                         {!hasWritableCalendars && <option value="">No writable calendars found</option>}
                         {hasWritableCalendars &&
@@ -2965,7 +2965,7 @@ export default function HabitTracker() {
 
 function StudyStatBadge({ label, value }: { label: string; value: string }) {
   return (
-    <div className="bg-zinc-50 dark:bg-zinc-800 rounded-xl px-3 py-3 text-center">
+    <div className="bg-zinc-50 rounded-xl px-3 py-3 text-center">
       <div className="text-lg font-bold leading-tight">{value}</div>
       <div className="text-[11px] text-zinc-500 mt-0.5">{label}</div>
     </div>

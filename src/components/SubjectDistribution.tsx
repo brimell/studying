@@ -127,7 +127,7 @@ export default function SubjectDistribution() {
         <select
           value={days}
           onChange={(e) => setDays(Number(e.target.value))}
-          className="text-sm border rounded-lg px-2 py-1 bg-zinc-50 dark:bg-zinc-800 dark:border-zinc-700"
+          className="text-sm border rounded-lg px-2 py-1 bg-zinc-50"
         >
           {[7, 30, 90, 365].map((d) => (
             <option key={d} value={d}>
@@ -209,7 +209,7 @@ export default function SubjectDistribution() {
           <div className="mt-4 overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b dark:border-zinc-700">
+                <tr className="border-b">
                   <th className="text-left py-2 pr-4">Subject</th>
                   <th className="text-right py-2 pr-4">Hours</th>
                   <th className="text-right py-2">%</th>
@@ -217,7 +217,7 @@ export default function SubjectDistribution() {
               </thead>
               <tbody>
                 {filteredSubjects.map((s, i) => (
-                  <tr key={s.subject} className="border-b dark:border-zinc-800">
+                  <tr key={s.subject} className="border-b">
                     <td className="py-1.5 pr-4 flex items-center gap-2">
                       <span
                         className="inline-block w-3 h-3 rounded-full"

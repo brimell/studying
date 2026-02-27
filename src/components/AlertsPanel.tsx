@@ -154,20 +154,20 @@ export default function AlertsPanel() {
   if (warnings.length === 0) return null;
 
   return (
-    <div className="mb-4 rounded-xl border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/40 p-4">
+    <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
       <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-        <h3 className="text-sm font-semibold text-amber-800 dark:text-amber-200">
+        <h3 className="text-sm font-semibold text-amber-800">
           Alerts: {warnings.length} warning{warnings.length === 1 ? "" : "s"}
         </h3>
         {criticalCount > 0 && (
-          <span className="text-xs font-medium px-2 py-0.5 rounded bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-200">
+          <span className="text-xs font-medium px-2 py-0.5 rounded bg-red-100 text-red-700">
             {criticalCount} critical
           </span>
         )}
       </div>
       <div className="space-y-1.5">
         {warnings.map((warning) => (
-          <div key={warning.key} className="text-xs text-zinc-700 dark:text-zinc-200">
+          <div key={warning.key} className="text-xs text-zinc-700">
             <span className="font-medium">{warning.title}:</span> {warning.message}
           </div>
         ))}

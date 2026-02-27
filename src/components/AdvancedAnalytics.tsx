@@ -231,14 +231,14 @@ export default function AdvancedAnalytics() {
       {!loading && !error && analytics && (
         <div className="space-y-4 text-sm">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div className="rounded-lg bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 p-3">
+            <div className="rounded-lg bg-zinc-50 border border-zinc-200 p-3">
               <p className="text-zinc-500">Study Efficiency</p>
               <p className="text-xl font-semibold mt-1">{toPercent(analytics.efficiencyRatio)}</p>
               <p className="text-xs text-zinc-500 mt-1">
                 Productive-day ratio: {toPercent(analytics.productiveRatio)}
               </p>
             </div>
-            <div className="rounded-lg bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 p-3">
+            <div className="rounded-lg bg-zinc-50 border border-zinc-200 p-3">
               <p className="text-zinc-500">Study Trend</p>
               <p className="text-xl font-semibold mt-1">
                 {analytics.recentAvg.toFixed(1)}h/day
@@ -247,7 +247,7 @@ export default function AdvancedAnalytics() {
                 Vs previous: {(analytics.recentAvg - analytics.previousAvg).toFixed(1)}h/day
               </p>
             </div>
-            <div className="rounded-lg bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 p-3">
+            <div className="rounded-lg bg-zinc-50 border border-zinc-200 p-3">
               <p className="text-zinc-500">Next 7-Day Prediction</p>
               <p className="text-xl font-semibold mt-1">{analytics.nextWeekPrediction.toFixed(1)}h</p>
               <p className="text-xs text-zinc-500 mt-1">
@@ -257,7 +257,7 @@ export default function AdvancedAnalytics() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div className="rounded-lg bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 p-3">
+            <div className="rounded-lg bg-zinc-50 border border-zinc-200 p-3">
               <p className="text-zinc-500">Subject Mastery Signal</p>
               <p className="font-semibold mt-1">
                 {analytics.topSubject
@@ -269,7 +269,7 @@ export default function AdvancedAnalytics() {
                 {toPercent(analytics.balanceScore)}
               </p>
             </div>
-            <div className="rounded-lg bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 p-3">
+            <div className="rounded-lg bg-zinc-50 border border-zinc-200 p-3">
               <p className="text-zinc-500">Fatigue Analysis</p>
               {analytics.fatigueNow === null ? (
                 <p className="text-xs text-zinc-500 mt-1">

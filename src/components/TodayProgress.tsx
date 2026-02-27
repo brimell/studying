@@ -106,7 +106,7 @@ export default function TodayProgress() {
         <span className="text-sm font-medium">{pct}%</span>
       </div>
       {/* Progress bar */}
-      <div className="w-full h-6 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
+      <div className="w-full h-6 bg-zinc-100 rounded-full overflow-hidden">
         <div
           className="h-full bg-sky-500 rounded-full transition-all duration-700"
           style={{ width: `${Math.min(pct, 100)}%` }}
@@ -124,14 +124,14 @@ function CardSkeleton({ title }: { title: string }) {
   return (
     <div className="surface-card p-6 animate-pulse">
       <h2 className="text-lg font-semibold mb-4">{title}</h2>
-      <div className="h-6 bg-zinc-200 dark:bg-zinc-700 rounded-full" />
+      <div className="h-6 bg-zinc-200 rounded-full" />
     </div>
   );
 }
 
 function CardError({ title, error }: { title: string; error: string }) {
   return (
-    <div className="rounded-2xl bg-white dark:bg-zinc-900 p-6 shadow-sm border border-red-200 dark:border-red-900">
+    <div className="rounded-2xl bg-white p-6 shadow-sm border border-red-200">
       <h2 className="text-lg font-semibold mb-2">{title}</h2>
       <p className="text-sm text-red-500">{error}</p>
     </div>
