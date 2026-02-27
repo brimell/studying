@@ -100,14 +100,6 @@ export default function Home() {
                   >
                     Workout Section
                   </Link>
-                  <button
-                    type="button"
-                    aria-pressed={wideScreen}
-                    onClick={() => setWideScreen((previous) => !previous)}
-                    className="pill-btn w-full text-left"
-                  >
-                    {wideScreen ? "Standard Width" : "Wide Screen"}
-                  </button>
                   <TopBarDataControls mode="refreshOnly" stacked />
                   <div className="mt-1 text-[11px] uppercase tracking-wide text-zinc-500">
                     Site account
