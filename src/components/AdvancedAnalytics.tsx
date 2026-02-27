@@ -73,6 +73,31 @@ interface StudyGoalForecastTargets {
   monthlyHours: number;
 }
 
+interface RecoveryScoreDay {
+  date: string;
+  score: number;
+  sleep: number | null;
+  mood: number | null;
+  fatigue: number | null;
+  workoutLoad: number | null;
+  coverage: number;
+}
+
+interface RecoveryScoreSummary {
+  latest: RecoveryScoreDay | null;
+  average7: number | null;
+  trend7: number;
+  series: RecoveryScoreDay[];
+}
+
+interface DataQualityIssue {
+  id: string;
+  title: string;
+  detail: string;
+  suggestion: string;
+  severity: "high" | "medium" | "low";
+}
+
 function readStudyCalendarIds(): string[] {
   const raw = window.localStorage.getItem(STUDY_CALENDAR_IDS_STORAGE_KEY);
   if (!raw) return [];
@@ -207,6 +232,11 @@ function dayAtNoonFromNow(dayOffset: number): Date {
   date.setHours(12, 0, 0, 0);
   date.setDate(date.getDate() + dayOffset);
   return date;
+}
+
+function dayAtNoonFromDateKey(dateKey: string): Date {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  return new Date(year, month - 1, day, 12, 0, 0, 0);
 }
 
 function toPercent(value: number): string {
@@ -563,6 +593,218 @@ function buildGoalForecasts(
   return forecasts;
 }
 
+function buildRecoveryScoreSummary(
+  signals: DailyTrackerDaySignals[],
+  workoutPayload: WorkoutPlannerPayload | null
+): RecoveryScoreSummary {
+  const byDate = new Map(signals.map((entry) => [entry.date, entry]));
+  const dates = [...new Set(signals.map((entry) => entry.date))].sort();
+  const totalWeight = 1;
+
+  const series = dates
+    .map((date) => {
+      const signal = byDate.get(date);
+      if (!signal) return null;
+
+      let weightedScore = 0;
+      let includedWeight = 0;
+
+      if (signal.sleep !== null) {
+        weightedScore += signal.sleep * 10 * 0.3;
+        includedWeight += 0.3;
+      }
+      if (signal.mood !== null) {
+        weightedScore += signal.mood * 10 * 0.25;
+        includedWeight += 0.25;
+      }
+      if (signal.fatigue !== null) {
+        weightedScore += Math.max(0, 10 - signal.fatigue) * 10 * 0.25;
+        includedWeight += 0.25;
+      }
+
+      let workoutLoad: number | null = null;
+      if (workoutPayload) {
+        workoutLoad = fatigueScore(workoutPayload, dayAtNoonFromDateKey(date));
+        weightedScore += Math.max(0, 100 - workoutLoad) * 0.2;
+        includedWeight += 0.2;
+      }
+
+      if (includedWeight <= 0) return null;
+      return {
+        date,
+        score: weightedScore / includedWeight,
+        sleep: signal.sleep,
+        mood: signal.mood,
+        fatigue: signal.fatigue,
+        workoutLoad,
+        coverage: includedWeight / totalWeight,
+      } satisfies RecoveryScoreDay;
+    })
+    .filter((entry): entry is RecoveryScoreDay => Boolean(entry));
+
+  const latest = series.length > 0 ? series[series.length - 1] : null;
+  const last7Scores = series.slice(-7).map((entry) => entry.score);
+
+  return {
+    latest,
+    average7: last7Scores.length > 0 ? mean(last7Scores) : null,
+    trend7: last7Scores.length >= 2 ? linearSlope(last7Scores) : 0,
+    series,
+  };
+}
+
+function detectDataQualityIssues(
+  daily: DailyStudyTimeData,
+  trackerEntries: DailyTrackerEntry[],
+  workoutPayload: WorkoutPlannerPayload | null
+): DataQualityIssue[] {
+  const issues: DataQualityIssue[] = [];
+
+  const impossibleDurations = daily.entries.filter((entry) => entry.hours < 0 || entry.hours > 24);
+  if (impossibleDurations.length > 0) {
+    const sample = impossibleDurations[0];
+    issues.push({
+      id: "study-duration-impossible",
+      title: "Impossible study duration detected",
+      detail: `${impossibleDurations.length} day(s) exceed 24h or are negative (example: ${sample.date} = ${sample.hours.toFixed(1)}h).`,
+      suggestion: "Review calendar events that day and split/remove malformed entries.",
+      severity: "high",
+    });
+  }
+
+  const extremeDurations = daily.entries.filter((entry) => entry.hours > 16 && entry.hours <= 24);
+  if (extremeDurations.length > 0) {
+    const sample = extremeDurations[0];
+    issues.push({
+      id: "study-duration-extreme",
+      title: "Unusually high study durations",
+      detail: `${extremeDurations.length} day(s) logged above 16h (example: ${sample.date} = ${sample.hours.toFixed(1)}h).`,
+      suggestion: "Check for overlapping calendar blocks or events left running too long.",
+      severity: "medium",
+    });
+  }
+
+  const sortedStudy = [...daily.entries].sort((left, right) => left.date.localeCompare(right.date));
+  const abruptSpike = sortedStudy.find((entry, index) => {
+    if (index === 0) return false;
+    const previous = sortedStudy[index - 1].hours;
+    return entry.hours >= 8 && entry.hours - previous >= 8;
+  });
+  if (abruptSpike) {
+    const previous = sortedStudy.find((entry) => entry.date < abruptSpike.date);
+    issues.push({
+      id: "study-duration-spike",
+      title: "Abrupt study spike",
+      detail: `${abruptSpike.date} jumped to ${abruptSpike.hours.toFixed(1)}h from ${previous?.hours.toFixed(1) ?? "0.0"}h previous day.`,
+      suggestion: "Validate calendar imports for duplicate or incorrectly timed sessions.",
+      severity: "low",
+    });
+  }
+
+  const nowWithBuffer = Date.now() + 5 * 60 * 1000;
+  const invalidTimestamps = trackerEntries.filter((entry) => {
+    const parsed = Date.parse(entry.loggedAt);
+    return Number.isNaN(parsed) || parsed > nowWithBuffer;
+  });
+  if (invalidTimestamps.length > 0) {
+    issues.push({
+      id: "tracker-timestamp-invalid",
+      title: "Invalid or future tracker timestamps",
+      detail: `${invalidTimestamps.length} tracker log(s) have invalid/future timestamps.`,
+      suggestion: "Check device clock/timezone and re-save affected logs.",
+      severity: "medium",
+    });
+  }
+
+  const mismatchedDates = trackerEntries.filter(
+    (entry) => entry.form.date.trim().length > 0 && entry.form.date !== entry.date
+  );
+  if (mismatchedDates.length > 0) {
+    issues.push({
+      id: "tracker-date-mismatch",
+      title: "Tracker date mismatch",
+      detail: `${mismatchedDates.length} log(s) have form date different from stored entry date.`,
+      suggestion: "Open those entries and re-save to normalize date fields.",
+      severity: "low",
+    });
+  }
+
+  const trackerLogsPerDay = new Map<string, number>();
+  for (const entry of trackerEntries) {
+    trackerLogsPerDay.set(entry.date, (trackerLogsPerDay.get(entry.date) || 0) + 1);
+  }
+  const overloadedDays = [...trackerLogsPerDay.entries()].filter(([, count]) => count > 10);
+  if (overloadedDays.length > 0) {
+    issues.push({
+      id: "tracker-overlogged-day",
+      title: "Very high tracker log volume in one day",
+      detail: `${overloadedDays.length} day(s) have more than 10 tracker logs (max: ${Math.max(
+        ...overloadedDays.map(([, count]) => count)
+      )}).`,
+      suggestion: "Merge very similar logs to keep trend analytics stable.",
+      severity: "low",
+    });
+  }
+
+  const duplicateTimestampCounts = new Map<string, number>();
+  for (const entry of trackerEntries) {
+    const key = `${entry.date}|${entry.loggedAt}`;
+    duplicateTimestampCounts.set(key, (duplicateTimestampCounts.get(key) || 0) + 1);
+  }
+  const duplicateTimestampLogs = [...duplicateTimestampCounts.values()].filter((count) => count > 1);
+  if (duplicateTimestampLogs.length > 0) {
+    issues.push({
+      id: "tracker-duplicate-timestamps",
+      title: "Potential duplicate tracker entries",
+      detail: `${duplicateTimestampLogs.length} timestamp collision(s) found in tracker logs.`,
+      suggestion: "Remove duplicate entries to avoid skewed averages.",
+      severity: "medium",
+    });
+  }
+
+  if (workoutPayload) {
+    const workoutCountByDayAndPlan = new Map<string, number>();
+    for (const log of workoutPayload.logs) {
+      const key = `${log.performedOn}|${log.workoutId}`;
+      workoutCountByDayAndPlan.set(key, (workoutCountByDayAndPlan.get(key) || 0) + 1);
+    }
+    const duplicateWorkoutLogs = [...workoutCountByDayAndPlan.values()].filter((count) => count > 2);
+    if (duplicateWorkoutLogs.length > 0) {
+      issues.push({
+        id: "workout-duplicate-logs",
+        title: "Repeated identical workout logs",
+        detail: `${duplicateWorkoutLogs.length} day/workout pair(s) were logged more than twice.`,
+        suggestion: "Keep one log per completed workout to avoid inflated load metrics.",
+        severity: "low",
+      });
+    }
+  }
+
+  const severityRank: Record<DataQualityIssue["severity"], number> = {
+    high: 0,
+    medium: 1,
+    low: 2,
+  };
+
+  return issues
+    .sort((left, right) => severityRank[left.severity] - severityRank[right.severity])
+    .slice(0, 8);
+}
+
+function readinessLabel(score: number): string {
+  if (score >= 80) return "High readiness";
+  if (score >= 65) return "Moderate readiness";
+  if (score >= 45) return "Caution";
+  return "Low readiness";
+}
+
+function readinessTone(score: number): string {
+  if (score >= 80) return "text-emerald-700";
+  if (score >= 65) return "text-amber-700";
+  if (score >= 45) return "text-orange-700";
+  return "text-rose-700";
+}
+
 export default function AdvancedAnalytics() {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const [loading, setLoading] = useState(true);
@@ -769,6 +1011,12 @@ export default function AdvancedAnalytics() {
     const studyHoursByDate = new Map(daily.entries.map((entry) => [entry.date, entry.hours]));
     const anomalies = detectAnomalies(dailySignals, studyHoursByDate, state.habitData);
     const goalForecasts = buildGoalForecasts(daily, state.habitData, goalTargets);
+    const recoveryScore = buildRecoveryScoreSummary(dailySignals, state.workoutPayload);
+    const dataQualityIssues = detectDataQualityIssues(
+      daily,
+      state.dailyTrackerEntries,
+      state.workoutPayload
+    );
 
     return {
       recentAvg,
@@ -783,7 +1031,9 @@ export default function AdvancedAnalytics() {
       fatigueNow,
       fatigueTrend,
       recoveryDays,
+      recoveryScore,
       anomalies,
+      dataQualityIssues,
       goalForecasts,
     };
   }, [goalTargets, state]);
@@ -822,7 +1072,7 @@ export default function AdvancedAnalytics() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div className="rounded-lg bg-zinc-50 border border-zinc-200 p-3">
               <p className="text-zinc-500">Subject Mastery Signal</p>
               <p className="font-semibold mt-1">
@@ -856,6 +1106,66 @@ export default function AdvancedAnalytics() {
                 </>
               )}
             </div>
+            <div className="rounded-lg bg-zinc-50 border border-zinc-200 p-3">
+              <p className="text-zinc-500">Recovery Score</p>
+              {!analytics.recoveryScore.latest ? (
+                <p className="text-xs text-zinc-500 mt-1">
+                  Add sleep/mood/fatigue daily tracker logs to generate readiness scoring.
+                </p>
+              ) : (
+                <>
+                  <p className="text-2xl font-semibold mt-1 stat-mono">
+                    {analytics.recoveryScore.latest.score.toFixed(0)}
+                  </p>
+                  <p className={`text-xs mt-1 ${readinessTone(analytics.recoveryScore.latest.score)}`}>
+                    {readinessLabel(analytics.recoveryScore.latest.score)}
+                  </p>
+                  <p className="text-xs text-zinc-500 mt-1">
+                    7-day avg:{" "}
+                    <span className="stat-mono">
+                      {analytics.recoveryScore.average7 !== null
+                        ? analytics.recoveryScore.average7.toFixed(0)
+                        : "N/A"}
+                    </span>{" "}
+                    • Trend:{" "}
+                    <span className="stat-mono">
+                      {analytics.recoveryScore.trend7 >= 0 ? "+" : ""}
+                      {analytics.recoveryScore.trend7.toFixed(2)}/day
+                    </span>
+                  </p>
+                  <p className="text-[11px] text-zinc-500 mt-1">
+                    Sleep{" "}
+                    <span className="stat-mono">
+                      {analytics.recoveryScore.latest.sleep?.toFixed(1) ?? "N/A"}
+                    </span>{" "}
+                    • Mood{" "}
+                    <span className="stat-mono">
+                      {analytics.recoveryScore.latest.mood?.toFixed(1) ?? "N/A"}
+                    </span>{" "}
+                    • Fatigue{" "}
+                    <span className="stat-mono">
+                      {analytics.recoveryScore.latest.fatigue?.toFixed(1) ?? "N/A"}
+                    </span>{" "}
+                    • Load{" "}
+                    <span className="stat-mono">
+                      {analytics.recoveryScore.latest.workoutLoad?.toFixed(0) ?? "N/A"}%
+                    </span>
+                  </p>
+                  <div className="mt-2 h-10 flex items-end gap-1">
+                    {analytics.recoveryScore.series.slice(-10).map((day) => (
+                      <div
+                        key={day.date}
+                        className="flex-1 rounded-sm bg-zinc-300/80"
+                        style={{ height: `${Math.max(10, day.score)}%` }}
+                        title={`${day.date}: ${day.score.toFixed(0)} (coverage ${Math.round(
+                          day.coverage * 100
+                        )}%)`}
+                      />
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
           </div>
 
           <div className="rounded-lg bg-zinc-50 border border-zinc-200 p-3 space-y-2">
@@ -879,6 +1189,29 @@ export default function AdvancedAnalytics() {
                         </li>
                       ))}
                     </ul>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-lg bg-zinc-50 border border-zinc-200 p-3 space-y-2">
+            <p className="font-semibold">Data quality checks</p>
+            {analytics.dataQualityIssues.length === 0 && (
+              <p className="text-xs text-zinc-500">
+                No suspicious logging patterns detected in the current window.
+              </p>
+            )}
+            {analytics.dataQualityIssues.length > 0 && (
+              <div className="space-y-2">
+                {analytics.dataQualityIssues.map((issue) => (
+                  <div key={issue.id} className="rounded-md border border-zinc-200 bg-white px-3 py-2">
+                    <p className="text-sm font-medium">{issue.title}</p>
+                    <p className="text-xs text-zinc-600 mt-0.5">{issue.detail}</p>
+                    <p className="text-xs mt-1">
+                      Severity: <span className="stat-mono uppercase">{issue.severity}</span>
+                    </p>
+                    <p className="text-xs text-zinc-500 mt-1">Suggested correction: {issue.suggestion}</p>
                   </div>
                 ))}
               </div>
