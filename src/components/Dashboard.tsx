@@ -197,10 +197,10 @@ export default function Dashboard() {
   const [order, setOrder] = useState<CardId[]>(initialDashboardState.order);
   const [draggingId, setDraggingId] = useState<CardId | null>(null);
   const [dropTargetId, setDropTargetId] = useState<CardId | null>(null);
-  const [gridColumns, setGridColumns] = useState<(typeof GRID_COLUMN_OPTIONS)[number]>(
+  const [gridColumns] = useState<(typeof GRID_COLUMN_OPTIONS)[number]>(
     initialDashboardState.gridColumns
   );
-  const [gridRows, setGridRows] = useState<(typeof GRID_ROW_OPTIONS)[number]>(
+  const [gridRows] = useState<(typeof GRID_ROW_OPTIONS)[number]>(
     initialDashboardState.gridRows
   );
   const [cardSizes, setCardSizes] = useState<Record<CardId, CardSizePreset>>(
@@ -416,10 +416,6 @@ export default function Dashboard() {
     setOpenSettingsCardId((current) => (current === cardId ? null : current));
   };
 
-  const restoreCard = (cardId: CardId) => {
-    setHiddenCards((previous) => previous.filter((id) => id !== cardId));
-  };
-
   if (status === "loading") {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -443,53 +439,6 @@ export default function Dashboard() {
   return (
     <div>
       <AlertsPanel />
-      <div className="surface-card mb-4 hidden lg:flex flex-wrap items-center gap-3 px-3 py-2 text-xs">
-        <span className="font-medium text-zinc-700">Dashboard Grid</span>
-        <label className="inline-flex items-center gap-1.5">
-          <span>Columns</span>
-          <select
-            value={gridColumns}
-            onChange={(event) => setGridColumns(Number(event.target.value) as (typeof GRID_COLUMN_OPTIONS)[number])}
-            className="field-select"
-          >
-            {GRID_COLUMN_OPTIONS.map((value) => (
-              <option key={value} value={value}>
-                {value}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="inline-flex items-center gap-1.5">
-          <span>Rows</span>
-          <select
-            value={gridRows}
-            onChange={(event) => setGridRows(Number(event.target.value) as (typeof GRID_ROW_OPTIONS)[number])}
-            className="field-select"
-          >
-            {GRID_ROW_OPTIONS.map((value) => (
-              <option key={value} value={value}>
-                {value}
-              </option>
-            ))}
-          </select>
-        </label>
-        {hiddenCards.length > 0 && (
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-zinc-500">Hidden cards:</span>
-            {hiddenCards.map((cardId) => (
-              <button
-                key={`restore-${cardId}`}
-                type="button"
-                onClick={() => restoreCard(cardId)}
-                className="pill-btn px-2 py-0.5"
-              >
-                Restore {cards[cardId].title}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-
       <div className="grid grid-cols-1 gap-6" style={gridStyle}>
         {renderedOrder.length === 0 && (
           <div className="surface-card p-6 text-sm text-zinc-600">
