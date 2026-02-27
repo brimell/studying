@@ -35,6 +35,34 @@ export const UI_MUSCLE_GROUPS: MuscleGroup[] = MUSCLE_GROUPS.filter(
   (muscle) => !LEGACY_MUSCLE_GROUP_SET.has(muscle)
 );
 
+export const STANDARD_REST_SECONDS = 60;
+export const LEG_EXERCISE_REST_SECONDS = 180;
+
+const LEG_REST_MUSCLES = new Set<MuscleGroup>([
+  "quadriceps",
+  "quads",
+  "hamstrings",
+  "gluteus-maximus",
+  "glutes",
+  "hip-adductors",
+  "hip-flexors",
+  "abductors",
+  "calves",
+  "gastrocnemius",
+  "soleus",
+  "tibialis-anterior",
+  "thighs",
+  "sartorius",
+  "hips",
+  "feet",
+]);
+
+export function getPolicyRestSeconds(muscles: MuscleGroup[]): number {
+  return muscles.some((muscle) => LEG_REST_MUSCLES.has(muscle))
+    ? LEG_EXERCISE_REST_SECONDS
+    : STANDARD_REST_SECONDS;
+}
+
 function normalizeMuscles(muscles: MuscleGroup[]): MuscleGroup[] {
   const seen = new Set<MuscleGroup>();
   const result: MuscleGroup[] = [];
@@ -317,13 +345,17 @@ export function getDefaultWorkoutTemplates(): WorkoutTemplate[] {
 
   return templates.map((template) => ({
     ...template,
-    exercises: template.exercises.map((exercise) => ({
-      ...exercise,
-      muscles: resolveExerciseMuscles(
+    exercises: template.exercises.map((exercise) => {
+      const muscles = resolveExerciseMuscles(
         DEFAULT_TEMPLATE_EXERCISE_LIBRARY_IDS[exercise.id] || exercise.id,
         []
-      ),
-    })),
+      );
+      return {
+        ...exercise,
+        muscles,
+        restSeconds: getPolicyRestSeconds(muscles),
+      };
+    }),
   }));
 }
 
@@ -436,10 +468,7 @@ function sanitizeExercise(input: unknown): WorkoutExercise | null {
   if (muscles.length === 0) return null;
   const sets = Math.max(1, Math.min(30, Number(value.sets) || 1));
   const reps = Math.max(1, Math.min(100, Number(value.reps) || 1));
-  const rawRestSeconds = Number(value.restSeconds);
-  const restSeconds = Number.isFinite(rawRestSeconds)
-    ? Math.max(0, Math.min(600, Math.round(rawRestSeconds)))
-    : undefined;
+  const restSeconds = getPolicyRestSeconds(muscles);
   const notes = safeString(value.notes, 300);
   return {
     id,
