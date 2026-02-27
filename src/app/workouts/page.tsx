@@ -45,18 +45,18 @@ export default function WorkoutsPage() {
     : "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8";
 
   return (
-    <div className={`app-shell ${useLeftSidebar ? "pl-56" : ""}`}>
+    <div className={`app-shell ${useLeftSidebar ? "pl-32" : ""}`}>
       <header
         className={
           useLeftSidebar
-            ? "top-nav fixed left-0 top-0 z-50 h-[100dvh] w-56 border-r border-zinc-200"
+            ? "top-nav fixed left-0 top-0 z-50 h-[100dvh] w-32 border-r border-zinc-200"
             : "top-nav sticky top-0 z-50"
         }
       >
         <div
           className={
             useLeftSidebar
-              ? "h-full px-4 py-4 flex flex-col gap-3"
+              ? "h-full px-2 py-3 flex flex-col gap-2"
               : `${containerClass} py-2 flex flex-col gap-2 sm:h-16 sm:flex-row sm:items-center sm:justify-between`
           }
         >
