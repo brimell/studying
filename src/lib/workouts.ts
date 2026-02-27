@@ -61,6 +61,7 @@ type ExerciseMuscleWeight = {
 type ExerciseMuscleMapEntry = {
   exerciseId: string;
   exerciseName: string;
+  timeSeconds: number;
   muscles: ExerciseMuscleWeight[];
 };
 
@@ -97,6 +98,7 @@ const EXERCISE_MUSCLE_ENTRIES: ExerciseMuscleMapEntry[] = (
   exerciseMusclesData as Array<{
     exerciseId: string;
     exerciseName: string;
+    timeSeconds?: number;
     muscles: Array<{ id: string; percent: number }>;
   }>
 )
@@ -114,6 +116,10 @@ const EXERCISE_MUSCLE_ENTRIES: ExerciseMuscleMapEntry[] = (
     return {
       exerciseId: entry.exerciseId,
       exerciseName: entry.exerciseName,
+      timeSeconds:
+        Number.isFinite(entry.timeSeconds) && Number(entry.timeSeconds) > 0
+          ? Math.round(Number(entry.timeSeconds))
+          : 30,
       muscles,
     };
   })

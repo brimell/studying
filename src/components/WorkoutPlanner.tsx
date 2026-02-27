@@ -43,6 +43,26 @@ const HABIT_WORKOUT_LINKS_STORAGE_KEY = "study-stats.habit-tracker.workout-links
 
 const DEFAULT_EXERCISE_MUSCLES: MuscleGroup[] = ["pectoralis-major"];
 const DEFAULT_REST_SECONDS = 90;
+const ESTIMATED_REST_SECONDS = 60;
+const ESTIMATED_LEG_REST_SECONDS = 180;
+const LEG_MUSCLES = new Set<MuscleGroup>([
+  "quadriceps",
+  "quads",
+  "hamstrings",
+  "gluteus-maximus",
+  "glutes",
+  "hip-adductors",
+  "hip-flexors",
+  "abductors",
+  "calves",
+  "gastrocnemius",
+  "soleus",
+  "tibialis-anterior",
+  "thighs",
+  "sartorius",
+  "hips",
+  "feet",
+]);
 
 const WEEKDAY_LABELS: Record<WorkoutWeekDay, string> = {
   monday: "Monday",
@@ -92,10 +112,45 @@ function computeWorkoutLoadPoints(workout: WorkoutTemplate): Record<MuscleGroup,
   return byMuscle;
 }
 
+function isLegExercise(exercise: WorkoutExercise): boolean {
+  return exercise.muscles.some((muscle) => LEG_MUSCLES.has(muscle));
+}
+
+function getExerciseEstimatedWorkSeconds(exercise: WorkoutExercise): number {
+  const mapped = EXERCISE_MUSCLE_MAP.get(exercise.id);
+  const perSetSeconds =
+    mapped?.timeSeconds && mapped.timeSeconds > 0
+      ? mapped.timeSeconds
+      : Math.max(20, Math.round(exercise.reps * 2.5));
+  return perSetSeconds * exercise.sets;
+}
+
+function estimateWorkoutDurationSeconds(workout: WorkoutTemplate): number {
+  let total = 0;
+  for (const exercise of workout.exercises) {
+    total += getExerciseEstimatedWorkSeconds(exercise);
+    const restBetweenSets = Math.max(0, exercise.sets - 1);
+    if (restBetweenSets === 0) continue;
+    total +=
+      restBetweenSets * (isLegExercise(exercise) ? ESTIMATED_LEG_REST_SECONDS : ESTIMATED_REST_SECONDS);
+  }
+  return total;
+}
+
+function formatEstimatedDuration(seconds: number): string {
+  const safe = Math.max(0, Math.round(seconds));
+  const minutes = Math.floor(safe / 60);
+  const remSeconds = safe % 60;
+  if (minutes === 0) return `${remSeconds}s`;
+  if (remSeconds === 0) return `${minutes}m`;
+  return `${minutes}m ${remSeconds}s`;
+}
+
 interface KnownExerciseOption {
   id: string;
   name: string;
   muscles: MuscleGroup[];
+  timeSeconds: number;
   searchableName: string;
 }
 
@@ -298,6 +353,7 @@ export default function WorkoutPlanner() {
           id: entry.exerciseId,
           name: entry.exerciseName,
           muscles: entry.muscles.map((muscle) => muscle.id as MuscleGroup),
+          timeSeconds: entry.timeSeconds,
           searchableName: entry.exerciseName.trim().toLowerCase(),
         }))
         .sort((left, right) => left.name.localeCompare(right.name)),
@@ -918,7 +974,8 @@ export default function WorkoutPlanner() {
                     <div>
                       <p className="text-sm font-medium">{workout.name}</p>
                       <p className="text-xs text-zinc-500">
-                        {workout.exercises.length} exercise{workout.exercises.length === 1 ? "" : "s"}
+                        {workout.exercises.length} exercise{workout.exercises.length === 1 ? "" : "s"} • ~
+                        {formatEstimatedDuration(estimateWorkoutDurationSeconds(workout))}
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
@@ -1031,7 +1088,8 @@ export default function WorkoutPlanner() {
                   <div className="min-w-0">
                     <p className="text-xs font-semibold truncate">{workout.name}</p>
                     <p className="text-[11px] text-zinc-500">
-                      {workout.exercises.length} exercise{workout.exercises.length === 1 ? "" : "s"}
+                      {workout.exercises.length} exercise{workout.exercises.length === 1 ? "" : "s"} • ~
+                      {formatEstimatedDuration(estimateWorkoutDurationSeconds(workout))}
                     </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-1.5">
@@ -1114,7 +1172,8 @@ export default function WorkoutPlanner() {
                       </div>
                       <p className="text-[10px] text-zinc-500 mt-0.5 stat-mono">
                         {exercise.sets} sets x {exercise.reps} reps • Rest{" "}
-                        {exercise.restSeconds ?? DEFAULT_REST_SECONDS}s
+                        {exercise.restSeconds ?? DEFAULT_REST_SECONDS}s • Est{" "}
+                        {formatEstimatedDuration(getExerciseEstimatedWorkSeconds(exercise))}
                       </p>
                       {exerciseInfoVisible[`saved-${workout.id}-${exercise.id}`] && (
                         <p className="text-[10px] text-zinc-500 mt-0.5">
@@ -1388,7 +1447,8 @@ export default function WorkoutPlanner() {
                         <div className="min-w-0">
                           <p className="text-sm font-medium truncate">{exercise.name}</p>
                           <p className="text-[11px] text-zinc-500 truncate">
-                            {exercise.muscles.map((muscle) => MUSCLE_LABELS[muscle]).join(", ")}
+                            {exercise.muscles.map((muscle) => MUSCLE_LABELS[muscle]).join(", ")} • ~
+                            {formatEstimatedDuration(exercise.timeSeconds)}
                           </p>
                         </div>
                         <button
@@ -1617,7 +1677,8 @@ export default function WorkoutPlanner() {
                     </div>
                     <p className="text-zinc-500 mt-1 stat-mono">
                       {exercise.sets} sets x {exercise.reps} reps • Rest{" "}
-                      {exercise.restSeconds ?? DEFAULT_REST_SECONDS}s
+                      {exercise.restSeconds ?? DEFAULT_REST_SECONDS}s • Est{" "}
+                      {formatEstimatedDuration(getExerciseEstimatedWorkSeconds(exercise))}
                     </p>
                     {exerciseInfoVisible[`preview-${previewWorkout.id}-${exercise.id}`] && (
                       <p className="text-zinc-500 mt-1">
