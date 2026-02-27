@@ -101,8 +101,8 @@ export default function TodayProgress() {
     };
   }, [fetchData]);
 
-  if (loading) return <CardSkeleton />;
-  if (error) return <CardError error={error} />;
+  if (loading && !data) return <CardSkeleton />;
+  if (error && !data) return <CardError error={error} />;
   if (!data) return null;
 
   const remaining = Math.max(0, data.totalPlanned - data.totalCompleted);
@@ -110,6 +110,12 @@ export default function TodayProgress() {
 
   return (
     <div className="surface-card p-6">
+      {loading && (
+        <div className="mb-2 flex justify-end">
+          <span className="pill-btn text-[11px] px-2 py-1 stat-mono">Updating...</span>
+        </div>
+      )}
+      {error && <p className="text-xs text-red-500 mb-2">{error}</p>}
       <div className="flex items-center justify-between mb-2">
         <span className="text-sm text-zinc-500 stat-mono">
           {data.totalCompleted.toFixed(1)}h / {data.totalPlanned.toFixed(1)}h

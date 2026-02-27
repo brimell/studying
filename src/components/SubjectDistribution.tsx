@@ -149,15 +149,21 @@ export default function SubjectDistribution() {
         />
       </div>
 
-      {loading && (
+      {loading && !data && (
         <div className="h-64 flex items-center justify-center">
           <LoadingIcon />
         </div>
       )}
-      {error && <p className="text-sm text-red-500">{error}</p>}
+      {error && !data && <p className="text-sm text-red-500">{error}</p>}
 
-      {data && !loading && (
+      {data && (
         <>
+          {loading && (
+            <div className="mb-2 flex justify-end">
+              <span className="pill-btn text-[11px] px-2 py-1 stat-mono">Updating...</span>
+            </div>
+          )}
+          {error && <p className="text-xs text-red-500 mb-2">{error}</p>}
           <p className="text-sm text-zinc-500 mb-4">
             Total: <strong className="stat-mono">{data.totalHours.toFixed(1)}h</strong> over{" "}
             <span className="stat-mono">{data.numDays}</span> days

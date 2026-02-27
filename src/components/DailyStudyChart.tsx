@@ -168,14 +168,19 @@ export default function DailyStudyChart() {
           />
         </div>
       </div>
-      {loading && (
+      {loading && !data && (
         <div className="h-64 flex items-center justify-center">
           <LoadingIcon />
         </div>
       )}
-      {error && <p className="text-sm text-red-500">{error}</p>}
-      {data && !loading && (
+      {data && (
         <>
+          {loading && (
+            <div className="mb-2 flex justify-end">
+              <span className="pill-btn text-[11px] px-2 py-1 stat-mono">Updating...</span>
+            </div>
+          )}
+          {error && <p className="text-xs text-red-500 mb-2">{error}</p>}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-6 mb-4 text-sm">
             <span>
               Monthly avg:{" "}
@@ -224,6 +229,7 @@ export default function DailyStudyChart() {
           </ResponsiveContainer>
         </>
       )}
+      {!data && error && <p className="text-sm text-red-500">{error}</p>}
     </div>
   );
 }
