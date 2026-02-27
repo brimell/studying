@@ -29,6 +29,7 @@ const HABIT_SHOW_FUTURE_DAYS_STORAGE_KEY = "study-stats.habit-tracker.show-futur
 const HABIT_FUTURE_PREVIEW_SETTINGS_STORAGE_KEY = "study-stats.habit-tracker.future-preview";
 const HABIT_ORDER_STORAGE_KEY = "study-stats.habit-tracker.order";
 const STUDY_HABIT_STORAGE_KEY = "study-stats.habit-tracker.study-habit";
+const STUDY_CALENDAR_IDS_STORAGE_KEY = "study-stats.study.calendar-ids";
 const PROJECTION_EXAM_DATE_STORAGE_KEY = "study-stats.projection.exam-date";
 const OPEN_ADD_HABIT_EVENT = "study-stats:open-add-habit";
 const OPEN_ADD_MILESTONE_EVENT = "study-stats:open-add-milestone";
@@ -1364,6 +1365,34 @@ export default function HabitTracker() {
     if (selectedStudyHabitSlug === selectedStudyHabit.slug) return;
     setSelectedStudyHabitSlug(selectedStudyHabit.slug);
   }, [data, selectedStudyHabit, selectedStudyHabitSlug]);
+
+  useEffect(() => {
+    if (!selectedStudyHabit || selectedStudyHabit.mode !== "duration") return;
+
+    const nextCalendarIds = [...new Set(selectedStudyHabit.sourceCalendarIds.filter(Boolean))];
+    const raw = window.localStorage.getItem(STUDY_CALENDAR_IDS_STORAGE_KEY);
+    let previousCalendarIds: string[] = [];
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw) as unknown;
+        if (Array.isArray(parsed)) {
+          previousCalendarIds = parsed.filter(
+            (value): value is string => typeof value === "string" && value.trim().length > 0
+          );
+        }
+      } catch {
+        previousCalendarIds = [];
+      }
+    }
+
+    const unchanged =
+      previousCalendarIds.length === nextCalendarIds.length &&
+      previousCalendarIds.every((value, index) => value === nextCalendarIds[index]);
+    if (unchanged) return;
+
+    window.localStorage.setItem(STUDY_CALENDAR_IDS_STORAGE_KEY, JSON.stringify(nextCalendarIds));
+    window.dispatchEvent(new CustomEvent("study-stats:study-calendars-updated"));
+  }, [selectedStudyHabit]);
 
   const hasWritableCalendars = calendars.length > 0;
   const hasSourceCalendars = sourceCalendars.length > 0;
