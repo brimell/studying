@@ -1872,10 +1872,7 @@ export default function HabitTracker() {
 
   return (
     <div className="surface-card p-6">
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-        <div>
-          <h2 className="text-lg font-semibold">📊 Habit Tracker</h2>
-        </div>
+      <div className="flex flex-wrap items-center justify-end gap-3 mb-4">
         <div className="flex items-center gap-2">
           <button
             type="button"

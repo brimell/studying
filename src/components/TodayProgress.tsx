@@ -89,8 +89,8 @@ export default function TodayProgress() {
     };
   }, [fetchData]);
 
-  if (loading) return <CardSkeleton title="Today's Progress" />;
-  if (error) return <CardError title="Today's Progress" error={error} />;
+  if (loading) return <CardSkeleton />;
+  if (error) return <CardError error={error} />;
   if (!data) return null;
 
   const remaining = Math.max(0, data.totalPlanned - data.totalCompleted);
@@ -98,7 +98,6 @@ export default function TodayProgress() {
 
   return (
     <div className="surface-card p-6">
-      <h2 className="text-lg font-semibold mb-4">Today&apos;s Study Progress</h2>
       <div className="flex items-center justify-between mb-2">
         <span className="text-sm text-zinc-500 stat-mono">
           {data.totalCompleted.toFixed(1)}h / {data.totalPlanned.toFixed(1)}h
@@ -120,19 +119,17 @@ export default function TodayProgress() {
   );
 }
 
-function CardSkeleton({ title }: { title: string }) {
+function CardSkeleton() {
   return (
     <div className="surface-card p-6 animate-pulse">
-      <h2 className="text-lg font-semibold mb-4">{title}</h2>
       <div className="h-6 bg-zinc-200 rounded-full" />
     </div>
   );
 }
 
-function CardError({ title, error }: { title: string; error: string }) {
+function CardError({ error }: { error: string }) {
   return (
     <div className="rounded-2xl bg-white p-6 shadow-sm border border-red-200">
-      <h2 className="text-lg font-semibold mb-2">{title}</h2>
       <p className="text-sm text-red-500">{error}</p>
     </div>
   );

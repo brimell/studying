@@ -248,8 +248,6 @@ export default function GamificationPanel() {
 
   return (
     <div className="surface-card p-6">
-      <h2 className="text-lg font-semibold mb-4">Gamification</h2>
-
       {loading && (
         <div className="h-32 flex items-center justify-center text-zinc-400 animate-pulse">Loading...</div>
       )}

@@ -217,7 +217,6 @@ export default function FirstExamCountdown() {
   return (
     <div className="surface-card p-6">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-lg font-semibold">Exam Countdown</h2>
         <div className="flex items-center gap-2">
           <button
             type="button"

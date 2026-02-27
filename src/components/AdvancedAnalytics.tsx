@@ -225,7 +225,6 @@ export default function AdvancedAnalytics() {
 
   return (
     <div className="surface-card p-6">
-      <h2 className="text-lg font-semibold mb-4">Advanced Analytics</h2>
       {loading && <div className="h-32 flex items-center justify-center text-zinc-400 animate-pulse">Loading...</div>}
       {error && <p className="text-sm text-red-500">{error}</p>}
       {!loading && !error && analytics && (
