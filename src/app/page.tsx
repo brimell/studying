@@ -120,7 +120,7 @@ export default function Home() {
 
           <div className="relative ml-auto" ref={menuRef}>
             <div className="flex items-center gap-2">
-              <TopBarDataControls mode="levelOnly" />
+              <TopBarDataControls mode="streakOnly" />
               <button
                 type="button"
                 onClick={() => setMenuOpen((current) => !current)}
@@ -128,7 +128,10 @@ export default function Home() {
                 aria-expanded={menuOpen}
                 aria-haspopup="menu"
               >
-                {userLabel}
+                <span className="inline-flex items-center gap-1.5">
+                  <span>{userLabel}</span>
+                  <TopBarDataControls mode="inlineLevel" />
+                </span>
               </button>
             </div>
 

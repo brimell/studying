@@ -6,6 +6,10 @@ import type { HabitDefinition, HabitTrackerData } from "@/lib/types";
 
 const TRACKER_CALENDAR_STORAGE_KEY = "study-stats.tracker-calendar-id";
 type TopBarDataControlsMode = "full" | "levelOnly" | "refreshOnly";
+type TopBarDataControlsModeExtended =
+  | TopBarDataControlsMode
+  | "streakOnly"
+  | "inlineLevel";
 
 function computeAllHabitsStreak(habits: HabitDefinition[]): number {
   if (habits.length === 0) return 0;
@@ -42,11 +46,13 @@ export default function TopBarDataControls({
   mode = "full",
   stacked = false,
 }: {
-  mode?: TopBarDataControlsMode;
+  mode?: TopBarDataControlsModeExtended;
   stacked?: boolean;
 }) {
-  const showLevel = mode !== "refreshOnly";
-  const showRefresh = mode !== "levelOnly";
+  const showLevel = mode === "full" || mode === "levelOnly" || mode === "inlineLevel";
+  const showRefresh = mode === "full" || mode === "refreshOnly";
+  const showInlineLevel = mode === "inlineLevel";
+  const showStreakPill = mode === "full" || mode === "levelOnly" || mode === "streakOnly";
   const lastFetchedAt = useSyncExternalStore(
     (onStoreChange) => {
       window.addEventListener("study-stats:last-fetched-updated", onStoreChange);
@@ -110,19 +116,31 @@ export default function TopBarDataControls({
     window.setTimeout(() => setRefreshing(false), 1000);
   };
 
+  if (showInlineLevel) {
+    return (
+      <span className="stat-mono text-[11px] leading-none">
+        Lvl {mounted && gamificationReady ? topBarLevel : "--"}
+      </span>
+    );
+  }
+
   return (
     <div className={stacked ? "flex flex-col items-stretch gap-1.5 w-full shrink-0" : "flex items-center gap-2 shrink-0"}>
-      {showLevel && (
+      {(showLevel || showStreakPill) && (
         <div className="flex items-center gap-1.5">
-          <span className="pill-btn text-[11px] px-2 py-1 inline-flex items-center gap-1">
-            <span>Level</span>
-            <span className="stat-mono leading-none">{mounted && gamificationReady ? topBarLevel : "--"}</span>
-          </span>
-          <span className="pill-btn text-[11px] px-2 py-1 hidden md:inline-flex items-center gap-1.5">
-            <span>All habits streak</span>
-            <span className="text-zinc-400">:</span>
-            <span className="stat-mono leading-none">{mounted && gamificationReady ? `${allHabitsStreak}d` : "--"}</span>
-          </span>
+          {showLevel && (
+            <span className="pill-btn text-[11px] px-2 py-1 inline-flex items-center gap-1">
+              <span>Lvl</span>
+              <span className="stat-mono leading-none">{mounted && gamificationReady ? topBarLevel : "--"}</span>
+            </span>
+          )}
+          {showStreakPill && (
+            <span className="pill-btn text-[11px] px-2 py-1 hidden md:inline-flex items-center gap-1.5">
+              <span>All habits streak</span>
+              <span className="text-zinc-400">:</span>
+              <span className="stat-mono leading-none">{mounted && gamificationReady ? `${allHabitsStreak}d` : "--"}</span>
+            </span>
+          )}
         </div>
       )}
       {showRefresh && (
