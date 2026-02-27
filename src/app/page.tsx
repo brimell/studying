@@ -5,7 +5,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useSession } from "next-auth/react";
+import type { Session } from "@supabase/supabase-js";
 import TopBarDataControls from "@/components/TopBarDataControls";
 import { lockBodyScroll, unlockBodyScroll } from "@/lib/scroll-lock";
 import { getSupabaseBrowserClient } from "@/lib/supabase-browser";
@@ -17,6 +17,20 @@ const Dashboard = dynamic(() => import("@/components/Dashboard"), {
 const DailyTrackerPopup = dynamic(() => import("@/components/DailyTrackerPopup"));
 const GamificationPanel = dynamic(() => import("@/components/GamificationPanel"));
 const GlobalSettingsPanel = dynamic(() => import("@/components/GlobalSettingsPanel"));
+const DEFAULT_DISPLAY_NAME = "John Doe";
+
+function normalizeDisplayName(input: string): string {
+  const value = input.trim();
+  if (!value) return DEFAULT_DISPLAY_NAME;
+  return value.slice(0, 60);
+}
+
+function getDisplayNameFromSession(session: Session | null): string {
+  const raw = session?.user.user_metadata?.display_name;
+  if (typeof raw !== "string") return DEFAULT_DISPLAY_NAME;
+  const normalized = raw.trim();
+  return normalized || DEFAULT_DISPLAY_NAME;
+}
 
 function readWideScreenPreference(): boolean {
   if (typeof window === "undefined") return true;
@@ -35,14 +49,19 @@ export default function Home() {
 function HomeContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { data: session } = useSession();
   const supabase = useState(() => getSupabaseBrowserClient())[0];
   const [wideScreen, setWideScreen] = useState<boolean>(readWideScreenPreference);
   const [useLeftSidebar, setUseLeftSidebar] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [gamificationOpen, setGamificationOpen] = useState(false);
   const [dailyTrackerOpen, setDailyTrackerOpen] = useState(false);
+  const [accountSession, setAccountSession] = useState<Session | null>(null);
+  const [displayNameDraft, setDisplayNameDraft] = useState(DEFAULT_DISPLAY_NAME);
+  const [updatingDisplayName, setUpdatingDisplayName] = useState(false);
+  const [displayNameError, setDisplayNameError] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
+
+  const userLabel = getDisplayNameFromSession(accountSession);
 
   useEffect(() => {
     window.localStorage.setItem(WIDE_SCREEN_STORAGE_KEY, String(wideScreen));
@@ -59,6 +78,28 @@ function HomeContent() {
       window.removeEventListener("storage", syncFromSettings);
     };
   }, []);
+
+  useEffect(() => {
+    if (!supabase) return;
+
+    let mounted = true;
+    void supabase.auth.getSession().then(({ data }) => {
+      if (!mounted) return;
+      const nextSession = data.session;
+      setAccountSession(nextSession);
+      setDisplayNameDraft(getDisplayNameFromSession(nextSession));
+    });
+
+    const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      setAccountSession(nextSession);
+      setDisplayNameDraft(getDisplayNameFromSession(nextSession));
+    });
+
+    return () => {
+      mounted = false;
+      data.subscription.unsubscribe();
+    };
+  }, [supabase]);
 
   useEffect(() => {
     const updateSidebarMode = () => {
@@ -142,7 +183,6 @@ function HomeContent() {
   const containerClass = wideScreen
     ? "w-full px-4 sm:px-6 lg:px-8"
     : "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8";
-  const userLabel = session?.user?.name?.trim() || "John Doe";
 
   function closeSettings() {
     const params = new URLSearchParams(searchParams.toString());
@@ -173,6 +213,27 @@ function HomeContent() {
     await supabase.auth.signOut();
     setMenuOpen(false);
     router.replace("/auth");
+  }
+
+  async function updateDisplayName() {
+    if (!supabase || !accountSession) return;
+    const normalized = normalizeDisplayName(displayNameDraft);
+    if (normalized === getDisplayNameFromSession(accountSession)) return;
+
+    setDisplayNameError(null);
+    setUpdatingDisplayName(true);
+    const { error } = await supabase.auth.updateUser({
+      data: {
+        ...accountSession.user.user_metadata,
+        display_name: normalized,
+      },
+    });
+    if (error) {
+      setDisplayNameError(error.message);
+    } else {
+      setDisplayNameDraft(normalized);
+    }
+    setUpdatingDisplayName(false);
   }
 
   return (
@@ -281,6 +342,33 @@ function HomeContent() {
                     <span className="text-xs text-zinc-600">
                       <TopBarDataControls mode="inlineLevel" />
                     </span>
+                  </div>
+                  <div className="rounded-lg border border-zinc-200 bg-white px-3 py-2 space-y-2">
+                    <label className="block text-xs text-zinc-600">
+                      Display name
+                      <input
+                        type="text"
+                        value={displayNameDraft}
+                        onChange={(event) => setDisplayNameDraft(event.target.value)}
+                        className="field-select w-full mt-1"
+                        maxLength={60}
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      className="pill-btn w-full text-left"
+                      onClick={updateDisplayName}
+                      disabled={
+                        updatingDisplayName ||
+                        normalizeDisplayName(displayNameDraft) ===
+                          getDisplayNameFromSession(accountSession)
+                      }
+                    >
+                      {updatingDisplayName ? "Saving..." : "Save display name"}
+                    </button>
+                    {displayNameError ? (
+                      <p className="text-xs text-red-600">{displayNameError}</p>
+                    ) : null}
                   </div>
                   <button
                     type="button"
