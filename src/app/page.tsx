@@ -7,6 +7,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import AuthButton from "@/components/AuthButton";
 import Dashboard from "@/components/Dashboard";
+import GamificationPanel from "@/components/GamificationPanel";
 import GlobalSettingsPanel from "@/components/GlobalSettingsPanel";
 import TopBarDataControls from "@/components/TopBarDataControls";
 import { lockBodyScroll, unlockBodyScroll } from "@/lib/scroll-lock";
@@ -34,6 +35,7 @@ function HomeContent() {
   const [wideScreen, setWideScreen] = useState<boolean>(readWideScreenPreference);
   const [useLeftSidebar, setUseLeftSidebar] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [gamificationOpen, setGamificationOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -64,10 +66,10 @@ function HomeContent() {
   const settingsOpen = searchParams.get("settings") === "1";
 
   useEffect(() => {
-    if (!settingsOpen) return;
+    if (!settingsOpen && !gamificationOpen) return;
     lockBodyScroll();
     return () => unlockBodyScroll();
-  }, [settingsOpen]);
+  }, [gamificationOpen, settingsOpen]);
 
   useEffect(() => {
     if (!settingsOpen) return;
@@ -84,6 +86,16 @@ function HomeContent() {
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [router, searchParams, settingsOpen]);
+
+  useEffect(() => {
+    if (!gamificationOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setGamificationOpen(false);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [gamificationOpen]);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -158,7 +170,10 @@ function HomeContent() {
             <div className={`flex items-center gap-2 ${useLeftSidebar ? "flex-col items-center" : ""}`}>
               {useLeftSidebar ? (
                 <>
-                  <TopBarDataControls mode="streakIconOnly" />
+                  <TopBarDataControls
+                    mode="streakIconOnly"
+                    onStreakClick={() => setGamificationOpen(true)}
+                  />
                   <button
                     type="button"
                     onClick={() => setMenuOpen((current) => !current)}
@@ -260,6 +275,35 @@ function HomeContent() {
                 </button>
               </div>
               <GlobalSettingsPanel />
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {gamificationOpen &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[180] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) setGamificationOpen(false);
+            }}
+          >
+            <div
+              className="surface-card-strong w-full max-w-5xl max-h-[90vh] overflow-y-auto p-4 sm:p-5"
+              onMouseDown={(event) => event.stopPropagation()}
+            >
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <h2 className="text-lg font-semibold">Gamification</h2>
+                <button
+                  type="button"
+                  onClick={() => setGamificationOpen(false)}
+                  className="pill-btn"
+                >
+                  Close
+                </button>
+              </div>
+              <GamificationPanel />
             </div>
           </div>,
           document.body

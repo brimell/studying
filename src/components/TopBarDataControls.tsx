@@ -47,10 +47,12 @@ export default function TopBarDataControls({
   mode = "full",
   stacked = false,
   showLastFetched = true,
+  onStreakClick,
 }: {
   mode?: TopBarDataControlsModeExtended;
   stacked?: boolean;
   showLastFetched?: boolean;
+  onStreakClick?: () => void;
 }) {
   const showLevel = mode === "full" || mode === "levelOnly" || mode === "inlineLevel";
   const showRefresh = mode === "full" || mode === "refreshOnly";
@@ -129,6 +131,19 @@ export default function TopBarDataControls({
   }
 
   if (showStreakIconOnly) {
+    if (onStreakClick) {
+      return (
+        <button
+          type="button"
+          onClick={onStreakClick}
+          className="pill-btn px-2 py-1 text-sm inline-flex flex-col items-center leading-none gap-0.5"
+          aria-label="Open gamification"
+        >
+          <span className="stat-mono">{mounted && gamificationReady ? allHabitsStreak : "--"}</span>
+          <span>🔥</span>
+        </button>
+      );
+    }
     return (
       <span className="pill-btn px-2 py-1 text-sm inline-flex flex-col items-center leading-none gap-0.5">
         <span className="stat-mono">{mounted && gamificationReady ? allHabitsStreak : "--"}</span>
