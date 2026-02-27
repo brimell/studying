@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useSession } from "next-auth/react";
 import AuthButton from "@/components/AuthButton";
 import Dashboard from "@/components/Dashboard";
 import TopBarDataControls from "@/components/TopBarDataControls";
@@ -10,6 +11,7 @@ import SupabaseAccountSync from "@/components/SupabaseAccountSync";
 const WIDE_SCREEN_STORAGE_KEY = "study-stats.layout.wide-screen";
 
 export default function Home() {
+  const { data: session } = useSession();
   const [wideScreen, setWideScreen] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
     return window.localStorage.getItem(WIDE_SCREEN_STORAGE_KEY) === "true";
@@ -55,12 +57,15 @@ export default function Home() {
   const containerClass = wideScreen
     ? "w-full px-4 sm:px-6 lg:px-8"
     : "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8";
+  const userLabel = session?.user?.name?.trim() || "John Doe";
 
   return (
     <div className="app-shell">
       {/* Header */}
       <header className="top-nav sticky top-0 z-50">
         <div className={`${containerClass} py-2 flex flex-col gap-2 sm:h-16 sm:flex-row sm:items-center sm:justify-between`}>
+          <h1 className="text-lg sm:text-xl font-bold tracking-tight text-zinc-900">Study Stats</h1>
+
           <div className="relative" ref={menuRef}>
             <div className="flex items-center gap-2">
               <button
@@ -70,7 +75,7 @@ export default function Home() {
                 aria-expanded={menuOpen}
                 aria-haspopup="menu"
               >
-                <h1 className="text-lg sm:text-xl font-bold tracking-tight text-zinc-900">Study Stats</h1>
+                {userLabel}
               </button>
               <TopBarDataControls mode="levelOnly" />
             </div>

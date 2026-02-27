@@ -12,6 +12,7 @@ const EXCLUDED_CACHE_KEY_PREFIXES = [
   "study-stats:habit-tracker:",
   "study-stats:global-last-fetched",
 ];
+const DEFAULT_DISPLAY_NAME = "John Doe";
 
 type SyncPayload = Record<string, string>;
 
@@ -65,6 +66,12 @@ function formatDate(dateIso: string | null): string {
   return date.toLocaleString();
 }
 
+function normalizeDisplayName(input: string | null | undefined): string {
+  const value = (input || "").trim();
+  if (!value) return DEFAULT_DISPLAY_NAME;
+  return value.slice(0, 60);
+}
+
 export default function SupabaseAccountSync() {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const [open, setOpen] = useState(false);
@@ -72,6 +79,7 @@ export default function SupabaseAccountSync() {
   const [session, setSession] = useState<Session | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [displayName, setDisplayName] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -85,6 +93,23 @@ export default function SupabaseAccountSync() {
   const suspendTrackingRef = useRef(false);
   const autoSyncInitializedRef = useRef(false);
 
+  const ensureSessionDisplayName = useCallback(
+    async (activeSession: Session | null) => {
+      if (!supabase || !activeSession) return;
+      const currentRaw = activeSession.user.user_metadata?.display_name;
+      const current =
+        typeof currentRaw === "string" ? currentRaw.trim() : "";
+      if (current.length > 0) return;
+      await supabase.auth.updateUser({
+        data: {
+          ...activeSession.user.user_metadata,
+          display_name: DEFAULT_DISPLAY_NAME,
+        },
+      });
+    },
+    [supabase]
+  );
+
   useEffect(() => {
     if (!supabase) return;
 
@@ -93,19 +118,25 @@ export default function SupabaseAccountSync() {
     supabase.auth.getSession().then(({ data }) => {
       if (!mounted) return;
       setSession(data.session);
+      if (data.session) {
+        void ensureSessionDisplayName(data.session);
+      }
     });
 
     const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession);
       setError(null);
       setMessage(null);
+      if (nextSession) {
+        void ensureSessionDisplayName(nextSession);
+      }
     });
 
     return () => {
       mounted = false;
       data.subscription.unsubscribe();
     };
-  }, [supabase]);
+  }, [ensureSessionDisplayName, supabase]);
 
   const callSyncApi = useCallback(
     async (method: "GET" | "PUT", payload?: SyncPayload) => {
@@ -173,12 +204,18 @@ export default function SupabaseAccountSync() {
     const { error: signUpError } = await supabase.auth.signUp({
       email,
       password,
+      options: {
+        data: {
+          display_name: normalizeDisplayName(displayName),
+        },
+      },
     });
     if (signUpError) {
       setError(signUpError.message);
     } else {
       setMessage("Sign-up complete. Check your email if confirmation is enabled.");
       setPassword("");
+      setDisplayName("");
     }
     setBusy(false);
   };
@@ -525,10 +562,19 @@ export default function SupabaseAccountSync() {
                 placeholder="Password"
                 className="field-select w-full border rounded-lg px-3 py-2 text-sm"
               />
+              {mode === "signup" && (
+                <input
+                  type="text"
+                  value={displayName}
+                  onChange={(event) => setDisplayName(event.target.value)}
+                  placeholder="Display name"
+                  className="field-select w-full border rounded-lg px-3 py-2 text-sm"
+                />
+              )}
 
               <button
                 type="button"
-                disabled={busy || !email || !password}
+                disabled={busy || !email || !password || (mode === "signup" && !displayName.trim())}
                 onClick={mode === "signin" ? handleSignIn : handleSignUp}
                 className="pill-btn pill-btn-primary w-full px-3 py-2"
               >
@@ -543,7 +589,14 @@ export default function SupabaseAccountSync() {
           {session && (
             <div className="space-y-3">
               <div className="text-xs text-zinc-500">
-                Signed in as <span className="font-medium">{session.user.email}</span>
+                Signed in as{" "}
+                <span className="font-medium">
+                  {normalizeDisplayName(
+                    typeof session.user.user_metadata?.display_name === "string"
+                      ? session.user.user_metadata.display_name
+                      : null
+                  )}
+                </span>
               </div>
               <div className="text-[11px] text-zinc-500">
                 Cloud updated: {formatDate(cloudUpdatedAt)}
