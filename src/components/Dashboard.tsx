@@ -346,17 +346,17 @@ export default function Dashboard() {
     if (!isDesktop) return undefined;
     return {
       gridTemplateColumns: `repeat(${gridColumns}, minmax(0, 1fr))`,
-      gridTemplateRows: `repeat(${gridRows}, minmax(150px, auto))`,
       gridAutoRows: "minmax(150px, auto)",
     };
-  }, [isDesktop, gridColumns, gridRows]);
+  }, [isDesktop, gridColumns]);
 
   const getCardStyle = (id: CardId): CSSProperties | undefined => {
     if (!isDesktop) return undefined;
     const { colSpan, rowSpan } = resolveCardLayout(cardSizes[id], gridColumns);
+    const effectiveRowSpan = id === "today-progress" ? 1 : rowSpan;
     return {
       gridColumn: `span ${colSpan} / span ${colSpan}`,
-      gridRow: `span ${rowSpan} / span ${rowSpan}`,
+      gridRow: `span ${effectiveRowSpan} / span ${effectiveRowSpan}`,
     };
   };
 
