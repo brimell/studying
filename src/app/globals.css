@@ -23,6 +23,8 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-cormorant), "Times New Roman", serif;
+  font-size: 1.07rem;
+  line-height: 1.5;
   min-height: 100vh;
   background-image:
     radial-gradient(circle at 8% 12%, rgba(45, 212, 191, 0.22), transparent 45%),
@@ -70,7 +72,7 @@ body {
   border-radius: 0.7rem;
   background: rgba(255, 255, 255, 0.82);
   padding: 0.42rem 0.78rem;
-  font-size: 0.76rem;
+  font-size: 0.86rem;
   font-weight: 600;
   color: #243248;
   transition: all 0.2s ease;
@@ -104,13 +106,24 @@ body {
   background: rgba(255, 255, 255, 0.76);
   color: #203046;
   padding: 0.3rem 0.5rem;
-  font-size: 0.75rem;
+  font-size: 0.88rem;
 }
 
 .panel-title {
-  font-size: 1.04rem;
+  font-size: 1.2rem;
   font-weight: 600;
   letter-spacing: -0.01em;
+}
+
+/* Slightly up-scale utility typography so Cormorant remains readable in dense cards. */
+.text-xs {
+  font-size: 0.86rem;
+  line-height: 1.2rem;
+}
+
+.text-sm {
+  font-size: 1rem;
+  line-height: 1.35rem;
 }
 
 @media (max-width: 768px) {
